@@ -1,0 +1,35 @@
+log_level = "INFO"
+
+[storage]
+data_dir = ".data"
+sqlite_filename = "ragdb.sqlite3"
+chroma_directory = "chroma"
+
+[embedding]
+provider = "local"
+local_model = "BAAI/bge-small-zh-v1.5"
+cloud_model = "text-embedding-3-small"
+cloud_base_url = "https://api.openai.com/v1"
+batch_size = 16
+
+[chunking]
+max_characters = 1200
+overlap_characters = 200
+
+[retrieval]
+vector_top_k = 20
+keyword_top_k = 20
+result_top_k = 10
+rrf_k = 60
+
+[crawl]
+max_depth = 1
+max_pages = 50
+requests_per_second = 1.0
+timeout_seconds = 20.0
+user_agent = "ragdb/0.1"
+
+[rerank]
+enabled = false
+candidate_count = 20
+batch_size = 4

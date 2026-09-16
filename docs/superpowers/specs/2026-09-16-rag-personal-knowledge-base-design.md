@@ -1,121 +1,121 @@
-# RAG Personal Knowledge Base Design
+# RAG 个人知识库设计文档
 
-## 1. Purpose
+## 1. 项目目标
 
-Build a Python-first personal knowledge base for artificial-intelligence study. The first phase focuses on local ingestion, indexing, management, and traceable retrieval. LLM-generated answers and a desktop UI are deliberately deferred until the retrieval foundation is stable.
+构建一个以 Python 为主、服务于人工智能专业学习的个人知识库。第一阶段专注于本地资料导入、索引、管理和可追溯检索；在检索基础稳定后，再加入大语言模型问答和桌面界面。
 
-The project runs primarily on Windows with Python 3.11.15, uses `uv` for environment and dependency management, and lives at `D:\python\RAG_db_test`.
+项目主要运行于 Windows，使用 Python 3.11.15，并通过 `uv` 管理运行环境和依赖。项目路径为 `D:\python\RAG_db_test`。
 
-## 2. Scope
+## 2. 项目范围
 
-### Phase 1
+### 第一阶段
 
-- Manage multiple isolated knowledge collections, such as courses, papers, and code projects.
-- Ingest PDF, Markdown, plain text, Word, PowerPoint, source code, configuration files, pasted text, directories, websites, and public GitHub repositories.
-- Watch selected directories and synchronize file additions, updates, moves, and deletions.
-- Detect scanned PDFs and offer optional OCR instead of requiring OCR dependencies by default.
-- Generate embeddings locally or through a cloud provider selected in configuration.
-- Persist vectors in ChromaDB and source catalog, task state, logs, and keyword indexes in SQLite.
-- Search with vector and keyword retrieval, reciprocal-rank fusion, metadata filters, and optional reranking.
-- Return original text and complete source attribution, including document path or URL, page or slide, metadata, retrieval method, and scores.
-- Provide a Chinese-first subcommand CLI.
+- 管理多个相互独立的知识集合，例如课程、论文和代码项目。
+- 导入 PDF、Markdown、纯文本、Word、PowerPoint、源代码、配置文件、粘贴文本、目录、网页和公开 GitHub 仓库。
+- 监听指定目录，并同步文件的新增、更新、移动和删除。
+- 检测扫描版 PDF；默认不强制安装 OCR 依赖，仅在需要时提供可选 OCR 能力。
+- 根据配置选择本地或云端嵌入模型生成向量。
+- 使用 ChromaDB 持久化向量；使用 SQLite 保存资料目录、任务状态、操作日志和关键词索引。
+- 支持向量与关键词混合检索、倒数排名融合、元数据筛选和可选重排序。
+- 返回原文和完整来源信息，包括文件路径或 URL、页码或幻灯片编号、元数据、召回方式和评分。
+- 提供以中文为主的子命令式 CLI。
 
-### Deferred to Phase 2
+### 第二阶段
 
-- LLM question answering and conversational memory.
-- Summaries, outlines, study notes, quizzes, and flashcards.
-- Native desktop application.
+- 大语言模型问答和多轮对话记忆。
+- 摘要、提纲、学习笔记、练习题和知识卡片。
+- 原生桌面应用。
 
-The Phase 1 interfaces must allow these capabilities to be added without replacing the ingestion or retrieval core.
+第一阶段的接口必须允许后续加入这些能力，而不需要替换已有的导入和检索核心。
 
-## 3. Architecture
+## 3. 总体架构
 
-Use a modular monolith. Each module has a narrow responsibility and communicates through project-owned interfaces.
+项目采用模块化单体架构。每个模块职责单一，并通过项目自有接口进行协作。
 
 ```text
-CLI
-  -> application services
-       -> collection management
-       -> ingestion and synchronization
-       -> search
-       -> index maintenance
-  -> core services
-       -> parsers
-       -> chunkers
-       -> embedding providers
-       -> keyword and vector retrieval
-       -> fusion and reranking
-  -> infrastructure adapters
+CLI 命令层
+  -> 应用服务层
+       -> 集合管理
+       -> 资料导入与同步
+       -> 检索服务
+       -> 索引维护
+  -> 核心能力层
+       -> 文档解析器
+       -> 文本分块器
+       -> 嵌入模型适配器
+       -> 关键词与向量检索
+       -> 融合与重排序
+  -> 基础设施适配层
        -> ChromaDB
        -> SQLite/FTS5
-       -> filesystem watcher
-       -> web crawler
-       -> public GitHub importer
+       -> 文件系统监听器
+       -> 网页抓取器
+       -> GitHub 公开仓库导入器
 ```
 
-The core must not depend on the CLI. Future desktop and API layers will call the same application services. Third-party frameworks, if used, remain behind adapters so project behavior is not tied to one orchestration framework.
+核心逻辑不依赖 CLI。未来的桌面端和 API 层调用相同的应用服务。第三方框架如被采用，只能位于适配层之后，避免项目行为绑定到单一编排框架。
 
-## 4. Data Model
+## 4. 数据模型
 
-Each collection has independent source records and indexes. A normalized source record includes:
+每个集合拥有独立的资料记录和索引。标准化资料记录包含：
 
-- Stable source identifier and collection identifier.
-- Source type, title, path or URL, and content hash.
-- Import and last-update timestamps.
-- Processing status and latest task result.
-- User metadata such as tags, course, author, and topic.
-- Parser and embedding configuration used to build the index.
+- 稳定的资料标识和集合标识。
+- 资料类型、标题、路径或 URL，以及内容哈希。
+- 导入时间和最后更新时间。
+- 处理状态和最近一次任务结果。
+- 标签、课程、作者和主题等用户元数据。
+- 构建索引时使用的解析器和嵌入配置。
 
-Each chunk includes:
+每个文本切片包含：
 
-- Stable chunk identifier and parent source identifier.
-- Original text and normalized text.
-- Heading hierarchy or code symbol context when available.
-- Page, slide, line range, repository path, or webpage locator.
-- File type, language, tags, and source metadata.
-- Vector and keyword index linkage.
+- 稳定的切片标识和所属资料标识。
+- 原始文本和标准化文本。
+- 可获取时保存标题层级或代码符号上下文。
+- 页码、幻灯片编号、行号范围、仓库路径或网页定位信息。
+- 文件类型、语言、标签和资料元数据。
+- 向量索引与关键词索引的关联信息。
 
-API keys and secrets never enter stored source metadata or logs.
+API Key 和其他密钥不得写入资料元数据或日志。
 
-## 5. Ingestion Pipeline
+## 5. 资料导入流程
 
 ```text
-source input
-  -> validation and source-specific parsing
-  -> normalized document and metadata
-  -> content-hash duplicate/version check
-  -> structure-aware chunking
-  -> local or cloud embedding
-  -> ChromaDB and SQLite index update
-  -> task record and operation log
+输入资料
+  -> 校验并调用对应来源解析器
+  -> 生成标准化文档和元数据
+  -> 通过内容哈希判断重复或版本变化
+  -> 按文档结构分块
+  -> 使用本地或云端模型生成嵌入向量
+  -> 更新 ChromaDB 与 SQLite 索引
+  -> 写入任务记录和操作日志
 ```
 
-Supported entry points are individual files, directories, pasted text, watched directories, website URLs, and public GitHub URLs.
+导入入口包括单个文件、目录、粘贴文本、受监听目录、网页 URL 和公开 GitHub 仓库 URL。
 
-Unchanged content is skipped. Changed content replaces only that source's chunks after the new index data has been built successfully. Removing or moving a watched source automatically removes stale index entries and records the action.
+内容未变化时跳过导入。内容变化时，先成功构建新索引，再替换该资料原有的文本切片。受监听资料被删除或移动后，系统自动移除失效索引并记录操作。
 
-Web crawling is conservative by default: same-domain only, honors `robots.txt`, enforces rate and page limits, and requires explicit depth and scope. Public GitHub imports exclude binary files, generated/build directories, dependency directories, and files above a configurable size limit.
+网页抓取默认采用保守策略：仅限同域名、遵守 `robots.txt`、限制访问频率和页面数量，并要求明确设置抓取深度与范围。公开 GitHub 仓库导入会排除二进制文件、构建产物目录、依赖目录和超过配置大小限制的文件。
 
-PDFs use their text layer by default. If insufficient text is detected, the task reports that OCR is needed and can rerun with optional OCR support.
+PDF 默认解析文本层。若检测到可提取文本不足，任务会提示需要 OCR，并允许在启用可选 OCR 支持后重新执行。
 
-## 6. Retrieval Pipeline
+## 6. 检索流程
 
 ```text
-query
-  -> ChromaDB semantic candidates
-  -> SQLite FTS5 keyword candidates
-  -> deduplication and reciprocal-rank fusion
-  -> optional lightweight reranker
-  -> filters, formatting, and source attribution
+用户查询
+  -> ChromaDB 语义召回
+  -> SQLite FTS5 关键词召回
+  -> 去重与倒数排名融合（RRF）
+  -> 可选的轻量重排序模型
+  -> 条件筛选、结果格式化与来源标注
 ```
 
-Hybrid retrieval is the default because AI study material combines conceptual language with exact paper names, model names, formulas, and identifiers. Reranking is disabled by default for low-resource CPU machines and can be enabled per collection or query.
+混合检索为默认方案，因为人工智能学习资料既包含概念性表达，也包含论文名称、模型名称、公式和标识符等精确术语。考虑到目标设备为低资源 CPU 环境，重排序默认关闭，可按集合或单次查询启用。
 
-Search supports filters for collection, source type, tags, course, author, date, and origin. Results include highlighted original text, source path or URL, page/slide/code location, semantic score, keyword score, retrieval route, fusion rank, and reranker score when applicable.
+检索支持按集合、资料类型、标签、课程、作者、日期和来源筛选。结果包含高亮原文、文件路径或 URL、页码/幻灯片/代码位置、语义分数、关键词分数、召回路径、融合排名，以及启用时的重排序分数。
 
-## 7. CLI and Configuration
+## 7. CLI 与配置
 
-The executable command is `ragdb`. Planned command groups are:
+统一可执行命令为 `ragdb`，计划提供以下命令组：
 
 ```text
 ragdb init
@@ -130,57 +130,57 @@ ragdb reindex
 ragdb doctor
 ```
 
-Source and search operations require an explicit collection. Destructive collection and bulk-cleanup operations require confirmation. Batch operations show progress and summarize successes, skips, updates, and failures.
+资料操作和检索操作必须明确指定集合。删除集合和批量清理等破坏性操作必须经过确认。批量任务需要显示进度，并汇总成功、跳过、更新和失败数量。
 
-`config.toml` stores non-secret settings such as database paths, embedding provider, chunking, retrieval, crawling, and reranking. `.env` stores cloud credentials. Database files, caches, downloaded working copies, and logs live under `.data/` by default and are excluded from Git.
+`config.toml` 保存数据库路径、嵌入模型、分块、检索、网页抓取和重排序等非敏感配置；`.env` 保存云端服务凭据。数据库、缓存、下载的工作副本和日志默认保存在 `.data/` 下，并通过 `.gitignore` 排除。
 
-CLI output is Chinese-first. Diagnostic logs retain technical details needed for troubleshooting.
+CLI 输出以中文为主，诊断日志保留排查问题所需的技术细节。
 
-## 8. Failure Handling
+## 8. 异常处理
 
-- A failed source does not stop the rest of a batch.
-- Network ingestion applies timeouts, rate limits, bounded retries, and hard page limits.
-- Parsed data may be retained as task state when embedding is temporarily unavailable, allowing indexing to resume.
-- Updates build replacement index data before removing the previous valid version.
-- Every ingestion task records success, skipped, updated, and failed items with actionable reasons.
-- Sensitive environment values are redacted from logs and errors.
-- A collection detects embedding or index-schema changes and requires an explicit rebuild.
-- `ragdb doctor` checks configuration, storage, model availability, optional OCR, and network-ingestion prerequisites.
+- 单个资料处理失败不应中断同批次其他资料。
+- 网络导入必须设置超时、限速、有限次数重试和严格的页面数量上限。
+- 嵌入服务暂时不可用时，可以保留已解析的任务状态，以便之后继续建立索引。
+- 更新资料时，先构建替代索引，再移除上一份有效版本。
+- 每次导入任务记录成功、跳过、更新和失败项，并给出可操作的失败原因。
+- 日志和错误信息必须隐藏环境变量中的敏感值。
+- 当嵌入模型或索引结构发生变化时，集合必须检测到变化并要求显式重建。
+- `ragdb doctor` 检查配置、存储、模型、可选 OCR 和网络导入的运行条件。
 
-## 9. Verification
+## 9. 质量验证
 
-Phase 1 does not require CI, Docker, or a coverage target. It still includes focused automated verification for high-risk behavior:
+第一阶段不要求配置 CI、Docker 或覆盖率指标，但仍需针对高风险行为提供必要的自动化验证：
 
-- Content hashing, duplicate skipping, incremental replacement, and deletion synchronization.
-- Representative parser samples and metadata/location preservation.
-- Vector, keyword, fusion, filtering, and optional reranking behavior.
-- End-to-end ingestion and search against temporary ChromaDB and SQLite stores.
-- Windows paths, Chinese filenames, and text encoding.
+- 内容哈希、重复跳过、增量替换和删除同步。
+- 各解析器的代表性样例，以及元数据和原文位置的保留情况。
+- 向量检索、关键词检索、融合、筛选和可选重排序行为。
+- 在临时 ChromaDB 和 SQLite 数据库上执行完整的导入与检索流程。
+- Windows 路径、中文文件名和文本编码。
 
-## 10. Delivery Workflow
+## 10. 交付流程
 
-Development uses one feature branch and pull request for each independently verifiable milestone:
+开发过程按可独立验证的里程碑创建功能分支和 Pull Request：
 
-1. `feature/project-bootstrap`: initialize `uv`, package layout, configuration, CLI, logging, and ignore rules.
-2. `feature/collections-storage`: collections, SQLite catalog, ChromaDB persistence, and metadata contracts.
-3. `feature/document-ingestion`: local parsers, chunking, hashing, and manual text.
-4. `feature/embeddings-indexing`: local/cloud embedding adapters, batching, updates, and recovery.
-5. `feature/hybrid-search`: semantic and keyword retrieval, RRF, filters, attribution, and reranking hook.
-6. `feature/web-github-import`: bounded website crawling and public GitHub repository ingestion.
-7. `feature/watch-management`: directory watching, deletion sync, source management, rebuilds, and task logs.
-8. `feature/cli-polish`: Chinese UX, progress, diagnostics, sample configuration, focused tests, and README.
+1. `feature/project-bootstrap`：初始化 `uv`、包结构、配置、CLI、日志和忽略规则。
+2. `feature/collections-storage`：实现集合、SQLite 资料目录、ChromaDB 持久化和元数据契约。
+3. `feature/document-ingestion`：实现本地资料解析器、分块、哈希和手动文本导入。
+4. `feature/embeddings-indexing`：实现本地/云端嵌入适配器、批处理、增量更新和失败恢复。
+5. `feature/hybrid-search`：实现语义与关键词检索、RRF、筛选、来源标注和重排序接口。
+6. `feature/web-github-import`：实现有边界的网页抓取与 GitHub 公开仓库导入。
+7. `feature/watch-management`：实现目录监听、删除同步、资料管理、重建索引和任务日志。
+8. `feature/cli-polish`：完善中文交互、进度显示、诊断、配置示例、必要测试和 README。
 
-Each branch is locally verified before commit and push, then merged through a pull request.
+每个分支在本地验证后提交并推送，然后通过 Pull Request 合并。
 
-## 11. Phase 1 Acceptance Criteria
+## 11. 第一阶段验收标准
 
-Phase 1 is complete when a Windows user can:
+当 Windows 用户可以完成以下操作时，第一阶段视为完成：
 
-- Install and run the project with Python 3.11 and `uv`.
-- Create and manage multiple independent collections.
-- Import every agreed source type and inspect source/task status.
-- Re-import without duplicating unchanged content and synchronize watched deletions.
-- Choose a configured local or cloud embedding provider.
-- Search one collection with hybrid retrieval and optional reranking.
-- Filter results and inspect complete, accurate source locations and retrieval scores.
-- Diagnose configuration or dependency failures with clear CLI output.
+- 使用 Python 3.11 和 `uv` 安装并运行项目。
+- 创建和管理多个相互独立的知识集合。
+- 导入所有约定的资料类型，并查看资料和任务状态。
+- 重复导入时不产生未变化内容的副本，并能同步受监听资料的删除操作。
+- 使用配置选择本地或云端嵌入模型。
+- 在指定集合中执行混合检索，并按需启用重排序。
+- 筛选结果，并查看完整、准确的原文位置和检索评分。
+- 通过清晰的 CLI 输出诊断配置或依赖问题。

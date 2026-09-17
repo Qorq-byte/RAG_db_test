@@ -54,6 +54,21 @@ class TaskRepository(Protocol):
 
 
 @runtime_checkable
+class ChunkRepository(Protocol):
+    def add_many(self, chunks: Sequence[Chunk]) -> None: ...
+
+    def list_for_source(
+        self,
+        source_id: UUID,
+        generation: int | None = None,
+    ) -> Sequence[Chunk]: ...
+
+    def delete_source_generation(self, source_id: UUID, generation: int) -> int: ...
+
+    def delete_for_source(self, source_id: UUID) -> int: ...
+
+
+@runtime_checkable
 class DocumentParser(Protocol):
     @property
     def name(self) -> str: ...

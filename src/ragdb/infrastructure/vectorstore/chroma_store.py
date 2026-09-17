@@ -169,10 +169,13 @@ class ChromaVectorStore:
     def __init__(self, directory: Path) -> None:
         self.directory = directory
         self.directory.mkdir(parents=True, exist_ok=True)
-        self._client = chromadb.PersistentClient(
-            path=self.directory,
-            settings=Settings(anonymized_telemetry=False),
-        )
+        try:
+            self._client = chromadb.PersistentClient(
+                path=self.directory,
+                settings=Settings(anonymized_telemetry=False),
+            )
+        except ChromaError as exc:
+            raise StorageError("初始化 ChromaDB 失败") from exc
 
     @staticmethod
     def collection_name(collection_id: UUID) -> str:

@@ -3,14 +3,26 @@
 from enum import IntEnum
 from pathlib import Path
 from typing import Annotated
+from uuid import UUID
 
 import typer
 
 from ragdb import __version__
 from ragdb.application.collections import CollectionService
+from ragdb.application.ingestion import IngestionResult, LocalIngestionService
+from ragdb.application.sources import SourceService
 from ragdb.config import load_settings
 from ragdb.domain.errors import ConflictError, NotFoundError, RagdbError, StorageError
-from ragdb.infrastructure.database import SQLiteCollectionRepository, SQLiteDatabase
+from ragdb.infrastructure.chunking import StructuredChunker
+from ragdb.infrastructure.database import (
+    SQLiteChunkRepository,
+    SQLiteCollectionRepository,
+    SQLiteDatabase,
+    SQLiteKeywordIndex,
+    SQLiteSourceRepository,
+    SQLiteTaskRepository,
+)
+from ragdb.infrastructure.parsers import ParserRegistry
 from ragdb.infrastructure.vectorstore import ChromaVectorStore
 
 
@@ -45,6 +57,14 @@ def _pending(feature: str) -> None:
 
 
 def _collection_service(ctx: typer.Context) -> CollectionService:
+    settings, database = _runtime(ctx)
+    vector_store = ChromaVectorStore(
+        settings.storage.data_dir / settings.storage.chroma_directory
+    )
+    return CollectionService(SQLiteCollectionRepository(database), vector_store)
+
+
+def _runtime(ctx: typer.Context):
     root = ctx.find_root()
     config_path = root.obj.get("config_path", Path("config.toml"))
     settings = load_settings(config_path=config_path)
@@ -52,10 +72,52 @@ def _collection_service(ctx: typer.Context) -> CollectionService:
         settings.storage.data_dir / settings.storage.sqlite_filename
     )
     database.initialize()
-    vector_store = ChromaVectorStore(
-        settings.storage.data_dir / settings.storage.chroma_directory
+    return settings, database
+
+
+def _local_ingestion_service(ctx: typer.Context) -> tuple[LocalIngestionService, SQLiteCollectionRepository]:
+    settings, database = _runtime(ctx)
+    return (
+        LocalIngestionService(
+            SQLiteSourceRepository(database),
+            SQLiteChunkRepository(database),
+            SQLiteTaskRepository(database),
+            ParserRegistry(),
+            StructuredChunker(settings.chunking),
+            SQLiteKeywordIndex(database),
+        ),
+        SQLiteCollectionRepository(database),
     )
-    return CollectionService(SQLiteCollectionRepository(database), vector_store)
+
+
+def _source_service(ctx: typer.Context) -> tuple[SourceService, SQLiteCollectionRepository]:
+    _, database = _runtime(ctx)
+    return SourceService(SQLiteSourceRepository(database)), SQLiteCollectionRepository(database)
+
+
+def _require_collection(repository: SQLiteCollectionRepository, name: str):
+    from ragdb.domain.errors import CollectionNotFoundError
+
+    collection = repository.get_by_name(name)
+    if collection is None:
+        raise CollectionNotFoundError(name)
+    return collection
+
+
+def _print_ingestion_result(result: IngestionResult) -> None:
+    labels = {
+        "created": "已导入",
+        "updated": "已更新",
+        "skipped": "已跳过",
+        "failed": "导入失败",
+    }
+    typer.echo(f"{labels[result.status.value]}：{result.uri}")
+    if result.source is not None:
+        typer.echo(f"资料 ID：{result.source.id}")
+    if result.chunk_count:
+        typer.echo(f"文本切片：{result.chunk_count}")
+    if result.message:
+        typer.echo(f"说明：{result.message}")
 
 
 def _exit_for_error(error: RagdbError) -> None:
@@ -185,32 +247,60 @@ def collection_delete(
 
 @ingest_app.command("file")
 def ingest_file(
+    ctx: typer.Context,
     path: Annotated[Path, typer.Argument(help="文件路径。")],
     collection: Annotated[str, typer.Option("--collection", "-c")],
 ) -> None:
     """导入单个文件。"""
 
-    _pending(f"导入文件 {path} 到 {collection}")
+    try:
+        service, collections = _local_ingestion_service(ctx)
+        result = service.ingest_file(_require_collection(collections, collection), path)
+    except RagdbError as error:
+        _exit_for_error(error)
+    _print_ingestion_result(result)
 
 
 @ingest_app.command("directory")
 def ingest_directory(
+    ctx: typer.Context,
     path: Annotated[Path, typer.Argument(help="目录路径。")],
     collection: Annotated[str, typer.Option("--collection", "-c")],
 ) -> None:
     """导入目录。"""
 
-    _pending(f"导入目录 {path} 到 {collection}")
+    try:
+        service, collections = _local_ingestion_service(ctx)
+        result = service.ingest_directory(
+            _require_collection(collections, collection), path
+        )
+    except RagdbError as error:
+        _exit_for_error(error)
+    for item in result.items:
+        _print_ingestion_result(item)
+    typer.echo(
+        f"任务完成：新增 {result.task.succeeded}，更新 {result.task.updated}，"
+        f"跳过 {result.task.skipped}，失败 {result.task.failed}"
+    )
 
 
 @ingest_app.command("text")
 def ingest_text(
+    ctx: typer.Context,
     text: Annotated[str, typer.Argument(help="要导入的文本。")],
     collection: Annotated[str, typer.Option("--collection", "-c")],
+    title: Annotated[str, typer.Option("--title", "-t", help="资料标题。")] = "手动文本",
 ) -> None:
     """导入手动输入的文本。"""
 
-    _pending(f"导入文本到 {collection}: {text[:20]}")
+    try:
+        service, collections = _local_ingestion_service(ctx)
+        result = service.ingest_text(
+            _require_collection(collections, collection), text, title
+        )
+    except RagdbError as error:
+        _exit_for_error(error)
+    _print_ingestion_result(result)
 
 
 @app.command()
@@ -269,25 +359,67 @@ def search(
 
 @source_app.command("list")
 def source_list(
+    ctx: typer.Context,
     collection: Annotated[str, typer.Option("--collection", "-c")],
 ) -> None:
     """列出集合中的资料。"""
 
-    _pending(f"列出 {collection} 的资料")
+    try:
+        service, collections = _source_service(ctx)
+        sources = service.list_for_collection(_require_collection(collections, collection))
+    except RagdbError as error:
+        _exit_for_error(error)
+    if not sources:
+        typer.echo("暂无资料。")
+        return
+    typer.echo("标题\t类型\t状态\t代次\tID")
+    for source in sources:
+        typer.echo(
+            f"{source.title}\t{source.source_type.value}\t{source.status.value}\t"
+            f"{source.current_generation}\t{source.id}"
+        )
 
 
 @source_app.command("show")
-def source_show(source_id: Annotated[str, typer.Argument(help="资料 ID。")]) -> None:
+def source_show(
+    ctx: typer.Context,
+    source_id: Annotated[UUID, typer.Argument(help="资料 ID。")],
+) -> None:
     """查看资料详情。"""
 
-    _pending(f"资料详情 {source_id}")
+    try:
+        service, _ = _source_service(ctx)
+        source = service.get(source_id)
+    except RagdbError as error:
+        _exit_for_error(error)
+    typer.echo(f"标题：{source.title}")
+    typer.echo(f"ID：{source.id}")
+    typer.echo(f"类型：{source.source_type.value}")
+    typer.echo(f"状态：{source.status.value}")
+    typer.echo(f"代次：{source.current_generation}")
+    typer.echo(f"位置：{source.uri}")
+    if source.error_message:
+        typer.echo(f"错误：{source.error_message}")
 
 
 @source_app.command("delete")
-def source_delete(source_id: Annotated[str, typer.Argument(help="资料 ID。")]) -> None:
+def source_delete(
+    ctx: typer.Context,
+    source_id: Annotated[UUID, typer.Argument(help="资料 ID。")],
+    yes: Annotated[bool, typer.Option("--yes", "-y", help="跳过删除确认。")] = False,
+) -> None:
     """删除资料及其索引。"""
 
-    _pending(f"删除资料 {source_id}")
+    try:
+        service, _ = _source_service(ctx)
+        source = service.get(source_id)
+        if not yes and not typer.confirm(f"确认删除资料“{source.title}”及其文本索引？"):
+            typer.echo("已取消。")
+            return
+        service.delete(source_id)
+    except RagdbError as error:
+        _exit_for_error(error)
+    typer.echo(f"已删除资料：{source.title}")
 
 
 @app.command()

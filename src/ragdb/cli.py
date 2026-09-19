@@ -380,11 +380,18 @@ def search(
     ctx: typer.Context,
     query: Annotated[str, typer.Argument(help="检索内容。")],
     collection: Annotated[str, typer.Option("--collection", "-c")],
+    source_type: Annotated[str | None, typer.Option("--source-type", help="按资料类型筛选。")] = None,
+    source_id: Annotated[UUID | None, typer.Option("--source-id", help="按资料 ID 筛选。")] = None,
 ) -> None:
     """在指定集合中执行混合检索。"""
     try:
         service, collections = _search_service(ctx)
-        hits = service.search(_require_collection(collections, collection).id, query)
+        filters = {}
+        if source_type:
+            filters["source_type"] = source_type
+        if source_id:
+            filters["source_id"] = str(source_id)
+        hits = service.search(_require_collection(collections, collection).id, query, filters)
     except RagdbError as error:
         _exit_for_error(error)
     if not hits:

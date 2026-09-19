@@ -245,7 +245,8 @@ class LocalIngestionService:
         try:
             document = parse()
             chunks = tuple(
-                self.chunker.chunk(
+                chunk.model_copy(update={"metadata": {**chunk.metadata, "source_type": source.source_type.value}})
+                for chunk in self.chunker.chunk(
                     document,
                     source.collection_id,
                     source.content_hash,

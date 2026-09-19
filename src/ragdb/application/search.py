@@ -7,7 +7,7 @@ from pydantic import JsonValue
 
 from ragdb.domain.enums import RetrievalRoute
 from ragdb.domain.models import SearchHit, SearchScores
-from ragdb.domain.ports import EmbeddingProvider, KeywordIndex, SourceRepository, VectorStore
+from ragdb.domain.ports import EmbeddingProvider, KeywordIndex, Reranker, SourceRepository, VectorStore
 from ragdb.infrastructure.retrieval.fusion import reciprocal_rank_fusion
 
 
@@ -23,6 +23,8 @@ class SearchService:
         keyword_top_k: int = 20,
         result_top_k: int = 10,
         rrf_k: int = 60,
+        reranker: Reranker | None = None,
+        rerank_candidate_count: int = 20,
     ) -> None:
         self.embedding_provider = embedding_provider
         self.vector_store = vector_store
@@ -32,6 +34,8 @@ class SearchService:
         self.keyword_top_k = keyword_top_k
         self.result_top_k = result_top_k
         self.rrf_k = rrf_k
+        self.reranker = reranker
+        self.rerank_candidate_count = rerank_candidate_count
 
     def search(
         self, collection_id: UUID, query: str, filters: Mapping[str, JsonValue] | None = None
@@ -44,7 +48,11 @@ class SearchService:
             raise RuntimeError("嵌入模型必须为单条查询返回一个向量")
         vectors = self.vector_store.search(collection_id, embeddings[0], self.vector_top_k, filters)
         keywords = self.keyword_index.search(collection_id, query, self.keyword_top_k, filters)
-        fused = reciprocal_rank_fusion([vectors, keywords], self.rrf_k)[: self.result_top_k]
+        fused = reciprocal_rank_fusion([vectors, keywords], self.rrf_k)
+        if self.reranker is not None:
+            fused = self.reranker.rerank(query, fused[: self.rerank_candidate_count], self.result_top_k)
+        else:
+            fused = fused[: self.result_top_k]
         vector_scores = {item.chunk.id: item.score for item in vectors}
         keyword_scores = {item.chunk.id: item.score for item in keywords}
         hits: list[SearchHit] = []

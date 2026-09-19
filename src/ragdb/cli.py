@@ -16,6 +16,7 @@ from ragdb.config import load_settings
 from ragdb.domain.errors import ConflictError, NotFoundError, RagdbError, StorageError
 from ragdb.infrastructure.chunking import StructuredChunker
 from ragdb.infrastructure.embeddings import create_embedding_provider
+from ragdb.infrastructure.retrieval import CrossEncoderReranker
 from ragdb.infrastructure.database import (
     SQLiteChunkRepository,
     SQLiteCollectionRepository,
@@ -101,6 +102,11 @@ def _source_service(ctx: typer.Context) -> tuple[SourceService, SQLiteCollection
 
 def _search_service(ctx: typer.Context) -> tuple[SearchService, SQLiteCollectionRepository]:
     settings, database = _runtime(ctx)
+    reranker = None
+    if settings.rerank.enabled:
+        if not settings.rerank.model:
+            raise typer.BadParameter("启用重排序时必须配置 rerank.model")
+        reranker = CrossEncoderReranker(settings.rerank.model, settings.rerank.batch_size)
     return (
         SearchService(
             create_embedding_provider(settings.embedding),
@@ -110,6 +116,8 @@ def _search_service(ctx: typer.Context) -> tuple[SearchService, SQLiteCollection
             keyword_top_k=settings.retrieval.keyword_top_k,
             result_top_k=settings.retrieval.result_top_k,
             rrf_k=settings.retrieval.rrf_k,
+            reranker=reranker,
+            rerank_candidate_count=settings.rerank.candidate_count,
         ),
         SQLiteCollectionRepository(database),
     )

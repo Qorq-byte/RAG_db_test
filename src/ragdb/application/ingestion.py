@@ -9,7 +9,15 @@ from pathlib import Path
 from ragdb.domain.enums import SourceStatus, SourceType, TaskItemStatus, TaskStatus
 from ragdb.domain.errors import DocumentParseError, OcrRequiredError, RagdbError, UnsupportedSourceError
 from ragdb.domain.models import Collection, Document, DocumentUnit, IngestionTask, Source, utc_now
-from ragdb.domain.ports import ChunkRepository, Chunker, KeywordIndex, SourceRepository, TaskRepository
+from ragdb.domain.ports import (
+    ChunkRepository,
+    Chunker,
+    EmbeddingProvider,
+    KeywordIndex,
+    SourceRepository,
+    TaskRepository,
+    VectorStore,
+)
 from ragdb.infrastructure.parsers.registry import ParserRegistry
 
 
@@ -59,6 +67,8 @@ class LocalIngestionService:
         parser_registry: ParserRegistry,
         chunker: Chunker,
         keyword_index: KeywordIndex,
+        embedding_provider: EmbeddingProvider | None = None,
+        vector_store: VectorStore | None = None,
         max_file_size_bytes: int = 10 * 1024 * 1024,
     ) -> None:
         if max_file_size_bytes < 1:
@@ -69,6 +79,10 @@ class LocalIngestionService:
         self.parser_registry = parser_registry
         self.chunker = chunker
         self.keyword_index = keyword_index
+        if (embedding_provider is None) != (vector_store is None):
+            raise ValueError("嵌入模型与向量库必须同时配置")
+        self.embedding_provider = embedding_provider
+        self.vector_store = vector_store
         self.max_file_size_bytes = max_file_size_bytes
 
     def ingest_file(self, collection: Collection, path: Path) -> IngestionResult:
@@ -227,6 +241,7 @@ class LocalIngestionService:
     ) -> IngestionResult:
         generation = source.current_generation + 1
         stored_chunks = False
+        stored_vectors = False
         try:
             document = parse()
             chunks = tuple(
@@ -237,32 +252,53 @@ class LocalIngestionService:
                     generation,
                 )
             )
+            if self.embedding_provider is not None and self.vector_store is not None:
+                embeddings = self.embedding_provider.embed_texts([chunk.text for chunk in chunks])
+                if len(embeddings) != len(chunks):
+                    raise RuntimeError("嵌入模型返回的向量数量与切片数量不一致")
+                # New vectors are written before SQLite points the source at them.
+                self.vector_store.upsert(chunks, embeddings)
+                stored_vectors = True
             self.chunk_repository.add_many(chunks)
             stored_chunks = True
             self.keyword_index.index(chunks)
+            updates = {
+                "status": SourceStatus.READY,
+                "current_generation": generation,
+                "updated_at": utc_now(),
+                "error_message": None,
+            }
+            if self.embedding_provider is not None:
+                updates["embedding_provider"] = self.embedding_provider.provider_name
+                updates["embedding_model"] = self.embedding_provider.model_name
             ready = source.model_copy(
-                update={
-                    "status": SourceStatus.READY,
-                    "current_generation": generation,
-                    "updated_at": utc_now(),
-                    "error_message": None,
-                }
+                update=updates
             )
             self.source_repository.update(ready)
             if previous is not None and previous.current_generation > 0:
                 self.chunk_repository.delete_source_generation(
                     source.id, previous.current_generation
                 )
+                if self.vector_store is not None:
+                    self.vector_store.delete_source_generation(
+                        source.collection_id, source.id, previous.current_generation
+                    )
             status = TaskItemStatus.CREATED if previous is None else TaskItemStatus.UPDATED
             return IngestionResult(source.uri, status, ready, chunk_count=len(chunks))
         except Exception as exc:
             if stored_chunks:
                 self.chunk_repository.delete_source_generation(source.id, generation)
+            if stored_vectors and self.vector_store is not None:
+                self.vector_store.delete_source_generation(
+                    source.collection_id, source.id, generation
+                )
             failure_status = SourceStatus.OCR_REQUIRED if isinstance(exc, OcrRequiredError) else SourceStatus.FAILED
+            # An update which fails to embed must leave its previously usable
+            # generation discoverable; only a first import becomes failed.
             failed_base = previous or source
             failed = failed_base.model_copy(
                 update={
-                    "status": failure_status,
+                    "status": SourceStatus.READY if previous and previous.current_generation else failure_status,
                     "updated_at": utc_now(),
                     "error_message": str(exc),
                 }

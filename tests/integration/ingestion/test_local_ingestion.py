@@ -126,7 +126,16 @@ def test_scanned_pdf_is_recorded_as_ocr_required(tmp_path, ingestion) -> None:
     assert "OCR" in (source.error_message or "")
 
 
-def test_cli_ingests_and_lists_source(tmp_path: Path) -> None:
+def test_cli_ingests_and_lists_source(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    class FakeEmbeddingProvider:
+        provider_name = "fake"
+        model_name = "fake-model"
+        dimension = 2
+
+        def embed_texts(self, texts):
+            return [[float(len(text)), 1.0] for text in texts]
+
+    monkeypatch.setattr("ragdb.cli.create_embedding_provider", lambda _: FakeEmbeddingProvider())
     data_dir = tmp_path / "data"
     config = tmp_path / "config.toml"
     config.write_text(f'[storage]\ndata_dir = "{data_dir.as_posix()}"\n', encoding="utf-8")

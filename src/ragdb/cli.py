@@ -11,9 +11,11 @@ from ragdb import __version__
 from ragdb.application.collections import CollectionService
 from ragdb.application.ingestion import IngestionResult, LocalIngestionService
 from ragdb.application.sources import SourceService
+from ragdb.application.search import SearchService
 from ragdb.config import load_settings
 from ragdb.domain.errors import ConflictError, NotFoundError, RagdbError, StorageError
 from ragdb.infrastructure.chunking import StructuredChunker
+from ragdb.infrastructure.embeddings import create_embedding_provider
 from ragdb.infrastructure.database import (
     SQLiteChunkRepository,
     SQLiteCollectionRepository,
@@ -85,6 +87,8 @@ def _local_ingestion_service(ctx: typer.Context) -> tuple[LocalIngestionService,
             ParserRegistry(),
             StructuredChunker(settings.chunking),
             SQLiteKeywordIndex(database),
+            create_embedding_provider(settings.embedding),
+            ChromaVectorStore(settings.storage.data_dir / settings.storage.chroma_directory),
         ),
         SQLiteCollectionRepository(database),
     )
@@ -93,6 +97,22 @@ def _local_ingestion_service(ctx: typer.Context) -> tuple[LocalIngestionService,
 def _source_service(ctx: typer.Context) -> tuple[SourceService, SQLiteCollectionRepository]:
     _, database = _runtime(ctx)
     return SourceService(SQLiteSourceRepository(database)), SQLiteCollectionRepository(database)
+
+
+def _search_service(ctx: typer.Context) -> tuple[SearchService, SQLiteCollectionRepository]:
+    settings, database = _runtime(ctx)
+    return (
+        SearchService(
+            create_embedding_provider(settings.embedding),
+            ChromaVectorStore(settings.storage.data_dir / settings.storage.chroma_directory),
+            SQLiteKeywordIndex(database), SQLiteSourceRepository(database),
+            vector_top_k=settings.retrieval.vector_top_k,
+            keyword_top_k=settings.retrieval.keyword_top_k,
+            result_top_k=settings.retrieval.result_top_k,
+            rrf_k=settings.retrieval.rrf_k,
+        ),
+        SQLiteCollectionRepository(database),
+    )
 
 
 def _require_collection(repository: SQLiteCollectionRepository, name: str):
@@ -349,12 +369,23 @@ def watch_stop() -> None:
 
 @app.command()
 def search(
+    ctx: typer.Context,
     query: Annotated[str, typer.Argument(help="检索内容。")],
     collection: Annotated[str, typer.Option("--collection", "-c")],
 ) -> None:
     """在指定集合中执行混合检索。"""
-
-    _pending(f"在 {collection} 中检索 {query}")
+    try:
+        service, collections = _search_service(ctx)
+        hits = service.search(_require_collection(collections, collection).id, query)
+    except RagdbError as error:
+        _exit_for_error(error)
+    if not hits:
+        typer.echo("未找到匹配资料。")
+        return
+    for hit in hits:
+        typer.echo(f"[{hit.rank}] {hit.source_title} ({', '.join(hit.routes)})")
+        typer.echo(hit.text)
+        typer.echo(f"出处：{hit.source_uri}")
 
 
 @source_app.command("list")

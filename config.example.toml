@@ -10,6 +10,7 @@ provider = "local"
 local_model = "BAAI/bge-small-zh-v1.5"
 cloud_model = "text-embedding-3-small"
 cloud_base_url = "https://api.openai.com/v1"
+cloud_timeout_seconds = 30.0
 batch_size = 16
 
 [chunking]

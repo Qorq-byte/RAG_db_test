@@ -19,6 +19,34 @@ class StorageError(RagdbError):
     """Persistent storage could not complete an operation."""
 
 
+class ParserError(RagdbError):
+    """A source could not be selected for or converted by a parser."""
+
+
+class UnsupportedSourceError(ParserError):
+    def __init__(self, source_type: str, uri: str) -> None:
+        super().__init__(f"不支持的资料类型：{source_type}（{uri}）")
+        self.source_type = source_type
+        self.uri = uri
+
+
+class DocumentParseError(ParserError):
+    def __init__(self, uri: str, reason: str) -> None:
+        super().__init__(f"资料解析失败：{uri}；{reason}")
+        self.uri = uri
+        self.reason = reason
+
+
+class OcrRequiredError(ParserError):
+    """The PDF has too little extractable text and should be retried with OCR."""
+
+    def __init__(self, uri: str, page_numbers: tuple[int, ...]) -> None:
+        pages = "、".join(str(page) for page in page_numbers)
+        super().__init__(f"PDF 文本层不足，建议启用 OCR：{uri}（页码：{pages}）")
+        self.uri = uri
+        self.page_numbers = page_numbers
+
+
 class CollectionNotFoundError(NotFoundError):
     def __init__(self, identifier: UUID | str) -> None:
         super().__init__(f"知识集合不存在：{identifier}")

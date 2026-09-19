@@ -30,6 +30,7 @@ class EmbeddingSettings(ConfigSection):
     cloud_model: str = "text-embedding-3-small"
     cloud_base_url: str = "https://api.openai.com/v1"
     cloud_api_key: SecretStr | None = None
+    cloud_timeout_seconds: float = Field(default=30.0, gt=0)
     batch_size: int = Field(default=16, ge=1)
 
 

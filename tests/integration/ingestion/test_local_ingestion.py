@@ -109,6 +109,24 @@ def test_manual_text_is_stable_and_not_duplicated(ingestion) -> None:
     assert len(chunks.list_for_source(first.source.id)) == 1
 
 
+def test_ingestion_propagates_and_updates_controlled_metadata(tmp_path, ingestion) -> None:
+    service, collection, sources, chunks, _ = ingestion
+    path = tmp_path / "notes.txt"
+    path.write_text("metadata test", encoding="utf-8")
+
+    first = service.ingest_file(collection, path, {"tags": ["python"], "course": "算法"})
+    updated = service.ingest_file(collection, path, {"tags": ["rag"], "author": "张三"})
+
+    assert first.source is not None
+    assert updated.status is TaskItemStatus.UPDATED
+    assert updated.source is not None
+    assert updated.source.metadata["tags"] == ["rag"]
+    assert "course" not in updated.source.metadata
+    stored_chunk = chunks.list_for_source(updated.source.id)[0]
+    assert stored_chunk.metadata["tags"] == ["rag"]
+    assert stored_chunk.metadata["author"] == "张三"
+
+
 def test_scanned_pdf_is_recorded_as_ocr_required(tmp_path, ingestion) -> None:
     service, collection, sources, _, _ = ingestion
     path = tmp_path / "扫描件.pdf"

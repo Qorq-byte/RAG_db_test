@@ -2,13 +2,14 @@
 
 import hashlib
 import os
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
 from ragdb.domain.enums import SourceStatus, SourceType, TaskItemStatus, TaskStatus
 from ragdb.domain.errors import DocumentParseError, OcrRequiredError, RagdbError, UnsupportedSourceError
 from ragdb.domain.models import Collection, Document, DocumentUnit, IngestionTask, Source, utc_now
+from ragdb.domain.models import Metadata
 from ragdb.domain.ports import (
     ChunkRepository,
     Chunker,
@@ -87,7 +88,7 @@ class LocalIngestionService:
         self.generation_repository = generation_repository
         self.max_file_size_bytes = max_file_size_bytes
 
-    def ingest_file(self, collection: Collection, path: Path) -> IngestionResult:
+    def ingest_file(self, collection: Collection, path: Path, metadata: Mapping[str, object] | None = None) -> IngestionResult:
         resolved = path.expanduser().resolve()
         if not resolved.is_file():
             raise DocumentParseError(str(path), "文件不存在或不是普通文件")
@@ -104,7 +105,8 @@ class LocalIngestionService:
         content_hash = hash_file(resolved)
         uri = resolved.as_uri()
         existing = self.source_repository.get_by_uri(collection.id, uri)
-        if existing is not None and existing.content_hash == content_hash:
+        source_metadata = {"filename": resolved.name, "size_bytes": resolved.stat().st_size, **(metadata or {})}
+        if existing is not None and existing.content_hash == content_hash and existing.metadata == source_metadata:
             return IngestionResult(uri, TaskItemStatus.SKIPPED, existing, "内容未变化")
         self._cleanup_stale_vectors(existing)
 
@@ -115,7 +117,7 @@ class LocalIngestionService:
             title=resolved.stem,
             uri=uri,
             content_hash=content_hash,
-            metadata={"filename": resolved.name, "size_bytes": resolved.stat().st_size},
+            metadata=source_metadata,
         )
         parser = self.parser_registry.get_parser(source)
         source = source.model_copy(update={"parser_name": parser.name, "parser_version": parser.version})
@@ -133,7 +135,7 @@ class LocalIngestionService:
         self,
         collection: Collection,
         text: str,
-        title: str = "手动文本",
+        title: str = "手动文本", metadata: Mapping[str, object] | None = None,
     ) -> IngestionResult:
         normalized = text.strip()
         if not normalized:
@@ -141,7 +143,8 @@ class LocalIngestionService:
         content_hash = hashlib.sha256(normalized.encode("utf-8")).hexdigest()
         uri = f"manual://{content_hash}"
         existing = self.source_repository.get_by_uri(collection.id, uri)
-        if existing is not None:
+        source_metadata = {"character_count": len(normalized), **(metadata or {})}
+        if existing is not None and existing.metadata == source_metadata:
             return IngestionResult(uri, TaskItemStatus.SKIPPED, existing, "内容未变化")
 
         source = self._prepare_source(
@@ -151,7 +154,7 @@ class LocalIngestionService:
             title=title,
             uri=uri,
             content_hash=content_hash,
-            metadata={"character_count": len(normalized)},
+            metadata=source_metadata,
         ).model_copy(update={"parser_name": "manual_text", "parser_version": "1.0"})
         self.source_repository.update(source)
         return self._parse_and_store(
@@ -165,7 +168,7 @@ class LocalIngestionService:
             ),
         )
 
-    def ingest_directory(self, collection: Collection, path: Path) -> DirectoryIngestionResult:
+    def ingest_directory(self, collection: Collection, path: Path, metadata: Mapping[str, object] | None = None) -> DirectoryIngestionResult:
         resolved = path.expanduser().resolve()
         if not resolved.is_dir():
             raise DocumentParseError(str(path), "目录不存在")
@@ -175,7 +178,7 @@ class LocalIngestionService:
         items: list[IngestionResult] = []
         for file_path in iter_supported_files(resolved):
             try:
-                items.append(self.ingest_file(collection, file_path))
+                items.append(self.ingest_file(collection, file_path, metadata))
             except RagdbError as exc:
                 items.append(
                     IngestionResult(
@@ -217,7 +220,7 @@ class LocalIngestionService:
         title: str,
         uri: str,
         content_hash: str,
-        metadata: dict,
+        metadata: Metadata,
     ) -> Source:
         if existing is None:
             source = Source(
@@ -255,7 +258,7 @@ class LocalIngestionService:
         try:
             document = parse()
             chunks = tuple(
-                chunk.model_copy(update={"metadata": {**chunk.metadata, "source_type": source.source_type.value}})
+                chunk.model_copy(update={"metadata": {**source.metadata, **chunk.metadata, "source_type": source.source_type.value}})
                 for chunk in self.chunker.chunk(
                     document,
                     source.collection_id,

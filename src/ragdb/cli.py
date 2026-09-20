@@ -10,6 +10,7 @@ import typer
 from ragdb import __version__
 from ragdb.application.collections import CollectionService
 from ragdb.application.ingestion import IngestionResult, LocalIngestionService
+from ragdb.application.metadata import build_ingestion_metadata
 from ragdb.application.sources import SourceService
 from ragdb.application.search import SearchService
 from ragdb.config import load_settings
@@ -280,12 +281,16 @@ def ingest_file(
     ctx: typer.Context,
     path: Annotated[Path, typer.Argument(help="文件路径。")],
     collection: Annotated[str, typer.Option("--collection", "-c")],
+    tag: Annotated[list[str], typer.Option("--tag", help="资料标签，可重复指定。")] = [],
+    course: Annotated[str | None, typer.Option("--course", help="所属课程。")] = None,
+    author: Annotated[str | None, typer.Option("--author", help="资料作者。")] = None,
+    source_date: Annotated[str | None, typer.Option("--date", help="资料日期（YYYY-MM-DD）。")] = None,
 ) -> None:
     """导入单个文件。"""
 
     try:
         service, collections = _local_ingestion_service(ctx)
-        result = service.ingest_file(_require_collection(collections, collection), path)
+        result = service.ingest_file(_require_collection(collections, collection), path, build_ingestion_metadata(tags=tuple(tag), course=course, author=author, source_date=source_date))
     except RagdbError as error:
         _exit_for_error(error)
     _print_ingestion_result(result)
@@ -296,13 +301,18 @@ def ingest_directory(
     ctx: typer.Context,
     path: Annotated[Path, typer.Argument(help="目录路径。")],
     collection: Annotated[str, typer.Option("--collection", "-c")],
+    tag: Annotated[list[str], typer.Option("--tag", help="资料标签，可重复指定。")] = [],
+    course: Annotated[str | None, typer.Option("--course", help="所属课程。")] = None,
+    author: Annotated[str | None, typer.Option("--author", help="资料作者。")] = None,
+    source_date: Annotated[str | None, typer.Option("--date", help="资料日期（YYYY-MM-DD）。")] = None,
 ) -> None:
     """导入目录。"""
 
     try:
         service, collections = _local_ingestion_service(ctx)
         result = service.ingest_directory(
-            _require_collection(collections, collection), path
+            _require_collection(collections, collection), path,
+            build_ingestion_metadata(tags=tuple(tag), course=course, author=author, source_date=source_date),
         )
     except RagdbError as error:
         _exit_for_error(error)
@@ -320,13 +330,18 @@ def ingest_text(
     text: Annotated[str, typer.Argument(help="要导入的文本。")],
     collection: Annotated[str, typer.Option("--collection", "-c")],
     title: Annotated[str, typer.Option("--title", "-t", help="资料标题。")] = "手动文本",
+    tag: Annotated[list[str], typer.Option("--tag", help="资料标签，可重复指定。")] = [],
+    course: Annotated[str | None, typer.Option("--course", help="所属课程。")] = None,
+    author: Annotated[str | None, typer.Option("--author", help="资料作者。")] = None,
+    source_date: Annotated[str | None, typer.Option("--date", help="资料日期（YYYY-MM-DD）。")] = None,
 ) -> None:
     """导入手动输入的文本。"""
 
     try:
         service, collections = _local_ingestion_service(ctx)
         result = service.ingest_text(
-            _require_collection(collections, collection), text, title
+            _require_collection(collections, collection), text, title,
+            build_ingestion_metadata(tags=tuple(tag), course=course, author=author, source_date=source_date),
         )
     except RagdbError as error:
         _exit_for_error(error)

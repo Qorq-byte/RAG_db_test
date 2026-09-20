@@ -3,11 +3,17 @@
 from __future__ import annotations
 
 from datetime import date
+import hashlib
 import unicodedata
 
 from pydantic import JsonValue
 
 CONTROLLED_METADATA_KEYS = frozenset({"tags", "course", "author", "date"})
+
+
+def tag_index_key(tag: str) -> str:
+    """Return the opaque ChromaDB metadata key for a normalized tag."""
+    return f"_ragdb_tag_{hashlib.sha256(tag.encode('utf-8')).hexdigest()}"
 
 
 def normalize_text(value: str, field: str) -> str:

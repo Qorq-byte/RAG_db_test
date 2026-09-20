@@ -105,10 +105,22 @@ class SQLiteKeywordIndex:
             }
             for key, value in filters.items():
                 column = supported_filters.get(key)
-                if column is None:
-                    continue
-                conditions.append(f"{column} = ?")
-                parameters.append(value)
+                if column is not None:
+                    conditions.append(f"{column} = ?")
+                    parameters.append(value)
+                elif key == "tags" and isinstance(value, list):
+                    for tag in value:
+                        conditions.append("EXISTS (SELECT 1 FROM json_each(c.metadata_json, '$.tags') WHERE value = ?)")
+                        parameters.append(tag)
+                elif key in {"course", "author"}:
+                    conditions.append(f"json_extract(c.metadata_json, '$.{key}') = ?")
+                    parameters.append(value)
+                elif key == "date_from":
+                    conditions.append("json_extract(c.metadata_json, '$.date') >= ?")
+                    parameters.append(value)
+                elif key == "date_to":
+                    conditions.append("json_extract(c.metadata_json, '$.date') <= ?")
+                    parameters.append(value)
         parameters.append(limit)
 
         with self.database.connect() as connection:

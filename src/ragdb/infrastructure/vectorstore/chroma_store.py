@@ -16,6 +16,7 @@ from pydantic import JsonValue
 from ragdb.domain.enums import RetrievalRoute
 from ragdb.domain.errors import StorageError
 from ragdb.domain.models import Chunk, RetrievedChunk, SourcePosition
+from ragdb.application.metadata import tag_index_key
 
 
 ChromaScalar: TypeAlias = str | int | float | bool
@@ -86,6 +87,10 @@ def _chunk_metadata(chunk: Chunk) -> ChromaMetadata:
         filterable = _filterable_metadata_value(value)
         if filterable is not None:
             metadata[f"{_USER_METADATA_PREFIX}{key}"] = filterable
+    tags = chunk.metadata.get("tags")
+    if isinstance(tags, list) and all(isinstance(tag, str) for tag in tags):
+        for tag in tags:
+            metadata[tag_index_key(tag)] = True
     return metadata
 
 
@@ -157,7 +162,19 @@ def _build_where(filters: Mapping[str, JsonValue] | None) -> ChromaWhere | None:
             raise ValueError("filters 不接受顶层逻辑运算符")
         if value is None:
             raise ValueError(f"不支持的元数据筛选值：{key}")
-        clauses.append({_filter_field(key): _filter_expression(key, value)})
+        if key == "tags":
+            tags = value
+            if isinstance(value, dict) and value.get("$contains") is not None:
+                tags = [value["$contains"]]
+            if not isinstance(tags, list) or not all(isinstance(tag, str) for tag in tags):
+                raise ValueError("tags 筛选必须是字符串列表")
+            clauses.extend({tag_index_key(tag): True} for tag in tags)
+        elif key == "date_from":
+            clauses.append({_filter_field("date"): {"$gte": _filter_expression(key, value)}})
+        elif key == "date_to":
+            clauses.append({_filter_field("date"): {"$lte": _filter_expression(key, value)}})
+        else:
+            clauses.append({_filter_field(key): _filter_expression(key, value)})
     if len(clauses) == 1:
         return clauses[0]
     return {"$and": clauses}

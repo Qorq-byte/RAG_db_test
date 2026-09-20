@@ -403,6 +403,27 @@ def search(
         typer.echo(f"[{hit.rank}] {hit.source_title} ({', '.join(hit.routes)})")
         typer.echo(hit.text)
         typer.echo(f"出处：{hit.source_uri}")
+        position = hit.position
+        location: list[str] = []
+        if position.page is not None:
+            location.append(f"第 {position.page} 页")
+        if position.slide is not None:
+            location.append(f"第 {position.slide} 张幻灯片")
+        if position.line_start is not None:
+            end = position.line_end or position.line_start
+            location.append(f"第 {position.line_start}-{end} 行")
+        if position.heading_path:
+            location.append(" / ".join(position.heading_path))
+        if location:
+            typer.echo(f"位置：{'；'.join(location)}")
+        scores = hit.scores
+        score_parts = [
+            f"语义={scores.semantic:.4f}" if scores.semantic is not None else None,
+            f"关键词={scores.keyword:.4f}" if scores.keyword is not None else None,
+            f"融合={scores.fusion:.4f}" if scores.fusion is not None else None,
+            f"重排序={scores.rerank:.4f}" if scores.rerank is not None else None,
+        ]
+        typer.echo(f"评分：{', '.join(part for part in score_parts if part)}")
 
 
 @source_app.command("list")

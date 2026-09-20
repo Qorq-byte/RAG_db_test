@@ -106,6 +106,7 @@ class LocalIngestionService:
         existing = self.source_repository.get_by_uri(collection.id, uri)
         if existing is not None and existing.content_hash == content_hash:
             return IngestionResult(uri, TaskItemStatus.SKIPPED, existing, "内容未变化")
+        self._cleanup_stale_vectors(existing)
 
         source = self._prepare_source(
             collection=collection,
@@ -120,6 +121,13 @@ class LocalIngestionService:
         source = source.model_copy(update={"parser_name": parser.name, "parser_version": parser.version})
         self.source_repository.update(source)
         return self._parse_and_store(source, existing, lambda: parser.parse(source))
+
+    def _cleanup_stale_vectors(self, source: Source | None) -> None:
+        if source is None or source.current_generation == 0 or self.vector_store is None:
+            return
+        cleanup = getattr(self.vector_store, "delete_stale_source_generations", None)
+        if cleanup is not None:
+            cleanup(source.collection_id, source.id, source.current_generation)
 
     def ingest_text(
         self,

@@ -312,6 +312,28 @@ class ChromaVectorStore:
         except ChromaError as exc:
             raise StorageError("删除 ChromaDB 资料代次失败") from exc
 
+    def delete_stale_source_generations(
+        self,
+        collection_id: UUID,
+        source_id: UUID,
+        current_generation: int,
+    ) -> int:
+        """Remove vectors left by an interrupted generation switch."""
+        collection = self._get_collection(collection_id)
+        if collection is None:
+            return 0
+        try:
+            records = collection.get(where={"source_id": str(source_id)}, include=["metadatas"])
+            ids = [
+                chunk_id for chunk_id, metadata in zip(records["ids"], records["metadatas"], strict=True)
+                if metadata is not None and int(metadata["generation"]) != current_generation
+            ]
+            if ids:
+                collection.delete(ids=ids)
+            return len(ids)
+        except ChromaError as exc:
+            raise StorageError("清理 ChromaDB 孤立资料代次失败") from exc
+
     def delete_collection(self, collection_id: UUID) -> None:
         try:
             self._client.delete_collection(name=self.collection_name(collection_id))

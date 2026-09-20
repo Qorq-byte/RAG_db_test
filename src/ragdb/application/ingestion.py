@@ -69,6 +69,7 @@ class LocalIngestionService:
         keyword_index: KeywordIndex,
         embedding_provider: EmbeddingProvider | None = None,
         vector_store: VectorStore | None = None,
+        generation_repository: object | None = None,
         max_file_size_bytes: int = 10 * 1024 * 1024,
     ) -> None:
         if max_file_size_bytes < 1:
@@ -83,6 +84,7 @@ class LocalIngestionService:
             raise ValueError("嵌入模型与向量库必须同时配置")
         self.embedding_provider = embedding_provider
         self.vector_store = vector_store
+        self.generation_repository = generation_repository
         self.max_file_size_bytes = max_file_size_bytes
 
     def ingest_file(self, collection: Collection, path: Path) -> IngestionResult:
@@ -260,9 +262,6 @@ class LocalIngestionService:
                 # New vectors are written before SQLite points the source at them.
                 self.vector_store.upsert(chunks, embeddings)
                 stored_vectors = True
-            self.chunk_repository.add_many(chunks)
-            stored_chunks = True
-            self.keyword_index.index(chunks)
             updates = {
                 "status": SourceStatus.READY,
                 "current_generation": generation,
@@ -275,7 +274,13 @@ class LocalIngestionService:
             ready = source.model_copy(
                 update=updates
             )
-            self.source_repository.update(ready)
+            if self.generation_repository is not None:
+                self.generation_repository.activate(ready, chunks)
+            else:
+                self.chunk_repository.add_many(chunks)
+                self.source_repository.update(ready)
+            stored_chunks = True
+            self.keyword_index.index(chunks)
             if previous is not None and previous.current_generation > 0:
                 self.chunk_repository.delete_source_generation(
                     source.id, previous.current_generation

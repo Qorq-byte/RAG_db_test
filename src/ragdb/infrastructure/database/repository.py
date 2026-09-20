@@ -360,6 +360,35 @@ class SQLiteChunkRepository:
         return cursor.rowcount
 
 
+class SQLiteGenerationRepository:
+    """Atomically publish a source generation and its SQLite chunks."""
+
+    def __init__(self, database: SQLiteDatabase) -> None:
+        self.database = database
+
+    def activate(self, source: Source, chunks: Sequence[Chunk]) -> None:
+        values = [
+            (chunk.id, str(chunk.collection_id), str(chunk.source_id), chunk.source_content_hash,
+             chunk.generation, chunk.ordinal, chunk.text, chunk.normalized_text,
+             _dump_json(chunk.position.model_dump(mode="json")), _dump_json(chunk.metadata))
+            for chunk in chunks
+        ]
+        with self.database.connect() as connection:
+            connection.executemany(
+                """INSERT INTO chunks (id, collection_id, source_id, source_content_hash,
+                generation, ordinal, text, normalized_text, position_json, metadata_json)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""", values,
+            )
+            cursor = connection.execute(
+                """UPDATE sources SET collection_id=?, source_type=?, title=?, uri=?, content_hash=?,
+                status=?, metadata_json=?, imported_at=?, updated_at=?, parser_name=?, parser_version=?,
+                embedding_provider=?, embedding_model=?, current_generation=?, error_message=? WHERE id=?""",
+                SQLiteSourceRepository._values(source)[1:] + (str(source.id),),
+            )
+            if cursor.rowcount == 0:
+                raise SourceNotFoundError(source.id)
+
+
 class SQLiteTaskRepository:
     def __init__(self, database: SQLiteDatabase) -> None:
         self.database = database

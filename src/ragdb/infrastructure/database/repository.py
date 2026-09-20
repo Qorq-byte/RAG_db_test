@@ -323,6 +323,12 @@ class SQLiteChunkRepository:
                         generation, ordinal, text, normalized_text,
                         position_json, metadata_json
                     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(id) DO UPDATE SET
+                        collection_id=excluded.collection_id, source_id=excluded.source_id,
+                        source_content_hash=excluded.source_content_hash, generation=excluded.generation,
+                        ordinal=excluded.ordinal, text=excluded.text,
+                        normalized_text=excluded.normalized_text, position_json=excluded.position_json,
+                        metadata_json=excluded.metadata_json
                     """,
                     values,
                 )

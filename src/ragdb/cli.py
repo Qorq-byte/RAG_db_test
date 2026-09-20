@@ -10,7 +10,7 @@ import typer
 from ragdb import __version__
 from ragdb.application.collections import CollectionService
 from ragdb.application.ingestion import IngestionResult, LocalIngestionService
-from ragdb.application.metadata import build_ingestion_metadata
+from ragdb.application.metadata import build_ingestion_metadata, build_search_filters
 from ragdb.application.sources import SourceService
 from ragdb.application.search import SearchService
 from ragdb.config import load_settings
@@ -399,17 +399,22 @@ def search(
     collection: Annotated[str, typer.Option("--collection", "-c")],
     source_type: Annotated[str | None, typer.Option("--source-type", help="按资料类型筛选。")] = None,
     source_id: Annotated[UUID | None, typer.Option("--source-id", help="按资料 ID 筛选。")] = None,
+    tag: Annotated[list[str], typer.Option("--tag", help="按标签筛选，所有标签必须匹配。")] = [],
+    course: Annotated[str | None, typer.Option("--course", help="按课程筛选。")] = None,
+    author: Annotated[str | None, typer.Option("--author", help="按作者筛选。")] = None,
+    date_from: Annotated[str | None, typer.Option("--date-from", help="起始日期（YYYY-MM-DD）。")] = None,
+    date_to: Annotated[str | None, typer.Option("--date-to", help="结束日期（YYYY-MM-DD）。")] = None,
 ) -> None:
     """在指定集合中执行混合检索。"""
     try:
         service, collections = _search_service(ctx)
-        filters = {}
+        filters = build_search_filters(tags=tuple(tag), course=course, author=author, date_from=date_from, date_to=date_to)
         if source_type:
             filters["source_type"] = source_type
         if source_id:
             filters["source_id"] = str(source_id)
         hits = service.search(_require_collection(collections, collection).id, query, filters)
-    except RagdbError as error:
+    except (RagdbError, ValueError) as error:
         _exit_for_error(error)
     if not hits:
         typer.echo("未找到匹配资料。")

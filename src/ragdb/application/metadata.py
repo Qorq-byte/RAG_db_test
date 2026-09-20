@@ -40,3 +40,27 @@ def build_ingestion_metadata(
         except ValueError as exc:
             raise ValueError("日期必须为 YYYY-MM-DD") from exc
     return metadata
+
+
+def build_search_filters(
+    *, tags: tuple[str, ...] = (), course: str | None = None,
+    author: str | None = None, date_from: str | None = None,
+    date_to: str | None = None,
+) -> dict[str, JsonValue]:
+    filters: dict[str, JsonValue] = {}
+    if tags:
+        filters["tags"] = sorted({normalize_text(tag, "标签") for tag in tags})
+    if course is not None:
+        filters["course"] = normalize_text(course, "课程")
+    if author is not None:
+        filters["author"] = normalize_text(author, "作者")
+    for key, value in (("date_from", date_from), ("date_to", date_to)):
+        if value is None:
+            continue
+        try:
+            filters[key] = date.fromisoformat(value).isoformat()
+        except ValueError as exc:
+            raise ValueError("日期必须为 YYYY-MM-DD") from exc
+    if "date_from" in filters and "date_to" in filters and filters["date_from"] > filters["date_to"]:
+        raise ValueError("开始日期不能晚于结束日期")
+    return filters

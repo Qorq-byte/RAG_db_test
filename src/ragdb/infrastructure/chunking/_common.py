@@ -107,7 +107,6 @@ def build_chunks(
         chunk_id = stable_chunk_id(
             document.source_id,
             source_content_hash,
-            generation,
             ordinal,
             position,
             text,
@@ -160,7 +159,6 @@ def _split_with_overlap(text: str, limit: int, overlap: int) -> list[str]:
 def stable_chunk_id(
     source_id: UUID,
     source_content_hash: str,
-    generation: int,
     ordinal: int,
     position: SourcePosition,
     text: str,
@@ -171,7 +169,6 @@ def stable_chunk_id(
     payload = {
         "source_id": str(source_id),
         "source_content_hash": source_content_hash,
-        "generation": generation,
         "ordinal": ordinal,
         "position": position.model_dump(mode="json"),
         "text_hash": hashlib.sha256(text.encode("utf-8")).hexdigest(),

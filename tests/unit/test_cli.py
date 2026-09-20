@@ -36,3 +36,11 @@ def test_global_config_option_is_accepted() -> None:
 
     assert result.exit_code == ExitCode.NOT_IMPLEMENTED
     assert "环境诊断" in result.output
+
+
+def test_search_help_lists_metadata_filters() -> None:
+    result = runner.invoke(app, ["search", "--help"])
+
+    assert result.exit_code == 0
+    assert "--tag" in result.stdout
+    assert "--date-from" in result.stdout

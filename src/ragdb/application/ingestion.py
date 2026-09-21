@@ -168,6 +168,26 @@ class LocalIngestionService:
             ),
         )
 
+    def ingest_web_page(self, collection: Collection, url: str, title: str, text: str, metadata: Mapping[str, object] | None = None) -> IngestionResult:
+        normalized = text.strip()
+        if not normalized:
+            raise DocumentParseError(url, "网页不包含可索引正文")
+        content_hash = hashlib.sha256(normalized.encode("utf-8")).hexdigest()
+        existing = self.source_repository.get_by_uri(collection.id, url)
+        source_metadata = {"url": url, **(metadata or {})}
+        if existing is not None and existing.content_hash == content_hash and existing.metadata == source_metadata:
+            return IngestionResult(url, TaskItemStatus.SKIPPED, existing, "内容未变化")
+        self._cleanup_stale_vectors(existing)
+        source = self._prepare_source(
+            collection=collection, existing=existing, source_type=SourceType.WEB,
+            title=title, uri=url, content_hash=content_hash, metadata=source_metadata,
+        ).model_copy(update={"parser_name": "web", "parser_version": "1.0"})
+        self.source_repository.update(source)
+        return self._parse_and_store(
+            source, existing,
+            lambda: Document(source_id=source.id, title=source.title, units=(DocumentUnit(text=normalized),), metadata={"format": "web", "url": url}),
+        )
+
     def ingest_directory(self, collection: Collection, path: Path, metadata: Mapping[str, object] | None = None) -> DirectoryIngestionResult:
         resolved = path.expanduser().resolve()
         if not resolved.is_dir():

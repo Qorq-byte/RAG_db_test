@@ -44,3 +44,9 @@ def test_search_help_lists_metadata_filters() -> None:
     assert result.exit_code == 0
     assert "--tag" in result.stdout
     assert "--date-from" in result.stdout
+
+
+def test_crawl_help_is_available() -> None:
+    result = runner.invoke(app, ["crawl", "--help"])
+    assert result.exit_code == 0
+    assert "起始网页" in result.stdout

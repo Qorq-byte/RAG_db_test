@@ -29,6 +29,7 @@ from ragdb.infrastructure.database import (
 )
 from ragdb.infrastructure.parsers import ParserRegistry
 from ragdb.infrastructure.vectorstore import ChromaVectorStore
+from ragdb.infrastructure.web import WebCrawler
 
 
 class ExitCode(IntEnum):
@@ -350,12 +351,26 @@ def ingest_text(
 
 @app.command()
 def crawl(
+    ctx: typer.Context,
     url: Annotated[str, typer.Argument(help="起始网页 URL。")],
     collection: Annotated[str, typer.Option("--collection", "-c")],
 ) -> None:
     """抓取网页并导入集合。"""
 
-    _pending(f"抓取 {url} 到 {collection}")
+    try:
+        service, collections = _local_ingestion_service(ctx)
+        target = _require_collection(collections, collection)
+        settings, _ = _runtime(ctx)
+        crawler = WebCrawler(settings.crawl)
+        try:
+            pages = crawler.crawl(url)
+        finally:
+            crawler.close()
+        for page in pages:
+            _print_ingestion_result(service.ingest_web_page(target, page.url, page.title, page.text))
+        typer.echo(f"抓取完成：已处理 {len(pages)} 个页面")
+    except RagdbError as error:
+        _exit_for_error(error)
 
 
 @app.command("repo")

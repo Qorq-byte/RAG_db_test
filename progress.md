@@ -24,3 +24,5 @@
 - `uv` 首次检查因沙箱禁止访问用户缓存失败，待授权后更新 HTTPX 与 Trafilatura 锁定依赖。
 - 已在授权后锁定并安装 HTTPX、Trafilatura；`uv.lock` 已更新。
 - 步骤 1 已完成：新增受限网页抓取、robots 策略和正文提取模块，以及 6 项定向测试；`uv run pytest tests/unit/web` 通过（6 passed），待提交推送。
+- 步骤 1 已推送：`34b4ade feat: add bounded web crawler`。
+- 步骤 2 已完成：网页正文可作为 `web` 资料以 URL 为稳定标识导入、更新或跳过，`ragdb crawl` 已替换占位命令；定向测试 13 passed，待提交推送。

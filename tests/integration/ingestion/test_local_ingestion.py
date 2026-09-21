@@ -109,6 +109,20 @@ def test_manual_text_is_stable_and_not_duplicated(ingestion) -> None:
     assert len(chunks.list_for_source(first.source.id)) == 1
 
 
+def test_web_page_ingestion_updates_and_preserves_url(ingestion) -> None:
+    service, collection, sources, chunks, keyword = ingestion
+    first = service.ingest_web_page(collection, "https://example.test/notes", "网页笔记", "第一版网页内容")
+    repeated = service.ingest_web_page(collection, "https://example.test/notes", "网页笔记", "第一版网页内容")
+    updated = service.ingest_web_page(collection, "https://example.test/notes", "新版网页笔记", "第二版网页内容")
+    assert first.status is TaskItemStatus.CREATED
+    assert repeated.status is TaskItemStatus.SKIPPED
+    assert updated.status is TaskItemStatus.UPDATED
+    assert updated.source is not None and updated.source.source_type.value == "web"
+    assert updated.source.metadata["url"] == "https://example.test/notes"
+    assert len(chunks.list_for_source(updated.source.id)) == 1
+    assert keyword.search(collection.id, "第二版网页内容", 5)
+
+
 def test_ingestion_propagates_and_updates_controlled_metadata(tmp_path, ingestion) -> None:
     service, collection, sources, chunks, _ = ingestion
     path = tmp_path / "notes.txt"

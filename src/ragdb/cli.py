@@ -30,6 +30,7 @@ from ragdb.infrastructure.database import (
 from ragdb.infrastructure.parsers import ParserRegistry
 from ragdb.infrastructure.vectorstore import ChromaVectorStore
 from ragdb.infrastructure.web import WebCrawler
+from ragdb.infrastructure.github import PublicGitHubImporter
 
 
 class ExitCode(IntEnum):
@@ -375,12 +376,27 @@ def crawl(
 
 @app.command("repo")
 def import_repository(
+    ctx: typer.Context,
     url: Annotated[str, typer.Argument(help="公开 GitHub 仓库 URL。")],
     collection: Annotated[str, typer.Option("--collection", "-c")],
 ) -> None:
     """导入公开 GitHub 仓库。"""
 
-    _pending(f"导入仓库 {url} 到 {collection}")
+    try:
+        service, collections = _local_ingestion_service(ctx)
+        settings, _ = _runtime(ctx)
+        target = _require_collection(collections, collection)
+        importer = PublicGitHubImporter(
+            settings.storage.data_dir / "cache" / "repos", service.max_file_size_bytes
+        )
+        _, files = importer.clone_and_list(url)
+        for item in files:
+            _print_ingestion_result(service.ingest_file(target, item.path, {
+                "repository_url": item.repository_url, "repository_path": item.relative_path,
+            }))
+        typer.echo(f"仓库导入完成：已处理 {len(files)} 个文件")
+    except RagdbError as error:
+        _exit_for_error(error)
 
 
 @watch_app.command("start")

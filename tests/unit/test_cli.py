@@ -50,3 +50,7 @@ def test_crawl_help_is_available() -> None:
     result = runner.invoke(app, ["crawl", "--help"])
     assert result.exit_code == 0
     assert "起始网页" in result.stdout
+
+
+def test_repo_help_is_available() -> None:
+    assert runner.invoke(app, ["repo", "--help"]).exit_code == 0

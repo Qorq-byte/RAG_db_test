@@ -26,3 +26,5 @@
 - 步骤 1 已完成：新增受限网页抓取、robots 策略和正文提取模块，以及 6 项定向测试；`uv run pytest tests/unit/web` 通过（6 passed），待提交推送。
 - 步骤 1 已推送：`34b4ade feat: add bounded web crawler`。
 - 步骤 2 已完成：网页正文可作为 `web` 资料以 URL 为稳定标识导入、更新或跳过，`ragdb crawl` 已替换占位命令；定向测试 13 passed，待提交推送。
+- 步骤 2 已推送：`80f7574 feat: import crawled web pages`。
+- 步骤 3 已完成：`ragdb repo` 支持经校验的公开 GitHub HTTPS 仓库浅克隆与受控文件过滤；定向测试 9 passed，待提交推送。

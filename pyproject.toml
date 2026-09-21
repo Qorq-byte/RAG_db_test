@@ -5,6 +5,7 @@ description = "面向人工智能学习的个人 RAG 知识库"
 requires-python = ">=3.11,<3.12"
 dependencies = [
     "chromadb>=1.5.9",
+    "httpx>=0.28.0",
     "pydantic-settings",
     "pymupdf>=1.28.2",
     "python-docx>=1.2.0",
@@ -12,6 +13,7 @@ dependencies = [
     "rich",
     "sentence-transformers>=3.0.0",
     "typer",
+    "trafilatura>=2.0.0",
 ]
 
 [project.scripts]

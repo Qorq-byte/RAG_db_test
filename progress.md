@@ -20,3 +20,7 @@
 - 已写入网页与公开 GitHub 仓库导入设计规格，待提交并推送后请用户审阅。
 - 设计规格已提交并推送：`5930141 docs: design web and GitHub import`。
 - 用户已审阅并确认规格；已写入三步实施计划，待提交并推送后开始步骤 1。
+- 实施计划已提交并推送：`3505866 docs: plan web and GitHub import`；开始步骤 1。
+- `uv` 首次检查因沙箱禁止访问用户缓存失败，待授权后更新 HTTPX 与 Trafilatura 锁定依赖。
+- 已在授权后锁定并安装 HTTPX、Trafilatura；`uv.lock` 已更新。
+- 步骤 1 已完成：新增受限网页抓取、robots 策略和正文提取模块，以及 6 项定向测试；`uv run pytest tests/unit/web` 通过（6 passed），待提交推送。

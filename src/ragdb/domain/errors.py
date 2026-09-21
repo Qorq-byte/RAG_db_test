@@ -37,6 +37,15 @@ class DocumentParseError(ParserError):
         self.reason = reason
 
 
+class WebCrawlError(RagdbError):
+    """A web resource cannot safely be crawled or converted to text."""
+
+    def __init__(self, url: str, reason: str) -> None:
+        super().__init__(f"网页抓取失败：{url}；{reason}")
+        self.url = url
+        self.reason = reason
+
+
 class OcrRequiredError(ParserError):
     """The PDF has too little extractable text and should be retried with OCR."""
 

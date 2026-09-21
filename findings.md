@@ -25,3 +25,10 @@
 
 - 网页与仓库适配器不重复实现分块、向量写入或代次切换；这些职责继续归 `LocalIngestionService`。
 - 网页 URL 与仓库相对路径必须保留在资料记录中，确保现有搜索结果可准确展示出处。
+
+## 步骤 1 实施结果
+
+- `WebCrawler` 使用同源 BFS，只有 robots 允许且为 HTML 的页面才会被提取；跨域链接与重定向不会产生页面。
+- URL 规范化会去除片段、折叠默认端口并拒绝非 HTTP(S) 或含凭据 URL。
+- `RobotsPolicy` 缓存 robots 规则；无法获得规则即拒绝抓取。
+- `uv run pytest tests/unit/web`：6 passed。

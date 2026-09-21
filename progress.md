@@ -1,4 +1,4 @@
-# Progress Log: 检索元数据筛选
+# Progress Log: 网页与公开 GitHub 仓库导入
 
 ## 2026-09-20
 
@@ -12,3 +12,9 @@
 - 步骤 1 已完成并推送：`47a148b feat: add controlled ingestion metadata`；定向测试 14 passed。
 - 步骤 2 已完成并推送：`63b509e feat: filter retrieval by controlled metadata`；后端集成测试 17 passed。
 - 步骤 3 已完成并推送：`06f923b feat: expose metadata search filters`；全量测试 93 passed。
+
+## 2026-09-21
+
+- 审查项目主计划、当前实现、Git 历史与工作树：第六里程碑（网页与公开 GitHub 导入）是下一项未完成范围。
+- 用户确认严格按既有里程碑顺序继续，并批准独立受限适配器方案。
+- 已写入网页与公开 GitHub 仓库导入设计规格，待提交并推送后请用户审阅。

@@ -2,6 +2,7 @@
 
 from enum import IntEnum
 from pathlib import Path
+from urllib.parse import unquote, urlparse
 from typing import Annotated
 from uuid import UUID
 
@@ -577,11 +578,27 @@ def source_delete(
 
 @app.command()
 def reindex(
+    ctx: typer.Context,
     collection: Annotated[str, typer.Option("--collection", "-c")],
 ) -> None:
     """重建指定集合的索引。"""
-
-    _pending(f"重建 {collection} 的索引")
+    try:
+        service, collections = _local_ingestion_service(ctx)
+        target = _require_collection(collections, collection)
+        items = []
+        for source in service.source_repository.list_for_collection(target.id):
+            if source.uri.startswith("file://"):
+                parsed = urlparse(source.uri)
+                source_path = Path(unquote(parsed.path.lstrip("/")))
+                try:
+                    items.append(service.ingest_file(target, source_path, source.metadata))
+                except RagdbError as error:
+                    typer.echo(f"重建失败：{source.uri}；{error}", err=True)
+        for item in items:
+            _print_ingestion_result(item)
+        typer.echo(f"重建完成：已处理 {len(items)} 个本地资料")
+    except RagdbError as error:
+        _exit_for_error(error)
 
 
 @app.command()

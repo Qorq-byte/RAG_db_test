@@ -5,6 +5,9 @@ from __future__ import annotations
 from collections.abc import Callable
 from pathlib import Path
 
+from watchdog.events import FileSystemEventHandler
+from watchdog.observers import Observer
+
 
 class DebouncedPathEvents:
     def __init__(self, delay_seconds: float, clock: Callable[[], float]) -> None:
@@ -23,3 +26,29 @@ class DebouncedPathEvents:
         for path in paths:
             self._times.pop(path)
         return result
+
+
+class PathEventHandler(FileSystemEventHandler):
+    """Translate Watchdog file events into deterministic debounced operations."""
+
+    def __init__(self, events: DebouncedPathEvents) -> None:
+        self.events = events
+
+    def on_created(self, event) -> None:
+        if not event.is_directory:
+            self.events.add(Path(event.src_path), "upsert")
+
+    def on_modified(self, event) -> None:
+        if not event.is_directory:
+            self.events.add(Path(event.src_path), "upsert")
+
+    def on_deleted(self, event) -> None:
+        if not event.is_directory:
+            self.events.add(Path(event.src_path), "delete")
+
+
+def start_observer(path: Path, events: DebouncedPathEvents) -> Observer:
+    observer = Observer()
+    observer.schedule(PathEventHandler(events), str(path), recursive=True)
+    observer.start()
+    return observer

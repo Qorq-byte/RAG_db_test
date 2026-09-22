@@ -54,3 +54,8 @@ def test_crawl_help_is_available() -> None:
 
 def test_repo_help_is_available() -> None:
     assert runner.invoke(app, ["repo", "--help"]).exit_code == 0
+
+
+def test_watch_management_explains_foreground_mode() -> None:
+    assert "前台监听" in runner.invoke(app, ["watch", "status"]).stdout
+    assert "Ctrl+C" in runner.invoke(app, ["watch", "stop"]).stdout

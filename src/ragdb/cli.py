@@ -446,14 +446,14 @@ def watch_start(
 def watch_status() -> None:
     """查看目录监听状态。"""
 
-    _pending("监听状态")
+    typer.echo("前台监听仅在运行 `ragdb watch start` 的终端中生效。")
 
 
 @watch_app.command("stop")
 def watch_stop() -> None:
     """停止目录监听。"""
 
-    _pending("停止监听")
+    typer.echo("请在运行 `ragdb watch start` 的终端按 Ctrl+C 停止监听。")
 
 
 @app.command()

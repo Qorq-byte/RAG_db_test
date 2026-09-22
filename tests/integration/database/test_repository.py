@@ -9,6 +9,7 @@ from ragdb.domain.models import (
     Chunk,
     Collection,
     IngestionTask,
+    OperationLog,
     Source,
     SourcePosition,
     utc_now,
@@ -17,6 +18,7 @@ from ragdb.infrastructure.database.repository import (
     SQLiteChunkRepository,
     SQLiteCollectionRepository,
     SQLiteDatabase,
+    SQLiteOperationLogRepository,
     SQLiteSourceRepository,
     SQLiteTaskRepository,
 )
@@ -193,3 +195,26 @@ def test_task_repository_round_trip(database: SQLiteDatabase) -> None:
     repository.update(finished)
 
     assert repository.get(task.id) == finished
+
+
+def test_task_repository_lists_collection_tasks_newest_first(database: SQLiteDatabase) -> None:
+    collection = Collection(name="任务列表")
+    SQLiteCollectionRepository(database).create(collection)
+    repository = SQLiteTaskRepository(database)
+    first = repository.create(IngestionTask(collection_id=collection.id, status=TaskStatus.RUNNING))
+    second = repository.create(IngestionTask(collection_id=collection.id, status=TaskStatus.COMPLETED))
+
+    assert [task.id for task in repository.list_for_collection(collection.id)] == [second.id, first.id]
+
+
+def test_operation_log_repository_round_trip(database: SQLiteDatabase) -> None:
+    collection = Collection(name="日志")
+    SQLiteCollectionRepository(database).create(collection)
+    repository = SQLiteOperationLogRepository(database)
+
+    recorded = repository.record(
+        OperationLog(collection_id=collection.id, action="collection_created", details={"name": "日志"})
+    )
+
+    assert recorded.id is not None
+    assert repository.list_recent(collection.id) == [recorded]

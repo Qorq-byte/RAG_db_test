@@ -188,7 +188,10 @@ class LocalIngestionService:
             lambda: Document(source_id=source.id, title=source.title, units=(DocumentUnit(text=normalized),), metadata={"format": "web", "url": url}),
         )
 
-    def ingest_directory(self, collection: Collection, path: Path, metadata: Mapping[str, object] | None = None) -> DirectoryIngestionResult:
+    def ingest_directory(
+        self, collection: Collection, path: Path, metadata: Mapping[str, object] | None = None,
+        on_item: Callable[[IngestionResult], None] | None = None,
+    ) -> DirectoryIngestionResult:
         resolved = path.expanduser().resolve()
         if not resolved.is_dir():
             raise DocumentParseError(str(path), "目录不存在")
@@ -198,15 +201,15 @@ class LocalIngestionService:
         items: list[IngestionResult] = []
         for file_path in iter_supported_files(resolved):
             try:
-                items.append(self.ingest_file(collection, file_path, metadata))
+                item = self.ingest_file(collection, file_path, metadata)
             except RagdbError as exc:
-                items.append(
-                    IngestionResult(
-                        uri=file_path.resolve().as_uri(),
-                        status=TaskItemStatus.FAILED,
-                        message=str(exc),
-                    )
+                item = IngestionResult(
+                    uri=file_path.resolve().as_uri(), status=TaskItemStatus.FAILED,
+                    message=str(exc),
                 )
+            items.append(item)
+            if on_item is not None:
+                on_item(item)
 
         created = sum(item.status is TaskItemStatus.CREATED for item in items)
         updated = sum(item.status is TaskItemStatus.UPDATED for item in items)

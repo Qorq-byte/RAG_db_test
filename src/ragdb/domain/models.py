@@ -149,6 +149,15 @@ class IngestionTask(DomainModel):
         return self
 
 
+class OperationLog(DomainModel):
+    id: int | None = Field(default=None, ge=1)
+    collection_id: UUID | None = None
+    source_id: UUID | None = None
+    action: NonEmptyText
+    details: Metadata = Field(default_factory=dict)
+    created_at: AwareDatetime = Field(default_factory=utc_now)
+
+
 class RetrievedChunk(DomainModel):
     chunk: Chunk
     score: float

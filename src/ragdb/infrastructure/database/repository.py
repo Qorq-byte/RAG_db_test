@@ -21,6 +21,7 @@ from ragdb.domain.models import (
     Chunk,
     Collection,
     IngestionTask,
+    OperationLog,
     Source,
     SourcePosition,
 )
@@ -133,6 +134,15 @@ def _task_from_row(row: sqlite3.Row) -> IngestionTask:
         updated=row["updated"],
         skipped=row["skipped"],
         failed=row["failed"],
+    )
+
+
+def _operation_log_from_row(row: sqlite3.Row) -> OperationLog:
+    return OperationLog(
+        id=row["id"], collection_id=UUID(row["collection_id"]) if row["collection_id"] else None,
+        source_id=UUID(row["source_id"]) if row["source_id"] else None,
+        action=row["action"], details=_load_json(row["details_json"]),
+        created_at=datetime.fromisoformat(row["created_at"]),
     )
 
 
@@ -436,6 +446,14 @@ class SQLiteTaskRepository:
             ).fetchone()
         return _task_from_row(row) if row is not None else None
 
+    def list_for_collection(self, collection_id: UUID, limit: int = 20) -> Sequence[IngestionTask]:
+        with self.database.connect() as connection:
+            rows = connection.execute(
+                "SELECT * FROM ingestion_tasks WHERE collection_id = ? "
+                "ORDER BY started_at DESC LIMIT ?", (str(collection_id), limit)
+            ).fetchall()
+        return [_task_from_row(row) for row in rows]
+
     def update(self, task: IngestionTask) -> IngestionTask:
         with self.database.connect() as connection:
             cursor = connection.execute(
@@ -450,3 +468,32 @@ class SQLiteTaskRepository:
         if cursor.rowcount == 0:
             raise TaskNotFoundError(task.id)
         return task
+
+
+class SQLiteOperationLogRepository:
+    """Persist and query user-visible, non-sensitive operation audit records."""
+
+    def __init__(self, database: SQLiteDatabase) -> None:
+        self.database = database
+
+    def record(self, operation: OperationLog) -> OperationLog:
+        with self.database.connect() as connection:
+            cursor = connection.execute(
+                "INSERT INTO operation_logs (collection_id, source_id, action, details_json, created_at) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (str(operation.collection_id) if operation.collection_id else None,
+                 str(operation.source_id) if operation.source_id else None, operation.action,
+                 _dump_json(operation.details), operation.created_at.isoformat()),
+            )
+        return operation.model_copy(update={"id": cursor.lastrowid})
+
+    def list_recent(self, collection_id: UUID | None = None, limit: int = 20) -> Sequence[OperationLog]:
+        query = "SELECT * FROM operation_logs"
+        values: tuple[object, ...] = ()
+        if collection_id is not None:
+            query += " WHERE collection_id = ?"
+            values = (str(collection_id),)
+        query += " ORDER BY created_at DESC LIMIT ?"
+        with self.database.connect() as connection:
+            rows = connection.execute(query, (*values, limit)).fetchall()
+        return [_operation_log_from_row(row) for row in rows]

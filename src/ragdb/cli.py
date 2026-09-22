@@ -10,7 +10,7 @@ import typer
 
 from ragdb import __version__
 from ragdb.application.collections import CollectionService
-from ragdb.application.ingestion import IngestionResult, LocalIngestionService
+from ragdb.application.ingestion import IngestionResult, LocalIngestionService, iter_supported_files
 from ragdb.application.metadata import build_ingestion_metadata, build_search_filters
 from ragdb.application.sources import SourceService
 from ragdb.application.search import SearchService
@@ -25,10 +25,13 @@ from ragdb.infrastructure.database import (
     SQLiteCollectionRepository,
     SQLiteDatabase,
     SQLiteGenerationRepository,
+    SQLiteOperationLogRepository,
     SQLiteKeywordIndex,
     SQLiteSourceRepository,
     SQLiteTaskRepository,
 )
+from ragdb.domain.models import OperationLog
+from ragdb.logging import configure_logging
 from ragdb.infrastructure.parsers import ParserRegistry
 from ragdb.infrastructure.vectorstore import ChromaVectorStore
 from ragdb.infrastructure.web import WebCrawler
@@ -56,11 +59,15 @@ collection_app = typer.Typer(help="创建和管理知识集合。", no_args_is_h
 ingest_app = typer.Typer(help="导入本地资料或文本。", no_args_is_help=True)
 watch_app = typer.Typer(help="监听目录并同步索引。", no_args_is_help=True)
 source_app = typer.Typer(help="查看和管理资料来源。", no_args_is_help=True)
+task_app = typer.Typer(help="查看批量导入任务。", no_args_is_help=True)
+log_app = typer.Typer(help="查看操作日志。", no_args_is_help=True)
 
 app.add_typer(collection_app, name="collection")
 app.add_typer(ingest_app, name="ingest")
 app.add_typer(watch_app, name="watch")
 app.add_typer(source_app, name="source")
+app.add_typer(task_app, name="task")
+app.add_typer(log_app, name="log")
 
 
 def _pending(feature: str) -> None:
@@ -80,11 +87,25 @@ def _runtime(ctx: typer.Context):
     root = ctx.find_root()
     config_path = root.obj.get("config_path", Path("config.toml"))
     settings = load_settings(config_path=config_path)
+    sensitive_values = []
+    if settings.embedding.cloud_api_key is not None:
+        sensitive_values.append(settings.embedding.cloud_api_key.get_secret_value())
+    configure_logging(settings.log_level, settings.storage.data_dir / "logs" / "ragdb.log", sensitive_values)
     database = SQLiteDatabase(
         settings.storage.data_dir / settings.storage.sqlite_filename
     )
     database.initialize()
     return settings, database
+
+
+def _record_operation(
+    ctx: typer.Context, action: str, *, collection_id: UUID | None = None,
+    source_id: UUID | None = None, details: dict[str, object] | None = None,
+) -> None:
+    _, database = _runtime(ctx)
+    SQLiteOperationLogRepository(database).record(
+        OperationLog(collection_id=collection_id, source_id=source_id, action=action, details=details or {})
+    )
 
 
 def _local_ingestion_service(ctx: typer.Context) -> tuple[LocalIngestionService, SQLiteCollectionRepository]:
@@ -203,10 +224,18 @@ def version() -> None:
 
 
 @app.command("init")
-def init_project() -> None:
+def init_project(ctx: typer.Context) -> None:
     """初始化本地知识库数据目录。"""
-
-    _pending("初始化")
+    root = ctx.find_root()
+    config_path = root.obj.get("config_path", Path("config.toml"))
+    settings = load_settings(config_path=config_path)
+    was_initialized = settings.storage.data_dir.exists()
+    _, database = _runtime(ctx)
+    (settings.storage.data_dir / settings.storage.chroma_directory).mkdir(parents=True, exist_ok=True)
+    _record_operation(ctx, "initialize", details={"data_dir": str(settings.storage.data_dir)})
+    state = "已存在" if was_initialized else "已创建"
+    typer.echo(f"知识库已初始化：{settings.storage.data_dir}（{state}）")
+    typer.echo(f"SQLite：{database.path}")
 
 
 @collection_app.command("create")
@@ -226,6 +255,7 @@ def collection_create(
         _exit_for_error(error)
     typer.echo(f"已创建知识集合：{collection.name}")
     typer.echo(f"ID：{collection.id}")
+    _record_operation(ctx, "collection_created", collection_id=collection.id, details={"name": collection.name})
 
 
 @collection_app.command("list")
@@ -287,6 +317,7 @@ def collection_delete(
     except RagdbError as error:
         _exit_for_error(error)
     typer.echo(f"已删除知识集合：{collection.name}")
+    _record_operation(ctx, "collection_deleted", details={"name": collection.name, "collection_id": str(collection.id)})
 
 
 @ingest_app.command("file")
@@ -307,6 +338,8 @@ def ingest_file(
     except RagdbError as error:
         _exit_for_error(error)
     _print_ingestion_result(result)
+    if result.source is not None:
+        _record_operation(ctx, "source_ingested", collection_id=result.source.collection_id, source_id=result.source.id, details={"status": result.status.value})
 
 
 @ingest_app.command("directory")
@@ -323,18 +356,25 @@ def ingest_directory(
 
     try:
         service, collections = _local_ingestion_service(ctx)
+        completed = 0
+        total = len(iter_supported_files(path))
+        def report_progress(item: IngestionResult) -> None:
+            nonlocal completed
+            completed += 1
+            _print_ingestion_result(item)
+            typer.echo(f"进度：{completed}/{total}")
         result = service.ingest_directory(
             _require_collection(collections, collection), path,
             build_ingestion_metadata(tags=tuple(tag), course=course, author=author, source_date=source_date),
+            on_item=report_progress,
         )
     except RagdbError as error:
         _exit_for_error(error)
-    for item in result.items:
-        _print_ingestion_result(item)
     typer.echo(
         f"任务完成：新增 {result.task.succeeded}，更新 {result.task.updated}，"
         f"跳过 {result.task.skipped}，失败 {result.task.failed}"
     )
+    _record_operation(ctx, "directory_ingested", collection_id=result.task.collection_id, details={"task_id": str(result.task.id)})
 
 
 @ingest_app.command("text")
@@ -359,6 +399,8 @@ def ingest_text(
     except RagdbError as error:
         _exit_for_error(error)
     _print_ingestion_result(result)
+    if result.source is not None:
+        _record_operation(ctx, "source_ingested", collection_id=result.source.collection_id, source_id=result.source.id, details={"status": result.status.value})
 
 
 @app.command()
@@ -576,6 +618,79 @@ def source_delete(
     except RagdbError as error:
         _exit_for_error(error)
     typer.echo(f"已删除资料：{source.title}")
+    _record_operation(ctx, "source_deleted", collection_id=source.collection_id, details={"title": source.title, "source_id": str(source.id)})
+
+
+@task_app.command("list")
+def task_list(
+    ctx: typer.Context,
+    collection: Annotated[str, typer.Option("--collection", "-c")],
+    limit: Annotated[int, typer.Option("--limit", min=1, max=100)] = 20,
+) -> None:
+    """列出集合最近的批量导入任务。"""
+
+    try:
+        _, database = _runtime(ctx)
+        target = _require_collection(SQLiteCollectionRepository(database), collection)
+        tasks = SQLiteTaskRepository(database).list_for_collection(target.id, limit)
+    except RagdbError as error:
+        _exit_for_error(error)
+    if not tasks:
+        typer.echo("暂无批量导入任务。")
+        return
+    typer.echo("ID\t状态\t开始时间\t新增\t更新\t跳过\t失败")
+    for task in tasks:
+        typer.echo(
+            f"{task.id}\t{task.status.value}\t{task.started_at.isoformat()}\t{task.succeeded}\t"
+            f"{task.updated}\t{task.skipped}\t{task.failed}"
+        )
+
+
+@task_app.command("show")
+def task_show(ctx: typer.Context, task_id: Annotated[UUID, typer.Argument(help="任务 ID。")]) -> None:
+    """查看一个批量导入任务的统计信息。"""
+
+    try:
+        _, database = _runtime(ctx)
+        task = SQLiteTaskRepository(database).get(task_id)
+        if task is None:
+            from ragdb.domain.errors import TaskNotFoundError
+            raise TaskNotFoundError(task_id)
+    except RagdbError as error:
+        _exit_for_error(error)
+    typer.echo(f"ID：{task.id}")
+    typer.echo(f"集合 ID：{task.collection_id}")
+    typer.echo(f"状态：{task.status.value}")
+    typer.echo(f"开始时间：{task.started_at.isoformat()}")
+    typer.echo(f"结束时间：{task.finished_at.isoformat() if task.finished_at else '-'}")
+    typer.echo(f"新增：{task.succeeded}，更新：{task.updated}，跳过：{task.skipped}，失败：{task.failed}")
+
+
+@log_app.command("list")
+def log_list(
+    ctx: typer.Context,
+    collection: Annotated[str | None, typer.Option("--collection", "-c")] = None,
+    limit: Annotated[int, typer.Option("--limit", min=1, max=100)] = 20,
+) -> None:
+    """查看最新操作日志。"""
+
+    try:
+        _, database = _runtime(ctx)
+        collection_id = None
+        if collection is not None:
+            collection_id = _require_collection(SQLiteCollectionRepository(database), collection).id
+        logs = SQLiteOperationLogRepository(database).list_recent(collection_id, limit)
+    except RagdbError as error:
+        _exit_for_error(error)
+    if not logs:
+        typer.echo("暂无操作日志。")
+        return
+    typer.echo("时间\t操作\t集合 ID\t资料 ID\t详情")
+    for entry in logs:
+        typer.echo(
+            f"{entry.created_at.isoformat()}\t{entry.action}\t{entry.collection_id or '-'}\t"
+            f"{entry.source_id or '-'}\t{entry.details}"
+        )
 
 
 @app.command()
@@ -599,6 +714,7 @@ def reindex(
         for item in items:
             _print_ingestion_result(item)
         typer.echo(f"重建完成：已处理 {len(items)} 个本地资料")
+        _record_operation(ctx, "collection_reindexed", collection_id=target.id, details={"processed": len(items)})
     except RagdbError as error:
         _exit_for_error(error)
 

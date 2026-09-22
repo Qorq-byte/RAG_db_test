@@ -6,6 +6,7 @@ from ragdb.infrastructure.database.repository import (
     SQLiteCollectionRepository,
     SQLiteDatabase,
     SQLiteGenerationRepository,
+    SQLiteOperationLogRepository,
     SQLiteSourceRepository,
     SQLiteTaskRepository,
 )
@@ -15,6 +16,7 @@ __all__ = [
     "SQLiteCollectionRepository",
     "SQLiteDatabase",
     "SQLiteGenerationRepository",
+    "SQLiteOperationLogRepository",
     "SQLiteKeywordIndex",
     "SQLiteSourceRepository",
     "SQLiteTaskRepository",

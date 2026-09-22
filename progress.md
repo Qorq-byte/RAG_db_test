@@ -31,3 +31,4 @@
 - 步骤 3 已推送：`a39f32e feat: import public GitHub repositories`。
 - 第六里程碑验收：`uv run pytest` 通过（104 passed）；`uv run python -m ragdb crawl --help` 与 `repo --help` 通过，待提交验收记录。
 - 用户批准前台持续运行的目录监听与显式集合重建方案；正在写入设计规格。
+- 第七里程碑验收：`uv run pytest` 通过（109 passed）；`watch --help` 与 `reindex --help` 通过。

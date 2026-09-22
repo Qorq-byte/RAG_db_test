@@ -30,3 +30,4 @@
 - 步骤 3 已完成：`ragdb repo` 支持经校验的公开 GitHub HTTPS 仓库浅克隆与受控文件过滤；定向测试 9 passed，待提交推送。
 - 步骤 3 已推送：`a39f32e feat: import public GitHub repositories`。
 - 第六里程碑验收：`uv run pytest` 通过（104 passed）；`uv run python -m ragdb crawl --help` 与 `repo --help` 通过，待提交验收记录。
+- 用户批准前台持续运行的目录监听与显式集合重建方案；正在写入设计规格。

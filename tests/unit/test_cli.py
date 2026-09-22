@@ -24,18 +24,18 @@ def test_collection_help_lists_operations() -> None:
     assert "info" in result.stdout
 
 
-def test_pending_command_has_consistent_exit_code() -> None:
+def test_doctor_help_is_available() -> None:
     result = runner.invoke(app, ["doctor"])
 
-    assert result.exit_code == ExitCode.NOT_IMPLEMENTED
-    assert "尚未实现" in result.output
+    assert result.exit_code in (ExitCode.SUCCESS, ExitCode.DOCTOR_FAILED)
+    assert "Python 版本" in result.output
 
 
 def test_global_config_option_is_accepted() -> None:
     result = runner.invoke(app, ["--config", "other.toml", "doctor"])
 
-    assert result.exit_code == ExitCode.NOT_IMPLEMENTED
-    assert "环境诊断" in result.output
+    assert result.exit_code in (ExitCode.SUCCESS, ExitCode.DOCTOR_FAILED)
+    assert "配置解析" in result.output
 
 
 def test_search_help_lists_metadata_filters() -> None:

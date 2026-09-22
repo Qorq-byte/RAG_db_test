@@ -15,6 +15,7 @@ from ragdb.application.metadata import build_ingestion_metadata, build_search_fi
 from ragdb.application.sources import SourceService
 from ragdb.application.search import SearchService
 from ragdb.config import load_settings
+from ragdb.diagnostics import DiagnosticStatus, has_failures, run_diagnostics
 from ragdb.domain.errors import ConflictError, NotFoundError, RagdbError, StorageError
 from ragdb.infrastructure.chunking import StructuredChunker
 from ragdb.infrastructure.embeddings import create_embedding_provider
@@ -38,6 +39,7 @@ import time
 
 class ExitCode(IntEnum):
     SUCCESS = 0
+    DOCTOR_FAILED = 1
     USAGE_ERROR = 2
     NOT_IMPLEMENTED = 3
     NOT_FOUND = 4
@@ -602,7 +604,15 @@ def reindex(
 
 
 @app.command()
-def doctor() -> None:
+def doctor(ctx: typer.Context) -> None:
     """检查配置与运行环境。"""
 
-    _pending("环境诊断")
+    root = ctx.find_root()
+    config_path = root.obj.get("config_path", Path("config.toml"))
+    results = run_diagnostics(config_path)
+    for result in results:
+        typer.echo(f"[{result.status.value}] {result.name}：{result.detail}")
+        if result.status is not DiagnosticStatus.PASS and result.remedy:
+            typer.echo(f"  建议：{result.remedy}")
+    if has_failures(results):
+        raise typer.Exit(code=ExitCode.DOCTOR_FAILED)

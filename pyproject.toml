@@ -14,6 +14,7 @@ dependencies = [
     "sentence-transformers>=3.0.0",
     "typer",
     "trafilatura>=2.0.0",
+    "watchdog>=6.0.0",
 ]
 
 [project.scripts]

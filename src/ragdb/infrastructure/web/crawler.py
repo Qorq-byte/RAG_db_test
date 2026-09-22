@@ -113,12 +113,18 @@ class WebCrawler:
             wait = interval - (self.clock() - self._last_request_at)
             if wait > 0:
                 self.sleep(wait)
-        try:
-            response = self.client.get(url, follow_redirects=False)
-            if not response.is_redirect:
+        for attempt in range(self.settings.retry_count + 1):
+            try:
+                response = self.client.get(url, follow_redirects=False)
+                if response.is_redirect:
+                    break
                 response.raise_for_status()
-        except httpx.HTTPError as exc:
-            raise WebCrawlError(url, f"请求失败：{exc}") from exc
+                break
+            except (httpx.RequestError, httpx.HTTPStatusError) as exc:
+                retryable = isinstance(exc, httpx.RequestError) or exc.response.status_code >= 500
+                if not retryable or attempt == self.settings.retry_count:
+                    raise WebCrawlError(url, f"请求失败：{exc}") from exc
+                self.sleep(0.25 * (2 ** attempt))
         self._last_request_at = self.clock()
         return response
 

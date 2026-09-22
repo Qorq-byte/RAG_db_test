@@ -58,6 +58,7 @@ class CrawlSettings(ConfigSection):
     requests_per_second: float = Field(default=1.0, gt=0)
     timeout_seconds: float = Field(default=20.0, gt=0)
     user_agent: str = "ragdb/0.1"
+    retry_count: int = Field(default=2, ge=0, le=5)
 
 
 class RerankSettings(ConfigSection):

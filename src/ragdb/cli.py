@@ -33,6 +33,7 @@ from ragdb.infrastructure.database import (
 from ragdb.domain.models import OperationLog
 from ragdb.logging import configure_logging
 from ragdb.infrastructure.parsers import ParserRegistry
+from ragdb.infrastructure.parsers.ocr import TesseractOcr
 from ragdb.infrastructure.vectorstore import ChromaVectorStore
 from ragdb.infrastructure.web import WebCrawler
 from ragdb.infrastructure.github import PublicGitHubImporter
@@ -115,7 +116,7 @@ def _local_ingestion_service(ctx: typer.Context) -> tuple[LocalIngestionService,
             SQLiteSourceRepository(database),
             SQLiteChunkRepository(database),
             SQLiteTaskRepository(database),
-            ParserRegistry(),
+            ParserRegistry(ocr=_ocr(settings)),
             StructuredChunker(settings.chunking),
             SQLiteKeywordIndex(database),
             create_embedding_provider(settings.embedding),
@@ -135,6 +136,12 @@ def _source_service(ctx: typer.Context) -> tuple[SourceService, SQLiteCollection
         ),
         SQLiteCollectionRepository(database),
     )
+
+
+def _ocr(settings):
+    if not settings.ocr.enabled or settings.ocr.executable_path is None:
+        return None
+    return TesseractOcr(settings.ocr.executable_path, settings.ocr.languages, settings.ocr.dpi)
 
 
 def _search_service(ctx: typer.Context) -> tuple[SearchService, SQLiteCollectionRepository]:

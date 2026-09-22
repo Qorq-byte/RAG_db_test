@@ -34,3 +34,9 @@ user_agent = "ragdb/0.1"
 enabled = false
 candidate_count = 20
 batch_size = 4
+
+[ocr]
+enabled = false
+executable_path = "D:/Dinstall/Tesseract-OCR/tesseract.exe"
+languages = "chi_sim+eng"
+dpi = 200

@@ -11,14 +11,15 @@ from ragdb.infrastructure.parsers.pdf import PdfParser
 from ragdb.infrastructure.parsers.powerpoint import PowerPointParser
 from ragdb.infrastructure.parsers.text import TextParser
 from ragdb.infrastructure.parsers.word import WordParser
+from ragdb.infrastructure.parsers.ocr import TesseractOcr
 
 
 class ParserRegistry:
-    def __init__(self, parsers: Iterable[DocumentParser] | None = None) -> None:
+    def __init__(self, parsers: Iterable[DocumentParser] | None = None, ocr: TesseractOcr | None = None) -> None:
         configured = tuple(parsers) if parsers is not None else (
             TextParser(),
             MarkdownParser(),
-            PdfParser(),
+            PdfParser(ocr_page=ocr.recognize_page if ocr else None),
             WordParser(),
             PowerPointParser(),
             CodeParser(),

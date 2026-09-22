@@ -50,6 +50,7 @@ def run_diagnostics(config_path: Path) -> list[DiagnosticResult]:
             _check_git(),
             _check_local_embedding_dependency(settings),
             _check_cloud_embedding_configuration(settings),
+            _check_ocr(settings),
         )
     )
     return results
@@ -217,3 +218,17 @@ def _check_cloud_embedding_configuration(settings: AppSettings) -> DiagnosticRes
             "补齐云端模型、Base URL，并通过 .env 或环境变量设置 API Key。",
         )
     return DiagnosticResult("云端嵌入配置", DiagnosticStatus.PASS, "云端嵌入配置完整；未发送 API 请求。")
+
+
+def _check_ocr(settings: AppSettings) -> DiagnosticResult:
+    if not settings.ocr.enabled:
+        return DiagnosticResult("OCR", DiagnosticStatus.PASS, "当前未启用 OCR。")
+    path = settings.ocr.executable_path
+    if path is None or not path.is_file():
+        return DiagnosticResult("OCR", DiagnosticStatus.FAILURE, "未找到 Tesseract 可执行文件。", "设置 ocr.executable_path 为 tesseract.exe 的完整路径。")
+    completed = subprocess.run([str(path), "--list-langs"], capture_output=True, text=True, timeout=5, check=False)
+    available = set(completed.stdout.splitlines()[1:])
+    missing = set(settings.ocr.languages.split("+")) - available
+    if completed.returncode or missing:
+        return DiagnosticResult("OCR", DiagnosticStatus.FAILURE, f"缺少语言包：{', '.join(sorted(missing)) or '无法查询'}。", "安装所需 traineddata 文件后重试。")
+    return DiagnosticResult("OCR", DiagnosticStatus.PASS, f"Tesseract 可用，语言：{settings.ocr.languages}。")

@@ -67,6 +67,13 @@ class RerankSettings(ConfigSection):
     batch_size: int = Field(default=4, ge=1)
 
 
+class OcrSettings(ConfigSection):
+    enabled: bool = False
+    executable_path: Path | None = None
+    languages: str = "chi_sim+eng"
+    dpi: int = Field(default=200, ge=72, le=600)
+
+
 class AppSettings(BaseSettings):
     """Validated settings for the ragdb application."""
 
@@ -83,6 +90,7 @@ class AppSettings(BaseSettings):
     retrieval: RetrievalSettings = Field(default_factory=RetrievalSettings)
     crawl: CrawlSettings = Field(default_factory=CrawlSettings)
     rerank: RerankSettings = Field(default_factory=RerankSettings)
+    ocr: OcrSettings = Field(default_factory=OcrSettings)
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "INFO"
 
 

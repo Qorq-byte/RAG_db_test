@@ -1,6 +1,7 @@
 """PDF text-layer parser with low-density OCR detection."""
 
 import pymupdf
+from collections.abc import Callable
 
 from ragdb.domain.enums import SourceType
 from ragdb.domain.errors import DocumentParseError, OcrRequiredError
@@ -12,10 +13,11 @@ class PdfParser:
     name = "pdf"
     version = "1.0"
 
-    def __init__(self, min_characters_per_page: int = 40) -> None:
+    def __init__(self, min_characters_per_page: int = 40, ocr_page: Callable[[pymupdf.Page, str], str] | None = None) -> None:
         if min_characters_per_page < 1:
             raise ValueError("min_characters_per_page must be positive")
         self.min_characters_per_page = min_characters_per_page
+        self.ocr_page = ocr_page
 
     def supports(self, source: Source) -> bool:
         return source.source_type is SourceType.PDF
@@ -32,6 +34,8 @@ class PdfParser:
                     character_count = non_whitespace_count(text)
                     if character_count < self.min_characters_per_page:
                         low_text_pages.append(page_number)
+                        if self.ocr_page is not None:
+                            text = self.ocr_page(page, source.uri)
                     if text:
                         units.append(
                             DocumentUnit(
@@ -45,7 +49,7 @@ class PdfParser:
 
         if page_count == 0:
             raise DocumentParseError(source.uri, "PDF 不包含页面")
-        if len(low_text_pages) == page_count:
+        if len(low_text_pages) == page_count and self.ocr_page is None:
             raise OcrRequiredError(source.uri, tuple(low_text_pages))
         return Document(
             source_id=source.id,

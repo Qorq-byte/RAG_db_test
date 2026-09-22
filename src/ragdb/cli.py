@@ -101,8 +101,14 @@ def _local_ingestion_service(ctx: typer.Context) -> tuple[LocalIngestionService,
 
 
 def _source_service(ctx: typer.Context) -> tuple[SourceService, SQLiteCollectionRepository]:
-    _, database = _runtime(ctx)
-    return SourceService(SQLiteSourceRepository(database)), SQLiteCollectionRepository(database)
+    settings, database = _runtime(ctx)
+    return (
+        SourceService(
+            SQLiteSourceRepository(database),
+            ChromaVectorStore(settings.storage.data_dir / settings.storage.chroma_directory),
+        ),
+        SQLiteCollectionRepository(database),
+    )
 
 
 def _search_service(ctx: typer.Context) -> tuple[SearchService, SQLiteCollectionRepository]:

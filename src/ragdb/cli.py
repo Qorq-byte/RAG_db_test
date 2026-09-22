@@ -31,6 +31,8 @@ from ragdb.infrastructure.parsers import ParserRegistry
 from ragdb.infrastructure.vectorstore import ChromaVectorStore
 from ragdb.infrastructure.web import WebCrawler
 from ragdb.infrastructure.github import PublicGitHubImporter
+from ragdb.infrastructure.watcher import DebouncedPathEvents, start_observer
+import time
 
 
 class ExitCode(IntEnum):
@@ -407,12 +409,37 @@ def import_repository(
 
 @watch_app.command("start")
 def watch_start(
+    ctx: typer.Context,
     path: Annotated[Path, typer.Argument(help="监听目录。")],
     collection: Annotated[str, typer.Option("--collection", "-c")],
 ) -> None:
     """启动目录监听。"""
 
-    _pending(f"监听 {path} 并同步到 {collection}")
+    try:
+        service, collections = _local_ingestion_service(ctx)
+        target = _require_collection(collections, collection)
+        if not path.is_dir():
+            raise typer.BadParameter("监听目录不存在")
+        events = DebouncedPathEvents(0.5, time.monotonic)
+        observer = start_observer(path, events)
+        typer.echo(f"正在监听：{path.resolve()}（按 Ctrl+C 停止）")
+        try:
+            while True:
+                for event_path, operation in events.ready():
+                    if operation == "upsert" and event_path.exists():
+                        _print_ingestion_result(service.ingest_file(target, event_path))
+                    elif operation == "delete":
+                        source = service.source_repository.get_by_uri(target.id, event_path.resolve().as_uri())
+                        if source is not None:
+                            SourceService(service.source_repository, service.vector_store).delete(source.id)
+                            typer.echo(f"已删除资料：{event_path}")
+                time.sleep(0.2)
+        except KeyboardInterrupt:
+            typer.echo("已停止监听。")
+        finally:
+            observer.stop(); observer.join()
+    except RagdbError as error:
+        _exit_for_error(error)
 
 
 @watch_app.command("status")

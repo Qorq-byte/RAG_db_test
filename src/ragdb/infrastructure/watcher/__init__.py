@@ -1,3 +1,3 @@
-from ragdb.infrastructure.watcher.service import DebouncedPathEvents, PathEventHandler
+from ragdb.infrastructure.watcher.service import DebouncedPathEvents, PathEventHandler, start_observer
 
-__all__ = ["DebouncedPathEvents", "PathEventHandler"]
+__all__ = ["DebouncedPathEvents", "PathEventHandler", "start_observer"]

@@ -2,6 +2,7 @@
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import QLabel, QListWidget, QMainWindow, QSplitter, QStackedWidget, QTextBrowser, QVBoxLayout, QWidget
+from ragdb.desktop.pages import CollectionsPage, OverviewPage
 
 
 PAGES = ("概览", "集合与资料", "检索", "问答", "学习产物", "任务与诊断")
@@ -33,7 +34,19 @@ class MainWindow(QMainWindow):
         self.navigation.addItems(PAGES)
         self.navigation.setFixedWidth(180)
         self.pages = QStackedWidget()
-        for name in PAGES:
+        for index, name in enumerate(PAGES):
+            if runtime is not None and index == 0:
+                page = OverviewPage()
+                self.overview_page = page
+                self.collection_context.changed.connect(page.show_collection)
+                self.pages.addWidget(page)
+                continue
+            if runtime is not None and index == 1:
+                page = CollectionsPage(runtime)
+                self.collections_page = page
+                page.collection_selected.connect(self.collection_context.select)
+                self.pages.addWidget(page)
+                continue
             page = QWidget()
             layout = QVBoxLayout(page)
             title = QLabel(name)

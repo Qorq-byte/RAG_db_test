@@ -6,6 +6,7 @@ from PySide6.QtWidgets import QApplication
 
 from ragdb.desktop.window import MainWindow, PAGES
 from ragdb.desktop.workers import BackgroundTask
+from ragdb.domain.models import Collection
 
 
 APPLICATION = QApplication.instance() or QApplication([])
@@ -43,3 +44,33 @@ def test_background_task_emits_result_and_context_token() -> None:
     APPLICATION.processEvents()
 
     assert seen == [("collection-2", 42)]
+
+
+class _Collections:
+    def __init__(self):
+        self.items = [Collection(name="人工智能")]
+
+    def list_all(self): return self.items
+    def create(self, name): self.items.append(Collection(name=name))
+    def delete_by_name(self, name): self.items = [item for item in self.items if item.name != name]
+
+
+class _Sources:
+    def list_for_collection(self, collection): return []
+
+
+class _Runtime:
+    def __init__(self): self.collection_api = _Collections()
+    def collection_service(self): return self.collection_api
+    def source_service(self): return _Sources()
+
+
+def test_collection_selection_updates_global_context_and_overview() -> None:
+    window = MainWindow(_Runtime())
+
+    window.collections_page.collections.setCurrentRow(0)
+    APPLICATION.processEvents()
+
+    assert window.collection_context.collection_name == "人工智能"
+    assert "人工智能" in window.overview_page.summary.text()
+    window.close()

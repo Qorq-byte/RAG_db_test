@@ -11,7 +11,7 @@ from ragdb.application.sources import SourceService
 from ragdb.config import AppSettings, load_settings
 from ragdb.infrastructure.chat import create_chat_model
 from ragdb.infrastructure.chunking import StructuredChunker
-from ragdb.infrastructure.database import SQLiteArtifactRepository, SQLiteChunkRepository, SQLiteCollectionRepository, SQLiteConversationRepository, SQLiteDatabase, SQLiteGenerationRepository, SQLiteKeywordIndex, SQLiteSourceRepository, SQLiteTaskRepository
+from ragdb.infrastructure.database import SQLiteArtifactRepository, SQLiteChunkRepository, SQLiteCollectionRepository, SQLiteConversationRepository, SQLiteDatabase, SQLiteGenerationRepository, SQLiteKeywordIndex, SQLiteOperationLogRepository, SQLiteSourceRepository, SQLiteTaskRepository
 from ragdb.infrastructure.embeddings import create_embedding_provider
 from ragdb.infrastructure.retrieval import CrossEncoderReranker
 from ragdb.infrastructure.parsers import ParserRegistry
@@ -21,16 +21,17 @@ from ragdb.infrastructure.github import PublicGitHubImporter
 
 
 class ApplicationRuntime:
-    def __init__(self, settings: AppSettings, database: SQLiteDatabase) -> None:
+    def __init__(self, settings: AppSettings, database: SQLiteDatabase, config_path: Path = Path("config.toml")) -> None:
         self.settings = settings
         self.database = database
+        self.config_path = config_path
 
     @classmethod
     def from_config(cls, config_path: Path = Path("config.toml")) -> "ApplicationRuntime":
         settings = load_settings(config_path=config_path)
         database = SQLiteDatabase(settings.storage.data_dir / settings.storage.sqlite_filename)
         database.initialize()
-        return cls(settings, database)
+        return cls(settings, database, config_path)
 
     @property
     def collections(self) -> SQLiteCollectionRepository:
@@ -77,6 +78,14 @@ class ApplicationRuntime:
     @property
     def artifacts(self) -> SQLiteArtifactRepository:
         return SQLiteArtifactRepository(self.database)
+
+    @property
+    def tasks(self) -> SQLiteTaskRepository:
+        return SQLiteTaskRepository(self.database)
+
+    @property
+    def operation_logs(self) -> SQLiteOperationLogRepository:
+        return SQLiteOperationLogRepository(self.database)
 
     def ingest_web(self, collection, url: str):
         service = self.ingestion_service()

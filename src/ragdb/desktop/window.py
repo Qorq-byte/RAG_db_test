@@ -1,9 +1,10 @@
 """Main desktop workbench window."""
 
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import QThreadPool, Qt, Signal
 from PySide6.QtWidgets import QLabel, QListWidget, QMainWindow, QSplitter, QStackedWidget, QTextBrowser, QVBoxLayout, QWidget
 from ragdb.desktop.pages import CollectionsPage, OverviewPage
 from ragdb.desktop.study_pages import ArtifactsPage, ChatPage, SearchPage
+from ragdb.desktop.operations_page import OperationsPage
 
 
 PAGES = ("概览", "集合与资料", "检索", "问答", "学习产物", "任务与诊断")
@@ -58,6 +59,11 @@ class MainWindow(QMainWindow):
                 page.details_requested.connect(self.details.setPlainText)
                 self.pages.addWidget(page)
                 continue
+            if runtime is not None and index == 5:
+                page = OperationsPage(runtime)
+                self.collection_context.changed.connect(page.set_collection)
+                self.pages.addWidget(page)
+                continue
             page = QWidget()
             layout = QVBoxLayout(page)
             title = QLabel(name)
@@ -74,3 +80,7 @@ class MainWindow(QMainWindow):
         self.navigation.currentRowChanged.connect(self.pages.setCurrentIndex)
         self.navigation.setCurrentRow(0)
         self.statusBar().showMessage("就绪")
+
+    def closeEvent(self, event) -> None:
+        QThreadPool.globalInstance().waitForDone(5000)
+        event.accept()

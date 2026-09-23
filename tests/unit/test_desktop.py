@@ -62,6 +62,7 @@ class _Sources:
 class _EmptyStore:
     def list_for_collection(self, collection_id): return []
     def list_messages(self, session_id): return []
+    def list_recent(self, collection_id): return []
 
 
 class _Runtime:
@@ -69,6 +70,8 @@ class _Runtime:
         self.collection_api = _Collections()
         self.conversations = _EmptyStore()
         self.artifacts = _EmptyStore()
+        self.tasks = _EmptyStore()
+        self.operation_logs = _EmptyStore()
     def collection_service(self): return self.collection_api
     def source_service(self): return _Sources()
 

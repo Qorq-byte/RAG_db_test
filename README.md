@@ -192,3 +192,13 @@ uv run ragdb log list --collection ai-notes
 ## 数据与隐私
 
 默认数据保存在 `.data/`，其中包含 SQLite、Chroma 索引和仓库导入缓存；该目录已被 Git 忽略。使用云端嵌入时，待嵌入的文本会发送至你配置的服务。请勿将 `.env`、API Key 或本地知识库数据提交到版本控制。
+
+## 桌面工作台
+
+安装依赖后可启动 PySide6 桌面应用：
+
+```powershell
+uv run ragdb-gui
+```
+
+工作台包含概览、集合与资料导入、检索、持久化问答、学习产物、任务日志和环境诊断。耗时导入、检索及模型调用在后台执行；API Key 仍需通过 `.env` 或环境变量配置。

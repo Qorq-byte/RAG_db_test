@@ -15,10 +15,12 @@ dependencies = [
     "typer",
     "trafilatura>=2.0.0",
     "watchdog>=6.0.0",
+    "pyside6>=6.8,<7",
 ]
 
 [project.scripts]
 ragdb = "ragdb.cli:app"
+ragdb-gui = "ragdb.desktop.app:main"
 
 [build-system]
 requires = ["hatchling"]

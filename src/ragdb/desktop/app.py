@@ -15,8 +15,7 @@ def main() -> int:
     application = QApplication.instance() or QApplication(sys.argv)
     theme_manager = ThemeManager()
     theme_manager.apply()
-    window = MainWindow(ApplicationRuntime.from_config())
-    window.theme_manager = theme_manager
+    window = MainWindow(ApplicationRuntime.from_config(), theme_manager)
     window.show()
     exit_after_ms = os.environ.get("RAGDB_GUI_TEST_EXIT_MS")
     if exit_after_ms:

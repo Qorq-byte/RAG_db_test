@@ -55,6 +55,10 @@ def build_stylesheet(tokens: dict[str, str]) -> str:
     * {{ font-family: "Segoe UI", "Microsoft YaHei UI"; color: {tokens['text']}; }}
     QMainWindow, QWidget#appRoot {{ background: {tokens['window']}; }}
     QWidget#sidebar {{ background: {tokens['sidebar']}; border-right: 1px solid {tokens['border']}; }}
+    QLabel[navGroup="true"] {{ color: {tokens['muted']}; font-size: 10px; font-weight: 650; padding: 8px 10px 3px 10px; }}
+    QPushButton[navItem="true"] {{ text-align: left; background: transparent; border: none; border-radius: 7px; padding: 7px 10px 7px 34px; color: {tokens['muted']}; }}
+    QPushButton[navItem="true"]:checked {{ color: {tokens['text']}; font-weight: 650; }}
+    QFrame#navHover {{ background: {tokens['accent_soft']}; border: none; border-radius: 7px; }}
     QWidget#topBar, QFrame[card="true"], QWidget#detailPanel {{ background: {tokens['panel']}; border: 1px solid {tokens['border']}; border-radius: 10px; }}
     QLabel[muted="true"] {{ color: {tokens['muted']}; }}
     QLabel[pageTitle="true"] {{ font-size: 24px; font-weight: 650; }}

@@ -18,12 +18,35 @@ APPLICATION = QApplication.instance() or QApplication([])
 def test_main_window_exposes_all_workbench_pages() -> None:
     window = MainWindow()
 
-    assert window.navigation.count() == len(PAGES)
+    assert len(window.navigation.buttons) == len(PAGES)
     assert window.pages.count() == len(PAGES)
-    window.navigation.setCurrentRow(3)
+    window.navigation.select_page(3)
     assert window.pages.currentIndex() == 3
     window.close()
     APPLICATION.processEvents()
+
+
+def test_sidebar_groups_and_collapsed_state() -> None:
+    window = MainWindow()
+
+    assert [label.text() for label in window.navigation.group_labels] == ["知识库", "学习", "系统"]
+    window.navigation.set_collapsed(True)
+
+    assert window.navigation.collapsed is True
+    assert all(button.text() == button.icon_text for button in window.navigation.buttons)
+    assert window.navigation.collection.isHidden()
+    window.close()
+
+
+def test_narrow_window_collapses_navigation_and_details() -> None:
+    window = MainWindow()
+    window.show()
+    window.resize(1024, 640)
+    APPLICATION.processEvents()
+
+    assert window.navigation.collapsed is True
+    assert window.detail_panel.isHidden()
+    window.close()
 
 
 def test_collection_context_invalidates_previous_generation() -> None:

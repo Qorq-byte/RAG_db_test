@@ -1,7 +1,15 @@
 """Main desktop workbench window."""
 
 from PySide6.QtCore import QThreadPool, Qt, Signal
-from PySide6.QtWidgets import QHBoxLayout, QLabel, QMainWindow, QSplitter, QStackedWidget, QVBoxLayout, QWidget
+from PySide6.QtWidgets import (
+    QHBoxLayout,
+    QLabel,
+    QMainWindow,
+    QSplitter,
+    QStackedWidget,
+    QVBoxLayout,
+    QWidget,
+)
 from ragdb.desktop.pages import CollectionsPage, OverviewPage
 from ragdb.desktop.study_pages import ArtifactsPage, ChatPage, SearchPage
 from ragdb.desktop.operations_page import OperationsPage
@@ -41,11 +49,13 @@ class MainWindow(QMainWindow):
         self.detail_panel = DetailPanel()
         self.details = self.detail_panel.content
         self.top_bar = TopBar(self.theme_manager)
-        self.collection_context.changed.connect(lambda _id, name, _generation: self.navigation.collection.setText(name))
+        self.collection_context.changed.connect(
+            lambda _id, name, _generation: self.navigation.collection.setText(name)
+        )
         self.collection_context.changed.connect(self.top_bar.set_collection)
         for index, name in enumerate(PAGES):
             if runtime is not None and index == 0:
-                page = OverviewPage()
+                page = OverviewPage(runtime)
                 self.overview_page = page
                 self.collection_context.changed.connect(page.show_collection)
                 self.pages.addWidget(page)
@@ -80,16 +90,29 @@ class MainWindow(QMainWindow):
         splitter.addWidget(self.detail_panel)
         splitter.setStretchFactor(1, 0)
         splitter.setStretchFactor(0, 1)
-        content = QWidget(); content_layout = QVBoxLayout(content); content_layout.setContentsMargins(12, 10, 12, 10); content_layout.addWidget(self.top_bar); content_layout.addWidget(splitter, 1)
-        root = QWidget(); root.setObjectName("appRoot"); root_layout = QHBoxLayout(root); root_layout.setContentsMargins(0, 0, 0, 0); root_layout.setSpacing(0); root_layout.addWidget(self.navigation); root_layout.addWidget(content, 1)
+        content = QWidget()
+        content_layout = QVBoxLayout(content)
+        content_layout.setContentsMargins(12, 10, 12, 10)
+        content_layout.addWidget(self.top_bar)
+        content_layout.addWidget(splitter, 1)
+        root = QWidget()
+        root.setObjectName("appRoot")
+        root_layout = QHBoxLayout(root)
+        root_layout.setContentsMargins(0, 0, 0, 0)
+        root_layout.setSpacing(0)
+        root_layout.addWidget(self.navigation)
+        root_layout.addWidget(content, 1)
         self.setCentralWidget(root)
         self.navigation.page_selected.connect(self.select_page)
-        self.top_bar.detail_toggled.connect(lambda: self.detail_panel.setVisible(not self.detail_panel.isVisible()))
+        self.top_bar.detail_toggled.connect(
+            lambda: self.detail_panel.setVisible(not self.detail_panel.isVisible())
+        )
         self.navigation.select_page(0)
         self.statusBar().showMessage("就绪")
 
     def select_page(self, index: int) -> None:
-        self.pages.setCurrentIndex(index); self.top_bar.set_page(PAGES[index])
+        self.pages.setCurrentIndex(index)
+        self.top_bar.set_page(PAGES[index])
         self.detail_panel.setVisible(index in (2, 3, 4))
 
     def resizeEvent(self, event) -> None:

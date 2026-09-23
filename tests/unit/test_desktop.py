@@ -8,7 +8,14 @@ from PySide6.QtCore import QSettings
 from ragdb.desktop.window import MainWindow, PAGES
 from ragdb.desktop.workers import BackgroundTask
 from ragdb.domain.models import Collection
-from ragdb.desktop.components import DetailPanel, EmptyState, PageShell, StatCard, StatusBadge
+from ragdb.desktop.components import (
+    DetailPanel,
+    EmptyState,
+    PageShell,
+    ResultCard,
+    StatCard,
+    StatusBadge,
+)
 from ragdb.desktop.theme import ThemeManager, ThemeMode
 
 
@@ -29,11 +36,17 @@ def test_main_window_exposes_all_workbench_pages() -> None:
 def test_sidebar_groups_and_collapsed_state() -> None:
     window = MainWindow()
 
-    assert [label.text() for label in window.navigation.group_labels] == ["知识库", "学习", "系统"]
+    assert [label.text() for label in window.navigation.group_labels] == [
+        "知识库",
+        "学习",
+        "系统",
+    ]
     window.navigation.set_collapsed(True)
 
     assert window.navigation.collapsed is True
-    assert all(button.text() == button.icon_text for button in window.navigation.buttons)
+    assert all(
+        button.text() == button.icon_text for button in window.navigation.buttons
+    )
     assert window.navigation.collection.isHidden()
     window.close()
 
@@ -76,19 +89,30 @@ class _Collections:
     def __init__(self):
         self.items = [Collection(name="人工智能")]
 
-    def list_all(self): return self.items
-    def create(self, name): self.items.append(Collection(name=name))
-    def delete_by_name(self, name): self.items = [item for item in self.items if item.name != name]
+    def list_all(self):
+        return self.items
+
+    def create(self, name):
+        self.items.append(Collection(name=name))
+
+    def delete_by_name(self, name):
+        self.items = [item for item in self.items if item.name != name]
 
 
 class _Sources:
-    def list_for_collection(self, collection): return []
+    def list_for_collection(self, collection):
+        return []
 
 
 class _EmptyStore:
-    def list_for_collection(self, collection_id): return []
-    def list_messages(self, session_id): return []
-    def list_recent(self, collection_id): return []
+    def list_for_collection(self, collection_id):
+        return []
+
+    def list_messages(self, session_id):
+        return []
+
+    def list_recent(self, collection_id):
+        return []
 
 
 class _Runtime:
@@ -98,8 +122,12 @@ class _Runtime:
         self.artifacts = _EmptyStore()
         self.tasks = _EmptyStore()
         self.operation_logs = _EmptyStore()
-    def collection_service(self): return self.collection_api
-    def source_service(self): return _Sources()
+
+    def collection_service(self):
+        return self.collection_api
+
+    def source_service(self):
+        return _Sources()
 
 
 def test_collection_selection_updates_global_context_and_overview() -> None:
@@ -132,6 +160,7 @@ def test_shared_visual_components_construct_and_update() -> None:
     badge = StatusBadge("通过", "success")
     empty = EmptyState("暂无结果", "尝试调整关键词")
     detail = DetailPanel()
+    result = ResultCard("Python 指南", "一段可核验的证据", "#1 · guide.md")
     detail.show_text("来源内容", "来源")
 
     shell.set_content(card)
@@ -140,3 +169,13 @@ def test_shared_visual_components_construct_and_update() -> None:
     assert empty is not None
     assert detail.title.text() == "来源"
     assert detail.content.toPlainText() == "来源内容"
+    assert result.property("resultCard") is True
+
+
+def test_runtime_pages_use_new_information_architecture() -> None:
+    window = MainWindow(_Runtime())
+
+    assert window.collections_page.sources.columnCount() == 3
+    assert window.pages.widget(2).result_caption.text().startswith("结果")
+    assert window.pages.widget(5).states.currentWidget().count() == 3
+    window.close()

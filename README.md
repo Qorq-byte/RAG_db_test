@@ -195,10 +195,24 @@ uv run ragdb log list --collection ai-notes
 
 ## 桌面工作台
 
-安装依赖后可启动 PySide6 桌面应用：
+先进入项目目录并同步依赖，再启动 PySide6 桌面应用：
 
 ```powershell
+cd <项目目录>
+uv sync
 uv run ragdb-gui
 ```
 
-工作台包含概览、集合与资料导入、检索、持久化问答、学习产物、任务日志和环境诊断。耗时导入、检索及模型调用在后台执行；API Key 仍需通过 `.env` 或环境变量配置。
+如果当前终端不在项目目录（例如显示 `PS C:\Windows\system32>`），可显式指定项目路径：
+
+```powershell
+uv run --project <项目目录> ragdb-gui
+```
+
+也可使用模块入口启动：
+
+```powershell
+uv run python -m ragdb.desktop.app
+```
+
+工作台采用可折叠的分组导航，并支持跟随系统、浅色和深色主题。它包含概览、集合与资料导入、可追溯检索、持久化问答、学习产物、任务日志和环境诊断；检索结果与回答引用可在右侧详情栏核验。耗时导入、检索及模型调用在后台执行；API Key 仍需通过 `.env` 或环境变量配置。

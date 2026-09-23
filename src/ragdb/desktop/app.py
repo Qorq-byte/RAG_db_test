@@ -21,3 +21,7 @@ def main() -> int:
     if exit_after_ms:
         QTimer.singleShot(int(exit_after_ms), application.quit)
     return application.exec()
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

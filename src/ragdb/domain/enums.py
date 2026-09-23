@@ -47,3 +47,8 @@ class RetrievalRoute(StrEnum):
     KEYWORD = "keyword"
     HYBRID = "hybrid"
     RERANKED = "reranked"
+
+
+class MessageRole(StrEnum):
+    USER = "user"
+    ASSISTANT = "assistant"

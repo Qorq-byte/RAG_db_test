@@ -1,6 +1,7 @@
 """Domain models and service contracts for ragdb."""
 
 from ragdb.domain.enums import (
+    MessageRole,
     RetrievalRoute,
     SourceStatus,
     SourceType,
@@ -10,9 +11,12 @@ from ragdb.domain.enums import (
 from ragdb.domain.models import (
     Chunk,
     Collection,
+    Conversation,
+    ConversationMessage,
     Document,
     DocumentUnit,
     IngestionTask,
+    MessageCitation,
     OperationLog,
     RetrievedChunk,
     SearchHit,
@@ -24,9 +28,13 @@ from ragdb.domain.models import (
 __all__ = [
     "Chunk",
     "Collection",
+    "Conversation",
+    "ConversationMessage",
     "Document",
     "DocumentUnit",
     "IngestionTask",
+    "MessageCitation",
+    "MessageRole",
     "OperationLog",
     "RetrievalRoute",
     "RetrievedChunk",

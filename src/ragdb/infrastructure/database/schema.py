@@ -5,7 +5,7 @@ import sqlite3
 from ragdb.domain.errors import StorageError
 
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 SCHEMA_SQL = """
 BEGIN IMMEDIATE;
@@ -116,19 +116,60 @@ END;
 """
 
 
+SCHEMA_V2_SQL = """
+CREATE TABLE conversations (
+    id TEXT PRIMARY KEY,
+    collection_id TEXT NOT NULL REFERENCES collections(id) ON DELETE CASCADE,
+    title TEXT,
+    provider TEXT NOT NULL,
+    model TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE INDEX idx_conversations_collection_updated
+    ON conversations(collection_id, updated_at DESC);
+
+CREATE TABLE conversation_messages (
+    id TEXT PRIMARY KEY,
+    conversation_id TEXT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+    sequence INTEGER NOT NULL CHECK (sequence >= 0),
+    role TEXT NOT NULL CHECK (role IN ('user', 'assistant')),
+    content TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    UNIQUE(conversation_id, sequence)
+);
+
+CREATE INDEX idx_conversation_messages_sequence
+    ON conversation_messages(conversation_id, sequence);
+
+CREATE TABLE message_citations (
+    assistant_message_id TEXT NOT NULL REFERENCES conversation_messages(id) ON DELETE CASCADE,
+    display_index INTEGER NOT NULL CHECK (display_index >= 1),
+    chunk_id TEXT NOT NULL,
+    source_id TEXT NOT NULL,
+    source_generation INTEGER NOT NULL CHECK (source_generation >= 1),
+    source_title TEXT NOT NULL,
+    source_uri TEXT NOT NULL,
+    position_json TEXT NOT NULL DEFAULT '{}',
+    PRIMARY KEY(assistant_message_id, display_index)
+);
+"""
+
+
 def initialize_schema(connection: sqlite3.Connection) -> None:
     current_version = connection.execute("PRAGMA user_version").fetchone()[0]
     if current_version > SCHEMA_VERSION:
         raise StorageError(
             f"数据库版本 {current_version} 高于当前支持版本 {SCHEMA_VERSION}"
         )
-    if current_version == SCHEMA_VERSION:
-        return
-    if current_version != 0:
-        raise StorageError(f"暂不支持从数据库版本 {current_version} 升级")
-
     try:
-        connection.executescript(SCHEMA_SQL)
+        if current_version == 0:
+            connection.executescript(SCHEMA_SQL)
+            current_version = 1
+        if current_version == 1:
+            connection.executescript(SCHEMA_V2_SQL)
+            current_version = 2
         connection.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
         connection.commit()
     except sqlite3.Error as exc:

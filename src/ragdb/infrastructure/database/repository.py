@@ -8,7 +8,7 @@ from datetime import datetime
 from pathlib import Path
 from uuid import UUID
 
-from ragdb.domain.enums import SourceStatus, SourceType, TaskStatus
+from ragdb.domain.enums import MessageRole, SourceStatus, SourceType, TaskStatus
 from ragdb.domain.errors import (
     CollectionAlreadyExistsError,
     CollectionNotFoundError,
@@ -20,7 +20,10 @@ from ragdb.domain.errors import (
 from ragdb.domain.models import (
     Chunk,
     Collection,
+    Conversation,
+    ConversationMessage,
     IngestionTask,
+    MessageCitation,
     OperationLog,
     Source,
     SourcePosition,
@@ -146,6 +149,32 @@ def _operation_log_from_row(row: sqlite3.Row) -> OperationLog:
     )
 
 
+def _conversation_from_row(row: sqlite3.Row) -> Conversation:
+    return Conversation(
+        id=UUID(row["id"]), collection_id=UUID(row["collection_id"]), title=row["title"],
+        provider=row["provider"], model=row["model"],
+        created_at=datetime.fromisoformat(row["created_at"]),
+        updated_at=datetime.fromisoformat(row["updated_at"]),
+    )
+
+
+def _message_from_row(row: sqlite3.Row) -> ConversationMessage:
+    return ConversationMessage(
+        id=UUID(row["id"]), conversation_id=UUID(row["conversation_id"]),
+        sequence=row["sequence"], role=MessageRole(row["role"]), content=row["content"],
+        created_at=datetime.fromisoformat(row["created_at"]),
+    )
+
+
+def _citation_from_row(row: sqlite3.Row) -> MessageCitation:
+    return MessageCitation(
+        assistant_message_id=UUID(row["assistant_message_id"]), display_index=row["display_index"],
+        chunk_id=row["chunk_id"], source_id=UUID(row["source_id"]),
+        source_generation=row["source_generation"], source_title=row["source_title"],
+        source_uri=row["source_uri"], position=SourcePosition.model_validate(_load_json(row["position_json"])),
+    )
+
+
 class SQLiteCollectionRepository:
     def __init__(self, database: SQLiteDatabase) -> None:
         self.database = database
@@ -195,6 +224,128 @@ class SQLiteCollectionRepository:
         with self.database.connect() as connection:
             cursor = connection.execute(
                 "DELETE FROM collections WHERE id = ?", (str(collection_id),)
+            )
+        return cursor.rowcount > 0
+
+
+class SQLiteConversationRepository:
+    """Persist collection-scoped conversations and their immutable source snapshots."""
+
+    def __init__(self, database: SQLiteDatabase) -> None:
+        self.database = database
+
+    def create(self, conversation: Conversation) -> Conversation:
+        try:
+            with self.database.connect() as connection:
+                connection.execute(
+                    """INSERT INTO conversations
+                    (id, collection_id, title, provider, model, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                    self._conversation_values(conversation),
+                )
+        except sqlite3.IntegrityError as exc:
+            raise StorageError("保存会话失败") from exc
+        return conversation
+
+    @staticmethod
+    def _conversation_values(conversation: Conversation) -> tuple[object, ...]:
+        return (
+            str(conversation.id), str(conversation.collection_id), conversation.title,
+            conversation.provider, conversation.model, conversation.created_at.isoformat(),
+            conversation.updated_at.isoformat(),
+        )
+
+    def get(self, conversation_id: UUID) -> Conversation | None:
+        with self.database.connect() as connection:
+            row = connection.execute(
+                "SELECT * FROM conversations WHERE id = ?", (str(conversation_id),)
+            ).fetchone()
+        return _conversation_from_row(row) if row is not None else None
+
+    def list_for_collection(self, collection_id: UUID, limit: int = 20) -> Sequence[Conversation]:
+        with self.database.connect() as connection:
+            rows = connection.execute(
+                "SELECT * FROM conversations WHERE collection_id = ? "
+                "ORDER BY updated_at DESC, id DESC LIMIT ?",
+                (str(collection_id), limit),
+            ).fetchall()
+        return [_conversation_from_row(row) for row in rows]
+
+    def list_messages(self, conversation_id: UUID) -> Sequence[ConversationMessage]:
+        with self.database.connect() as connection:
+            rows = connection.execute(
+                "SELECT * FROM conversation_messages WHERE conversation_id = ? "
+                "ORDER BY sequence",
+                (str(conversation_id),),
+            ).fetchall()
+        return [_message_from_row(row) for row in rows]
+
+    def list_citations(self, assistant_message_id: UUID) -> Sequence[MessageCitation]:
+        with self.database.connect() as connection:
+            rows = connection.execute(
+                "SELECT * FROM message_citations WHERE assistant_message_id = ? "
+                "ORDER BY display_index",
+                (str(assistant_message_id),),
+            ).fetchall()
+        return [_citation_from_row(row) for row in rows]
+
+    def record_turn(
+        self,
+        user_message: ConversationMessage,
+        assistant_message: ConversationMessage,
+        citations: Sequence[MessageCitation],
+    ) -> None:
+        if user_message.conversation_id != assistant_message.conversation_id:
+            raise StorageError("同一轮消息必须属于同一会话")
+        if user_message.role is not MessageRole.USER or assistant_message.role is not MessageRole.ASSISTANT:
+            raise StorageError("会话轮次必须依次包含用户与助手消息")
+        if assistant_message.sequence != user_message.sequence + 1:
+            raise StorageError("会话轮次消息序号必须连续")
+        if any(citation.assistant_message_id != assistant_message.id for citation in citations):
+            raise StorageError("引用必须属于本轮助手消息")
+        try:
+            with self.database.connect() as connection:
+                connection.executemany(
+                    """INSERT INTO conversation_messages
+                    (id, conversation_id, sequence, role, content, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?)""",
+                    [self._message_values(user_message), self._message_values(assistant_message)],
+                )
+                connection.executemany(
+                    """INSERT INTO message_citations
+                    (assistant_message_id, display_index, chunk_id, source_id, source_generation,
+                    source_title, source_uri, position_json)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                    [self._citation_values(citation) for citation in citations],
+                )
+                cursor = connection.execute(
+                    "UPDATE conversations SET updated_at = ? WHERE id = ?",
+                    (assistant_message.created_at.isoformat(), str(assistant_message.conversation_id)),
+                )
+                if cursor.rowcount == 0:
+                    raise StorageError("会话不存在")
+        except sqlite3.IntegrityError as exc:
+            raise StorageError("保存会话轮次失败") from exc
+
+    @staticmethod
+    def _message_values(message: ConversationMessage) -> tuple[object, ...]:
+        return (
+            str(message.id), str(message.conversation_id), message.sequence, message.role.value,
+            message.content, message.created_at.isoformat(),
+        )
+
+    @staticmethod
+    def _citation_values(citation: MessageCitation) -> tuple[object, ...]:
+        return (
+            str(citation.assistant_message_id), citation.display_index, citation.chunk_id,
+            str(citation.source_id), citation.source_generation, citation.source_title,
+            citation.source_uri, _dump_json(citation.position.model_dump(mode="json")),
+        )
+
+    def delete(self, conversation_id: UUID) -> bool:
+        with self.database.connect() as connection:
+            cursor = connection.execute(
+                "DELETE FROM conversations WHERE id = ?", (str(conversation_id),)
             )
         return cursor.rowcount > 0
 

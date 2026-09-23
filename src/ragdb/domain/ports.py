@@ -9,8 +9,11 @@ from pydantic import JsonValue
 from ragdb.domain.models import (
     Chunk,
     Collection,
+    Conversation,
+    ConversationMessage,
     Document,
     IngestionTask,
+    MessageCitation,
     RetrievedChunk,
     Source,
 )
@@ -42,6 +45,28 @@ class SourceRepository(Protocol):
     def update(self, source: Source) -> Source: ...
 
     def delete(self, source_id: UUID) -> bool: ...
+
+
+@runtime_checkable
+class ConversationRepository(Protocol):
+    def create(self, conversation: Conversation) -> Conversation: ...
+
+    def get(self, conversation_id: UUID) -> Conversation | None: ...
+
+    def list_for_collection(self, collection_id: UUID, limit: int = 20) -> Sequence[Conversation]: ...
+
+    def list_messages(self, conversation_id: UUID) -> Sequence[ConversationMessage]: ...
+
+    def list_citations(self, assistant_message_id: UUID) -> Sequence[MessageCitation]: ...
+
+    def record_turn(
+        self,
+        user_message: ConversationMessage,
+        assistant_message: ConversationMessage,
+        citations: Sequence[MessageCitation],
+    ) -> None: ...
+
+    def delete(self, conversation_id: UUID) -> bool: ...
 
 
 @runtime_checkable

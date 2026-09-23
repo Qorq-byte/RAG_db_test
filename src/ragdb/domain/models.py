@@ -14,7 +14,7 @@ from pydantic import (
     model_validator,
 )
 
-from ragdb.domain.enums import RetrievalRoute, SourceStatus, SourceType, TaskStatus
+from ragdb.domain.enums import MessageRole, RetrievalRoute, SourceStatus, SourceType, TaskStatus
 
 
 NonEmptyText = Annotated[
@@ -156,6 +156,42 @@ class OperationLog(DomainModel):
     action: NonEmptyText
     details: Metadata = Field(default_factory=dict)
     created_at: AwareDatetime = Field(default_factory=utc_now)
+
+
+class Conversation(DomainModel):
+    id: UUID = Field(default_factory=uuid4)
+    collection_id: UUID
+    title: str | None = Field(default=None, max_length=256)
+    provider: NonEmptyText
+    model: NonEmptyText
+    created_at: AwareDatetime = Field(default_factory=utc_now)
+    updated_at: AwareDatetime = Field(default_factory=utc_now)
+
+    @model_validator(mode="after")
+    def validate_timestamps(self) -> Self:
+        if self.updated_at < self.created_at:
+            raise ValueError("updated_at must not be earlier than created_at")
+        return self
+
+
+class ConversationMessage(DomainModel):
+    id: UUID = Field(default_factory=uuid4)
+    conversation_id: UUID
+    sequence: int = Field(ge=0)
+    role: MessageRole
+    content: NonEmptyText
+    created_at: AwareDatetime = Field(default_factory=utc_now)
+
+
+class MessageCitation(DomainModel):
+    assistant_message_id: UUID
+    display_index: int = Field(ge=1)
+    chunk_id: NonEmptyText
+    source_id: UUID
+    source_generation: int = Field(ge=1)
+    source_title: DisplayName
+    source_uri: NonEmptyText
+    position: SourcePosition = Field(default_factory=SourcePosition)
 
 
 class RetrievedChunk(DomainModel):

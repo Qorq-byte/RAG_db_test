@@ -222,6 +222,7 @@ class SearchHit(DomainModel):
     source_id: UUID
     source_title: DisplayName
     source_uri: NonEmptyText
+    source_generation: int = Field(default=1, ge=1)
     text: NonEmptyText
     position: SourcePosition = Field(default_factory=SourcePosition)
     routes: tuple[RetrievalRoute, ...] = Field(min_length=1)

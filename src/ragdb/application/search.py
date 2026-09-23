@@ -72,6 +72,7 @@ class SearchService:
             hits.append(SearchHit(
                 rank=rank, chunk_id=item.chunk.id, source_id=source.id,
                 source_title=source.title, source_uri=source.uri, text=item.chunk.text,
+                source_generation=source.current_generation,
                 position=item.chunk.position, routes=routes,
                 scores=SearchScores(semantic=vector_scores.get(item.chunk.id), keyword=keyword_scores.get(item.chunk.id), fusion=item.score),
                 metadata=item.chunk.metadata,

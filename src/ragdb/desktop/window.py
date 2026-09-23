@@ -3,6 +3,7 @@
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import QLabel, QListWidget, QMainWindow, QSplitter, QStackedWidget, QTextBrowser, QVBoxLayout, QWidget
 from ragdb.desktop.pages import CollectionsPage, OverviewPage
+from ragdb.desktop.study_pages import ArtifactsPage, ChatPage, SearchPage
 
 
 PAGES = ("概览", "集合与资料", "检索", "问答", "学习产物", "任务与诊断")
@@ -34,6 +35,9 @@ class MainWindow(QMainWindow):
         self.navigation.addItems(PAGES)
         self.navigation.setFixedWidth(180)
         self.pages = QStackedWidget()
+        self.details = QTextBrowser()
+        self.details.setPlaceholderText("选择资料、检索结果或引用后在此查看详情")
+        self.details.setMinimumWidth(280)
         for index, name in enumerate(PAGES):
             if runtime is not None and index == 0:
                 page = OverviewPage()
@@ -47,6 +51,13 @@ class MainWindow(QMainWindow):
                 page.collection_selected.connect(self.collection_context.select)
                 self.pages.addWidget(page)
                 continue
+            if runtime is not None and index in (2, 3, 4):
+                page_type = {2: SearchPage, 3: ChatPage, 4: ArtifactsPage}[index]
+                page = page_type(runtime)
+                self.collection_context.changed.connect(page.set_collection)
+                page.details_requested.connect(self.details.setPlainText)
+                self.pages.addWidget(page)
+                continue
             page = QWidget()
             layout = QVBoxLayout(page)
             title = QLabel(name)
@@ -54,9 +65,6 @@ class MainWindow(QMainWindow):
             layout.addWidget(title)
             layout.addStretch()
             self.pages.addWidget(page)
-        self.details = QTextBrowser()
-        self.details.setPlaceholderText("选择资料、检索结果或引用后在此查看详情")
-        self.details.setMinimumWidth(280)
         splitter = QSplitter(Qt.Orientation.Horizontal)
         splitter.addWidget(self.navigation)
         splitter.addWidget(self.pages)

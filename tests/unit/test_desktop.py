@@ -59,8 +59,16 @@ class _Sources:
     def list_for_collection(self, collection): return []
 
 
+class _EmptyStore:
+    def list_for_collection(self, collection_id): return []
+    def list_messages(self, session_id): return []
+
+
 class _Runtime:
-    def __init__(self): self.collection_api = _Collections()
+    def __init__(self):
+        self.collection_api = _Collections()
+        self.conversations = _EmptyStore()
+        self.artifacts = _EmptyStore()
     def collection_service(self): return self.collection_api
     def source_service(self): return _Sources()
 

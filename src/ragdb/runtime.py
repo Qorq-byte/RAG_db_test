@@ -70,6 +70,14 @@ class ApplicationRuntime:
         chat = self.settings.chat
         return GenerationService(self.search_service(), create_chat_model(chat), SQLiteArtifactRepository(self.database), evidence_limit=chat.evidence_limit, evidence_character_budget=chat.evidence_character_budget)
 
+    @property
+    def conversations(self) -> SQLiteConversationRepository:
+        return SQLiteConversationRepository(self.database)
+
+    @property
+    def artifacts(self) -> SQLiteArtifactRepository:
+        return SQLiteArtifactRepository(self.database)
+
     def ingest_web(self, collection, url: str):
         service = self.ingestion_service()
         crawler = WebCrawler(self.settings.crawl)

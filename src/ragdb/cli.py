@@ -14,6 +14,7 @@ from ragdb.application.ingestion import IngestionResult, LocalIngestionService, 
 from ragdb.application.metadata import build_ingestion_metadata, build_search_filters
 from ragdb.application.sources import SourceService
 from ragdb.application.search import SearchService
+from ragdb.application.chat import AnswerService
 from ragdb.config import load_settings
 from ragdb.diagnostics import DiagnosticStatus, has_failures, run_diagnostics
 from ragdb.domain.errors import ConflictError, NotFoundError, RagdbError, StorageError
@@ -23,6 +24,7 @@ from ragdb.infrastructure.retrieval import CrossEncoderReranker
 from ragdb.infrastructure.database import (
     SQLiteChunkRepository,
     SQLiteCollectionRepository,
+    SQLiteConversationRepository,
     SQLiteDatabase,
     SQLiteGenerationRepository,
     SQLiteOperationLogRepository,
@@ -38,6 +40,7 @@ from ragdb.infrastructure.vectorstore import ChromaVectorStore
 from ragdb.infrastructure.web import WebCrawler
 from ragdb.infrastructure.github import PublicGitHubImporter
 from ragdb.infrastructure.watcher import DebouncedPathEvents, start_observer
+from ragdb.infrastructure.chat import create_chat_model
 import time
 
 
@@ -62,6 +65,8 @@ watch_app = typer.Typer(help="监听目录并同步索引。", no_args_is_help=T
 source_app = typer.Typer(help="查看和管理资料来源。", no_args_is_help=True)
 task_app = typer.Typer(help="查看批量导入任务。", no_args_is_help=True)
 log_app = typer.Typer(help="查看操作日志。", no_args_is_help=True)
+chat_app = typer.Typer(help="基于集合资料进行多轮问答。", no_args_is_help=True)
+chat_session_app = typer.Typer(help="管理持久化问答会话。", no_args_is_help=True)
 
 app.add_typer(collection_app, name="collection")
 app.add_typer(ingest_app, name="ingest")
@@ -69,6 +74,8 @@ app.add_typer(watch_app, name="watch")
 app.add_typer(source_app, name="source")
 app.add_typer(task_app, name="task")
 app.add_typer(log_app, name="log")
+app.add_typer(chat_app, name="chat")
+chat_app.add_typer(chat_session_app, name="session")
 
 
 def _pending(feature: str) -> None:
@@ -91,6 +98,8 @@ def _runtime(ctx: typer.Context):
     sensitive_values = []
     if settings.embedding.cloud_api_key is not None:
         sensitive_values.append(settings.embedding.cloud_api_key.get_secret_value())
+    if settings.chat.cloud_api_key is not None:
+        sensitive_values.append(settings.chat.cloud_api_key.get_secret_value())
     configure_logging(settings.log_level, settings.storage.data_dir / "logs" / "ragdb.log", sensitive_values)
     database = SQLiteDatabase(
         settings.storage.data_dir / settings.storage.sqlite_filename
@@ -560,6 +569,61 @@ def search(
             f"重排序={scores.rerank:.4f}" if scores.rerank is not None else None,
         ]
         typer.echo(f"评分：{', '.join(part for part in score_parts if part)}")
+
+
+@chat_app.command("ask")
+def chat_ask(ctx: typer.Context, question: Annotated[str, typer.Argument()], collection: Annotated[str, typer.Option("--collection", "-c")], session: Annotated[UUID | None, typer.Option("--session")] = None) -> None:
+    """依据检索到的资料回答问题。"""
+    try:
+        settings, database = _runtime(ctx)
+        search_service, collections = _search_service(ctx)
+        service = AnswerService(search_service, create_chat_model(settings.chat), SQLiteConversationRepository(database), evidence_limit=settings.chat.evidence_limit, evidence_character_budget=settings.chat.evidence_character_budget, history_character_budget=settings.chat.history_character_budget)
+        result = service.ask(_require_collection(collections, collection).id, question, session)
+    except (RagdbError, RuntimeError, ValueError) as error:
+        _exit_for_error(error)
+    typer.echo(f"会话 ID：{result.conversation.id}")
+    typer.echo(result.content)
+    for citation in result.citations:
+        typer.echo(f"[{citation.display_index}] {citation.source_title}：{citation.source_uri}")
+
+
+@chat_session_app.command("list")
+def chat_session_list(ctx: typer.Context, collection: Annotated[str, typer.Option("--collection", "-c")]) -> None:
+    """列出集合内的问答会话。"""
+    _, database = _runtime(ctx)
+    target = _require_collection(SQLiteCollectionRepository(database), collection)
+    sessions = SQLiteConversationRepository(database).list_for_collection(target.id)
+    for item in sessions:
+        typer.echo(f"{item.id}\t{item.title or '-'}\t{item.updated_at.isoformat()}")
+
+
+@chat_session_app.command("show")
+def chat_session_show(ctx: typer.Context, session_id: Annotated[UUID, typer.Argument()], collection: Annotated[str, typer.Option("--collection", "-c")]) -> None:
+    """显示一个会话及其消息。"""
+    _, database = _runtime(ctx)
+    target = _require_collection(SQLiteCollectionRepository(database), collection)
+    repository = SQLiteConversationRepository(database)
+    session = repository.get(session_id)
+    if session is None or session.collection_id != target.id:
+        _exit_for_error(NotFoundError("指定会话不存在于该知识集合"))
+    for message in repository.list_messages(session_id):
+        typer.echo(f"{message.role.value}：{message.content}")
+
+
+@chat_session_app.command("delete")
+def chat_session_delete(ctx: typer.Context, session_id: Annotated[UUID, typer.Argument()], collection: Annotated[str, typer.Option("--collection", "-c")], yes: Annotated[bool, typer.Option("--yes", "-y")] = False) -> None:
+    """删除一个问答会话。"""
+    _, database = _runtime(ctx)
+    target = _require_collection(SQLiteCollectionRepository(database), collection)
+    repository = SQLiteConversationRepository(database)
+    session = repository.get(session_id)
+    if session is None or session.collection_id != target.id:
+        _exit_for_error(NotFoundError("指定会话不存在于该知识集合"))
+    if not yes and not typer.confirm("确认删除该问答会话？"):
+        typer.echo("已取消。")
+        return
+    repository.delete(session_id)
+    typer.echo("已删除问答会话。")
 
 
 @source_app.command("list")

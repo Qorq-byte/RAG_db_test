@@ -96,6 +96,21 @@ uv run ragdb chat session delete <SESSION_ID> --collection ai-notes
 
 会话只属于一个知识集合；删除集合会同时删除其会话。没有检索到足够证据时，系统不会调用模型，而会明确说明无法依据知识库回答。
 
+## 学习内容生成
+
+可依据集合内检索证据生成摘要、提纲、学习笔记、练习题或知识卡片；使用 `--source-id` 可限定单一资料。生成结果和来源快照会持久化保存。
+
+```powershell
+uv run ragdb generate summary "Transformer 核心思想" --collection ai-notes
+uv run ragdb generate outline "课程复习提纲" --collection ai-notes
+uv run ragdb generate notes "注意力机制" --collection ai-notes --source-id <SOURCE_ID>
+uv run ragdb generate quiz "RAG 基础" --collection ai-notes
+uv run ragdb generate cards "关键术语" --collection ai-notes
+uv run ragdb artifact list --collection ai-notes
+uv run ragdb artifact show <ARTIFACT_ID> --collection ai-notes
+uv run ragdb artifact delete <ARTIFACT_ID> --collection ai-notes
+```
+
 管理集合和资料来源：
 
 ```powershell

@@ -15,6 +15,7 @@ from ragdb.application.metadata import build_ingestion_metadata, build_search_fi
 from ragdb.application.sources import SourceService
 from ragdb.application.search import SearchService
 from ragdb.application.chat import AnswerService
+from ragdb.application.generation import GenerationService, NO_EVIDENCE_ARTIFACT
 from ragdb.config import load_settings
 from ragdb.diagnostics import DiagnosticStatus, has_failures, run_diagnostics
 from ragdb.domain.errors import ConflictError, NotFoundError, RagdbError, StorageError
@@ -25,6 +26,7 @@ from ragdb.infrastructure.database import (
     SQLiteChunkRepository,
     SQLiteCollectionRepository,
     SQLiteConversationRepository,
+    SQLiteArtifactRepository,
     SQLiteDatabase,
     SQLiteGenerationRepository,
     SQLiteOperationLogRepository,
@@ -33,6 +35,7 @@ from ragdb.infrastructure.database import (
     SQLiteTaskRepository,
 )
 from ragdb.domain.models import OperationLog
+from ragdb.domain.enums import ArtifactType
 from ragdb.logging import configure_logging
 from ragdb.infrastructure.parsers import ParserRegistry
 from ragdb.infrastructure.parsers.ocr import TesseractOcr
@@ -67,6 +70,8 @@ task_app = typer.Typer(help="查看批量导入任务。", no_args_is_help=True)
 log_app = typer.Typer(help="查看操作日志。", no_args_is_help=True)
 chat_app = typer.Typer(help="基于集合资料进行多轮问答。", no_args_is_help=True)
 chat_session_app = typer.Typer(help="管理持久化问答会话。", no_args_is_help=True)
+generate_app = typer.Typer(help="生成有来源依据的学习内容。", no_args_is_help=True)
+artifact_app = typer.Typer(help="管理已生成的学习产物。", no_args_is_help=True)
 
 app.add_typer(collection_app, name="collection")
 app.add_typer(ingest_app, name="ingest")
@@ -76,6 +81,8 @@ app.add_typer(task_app, name="task")
 app.add_typer(log_app, name="log")
 app.add_typer(chat_app, name="chat")
 chat_app.add_typer(chat_session_app, name="session")
+app.add_typer(generate_app, name="generate")
+app.add_typer(artifact_app, name="artifact")
 
 
 def _pending(feature: str) -> None:
@@ -624,6 +631,69 @@ def chat_session_delete(ctx: typer.Context, session_id: Annotated[UUID, typer.Ar
         return
     repository.delete(session_id)
     typer.echo("已删除问答会话。")
+
+
+def _generate_artifact(ctx: typer.Context, artifact_type: ArtifactType, topic: str, collection: str, source_id: UUID | None) -> None:
+    try:
+        settings, database = _runtime(ctx)
+        search_service, collections = _search_service(ctx)
+        service = GenerationService(search_service, create_chat_model(settings.chat), SQLiteArtifactRepository(database), evidence_limit=settings.chat.evidence_limit, evidence_character_budget=settings.chat.evidence_character_budget)
+        result = service.generate(_require_collection(collections, collection).id, artifact_type, topic, {"source_id": str(source_id)} if source_id else None)
+    except (RagdbError, RuntimeError, ValueError) as error:
+        _exit_for_error(error)
+    if result is None:
+        typer.echo(NO_EVIDENCE_ARTIFACT)
+        return
+    typer.echo(f"产物 ID：{result.id}")
+    typer.echo(result.content)
+    for item in SQLiteArtifactRepository(database).list_citations(result.id):
+        typer.echo(f"[{item.display_index}] {item.source_title}：{item.source_uri}")
+
+
+def _generation_command(kind: ArtifactType):
+    def command(ctx: typer.Context, topic: Annotated[str, typer.Argument()], collection: Annotated[str, typer.Option("--collection", "-c")], source_id: Annotated[UUID | None, typer.Option("--source-id")] = None) -> None:
+        _generate_artifact(ctx, kind, topic, collection, source_id)
+    return command
+
+
+for _kind in ArtifactType:
+    generate_app.command(_kind.value)(_generation_command(_kind))
+
+
+@artifact_app.command("list")
+def artifact_list(ctx: typer.Context, collection: Annotated[str, typer.Option("--collection", "-c")]) -> None:
+    _, database = _runtime(ctx)
+    target = _require_collection(SQLiteCollectionRepository(database), collection)
+    for item in SQLiteArtifactRepository(database).list_for_collection(target.id):
+        typer.echo(f"{item.id}\t{item.artifact_type.value}\t{item.title}\t{item.created_at.isoformat()}")
+
+
+@artifact_app.command("show")
+def artifact_show(ctx: typer.Context, artifact_id: Annotated[UUID, typer.Argument()], collection: Annotated[str, typer.Option("--collection", "-c")]) -> None:
+    _, database = _runtime(ctx)
+    target = _require_collection(SQLiteCollectionRepository(database), collection)
+    repository = SQLiteArtifactRepository(database)
+    item = repository.get(artifact_id)
+    if item is None or item.collection_id != target.id:
+        _exit_for_error(NotFoundError("学习产物不存在于该知识集合"))
+    typer.echo(item.content)
+    for citation in repository.list_citations(item.id):
+        typer.echo(f"[{citation.display_index}] {citation.source_title}：{citation.source_uri}")
+
+
+@artifact_app.command("delete")
+def artifact_delete(ctx: typer.Context, artifact_id: Annotated[UUID, typer.Argument()], collection: Annotated[str, typer.Option("--collection", "-c")], yes: Annotated[bool, typer.Option("--yes", "-y")] = False) -> None:
+    _, database = _runtime(ctx)
+    target = _require_collection(SQLiteCollectionRepository(database), collection)
+    repository = SQLiteArtifactRepository(database)
+    item = repository.get(artifact_id)
+    if item is None or item.collection_id != target.id:
+        _exit_for_error(NotFoundError("学习产物不存在于该知识集合"))
+    if not yes and not typer.confirm("确认删除该学习产物？"):
+        typer.echo("已取消。")
+        return
+    repository.delete(artifact_id)
+    typer.echo("已删除学习产物。")
 
 
 @source_app.command("list")

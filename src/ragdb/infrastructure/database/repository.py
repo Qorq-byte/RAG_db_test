@@ -674,6 +674,11 @@ class SQLiteArtifactRepository:
             rows = connection.execute("SELECT * FROM learning_artifacts WHERE collection_id = ? ORDER BY created_at DESC", (str(collection_id),)).fetchall()
         return [self._artifact(row) for row in rows]
 
+    def list_citations(self, artifact_id: UUID) -> Sequence[ArtifactCitation]:
+        with self.database.connect() as connection:
+            rows = connection.execute("SELECT * FROM artifact_citations WHERE artifact_id = ? ORDER BY display_index", (str(artifact_id),)).fetchall()
+        return [ArtifactCitation(artifact_id=UUID(row["artifact_id"]), display_index=row["display_index"], chunk_id=row["chunk_id"], source_id=UUID(row["source_id"]), source_generation=row["source_generation"], source_title=row["source_title"], source_uri=row["source_uri"], position=SourcePosition.model_validate(_load_json(row["position_json"]))) for row in rows]
+
     def delete(self, artifact_id: UUID) -> bool:
         with self.database.connect() as connection:
             cursor = connection.execute("DELETE FROM learning_artifacts WHERE id = ?", (str(artifact_id),))

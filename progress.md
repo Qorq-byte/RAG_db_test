@@ -12,6 +12,9 @@
 - 第一阶段本地提交：`35523de feat: persist desktop layout preferences`。推送 `origin/main` 被安全策略拒绝，因为直接修改共享默认分支需要用户明确确认；未重试。
 - 步骤 2 完成：检索、问答和学习产物提交会防止重复请求、在后台任务结束后恢复入口并展示结果状态；集合导入也采用相同的防重复与恢复规则。
 - `uv run pytest tests/unit/test_desktop.py` 通过（14 passed），覆盖成功、失败和重复提交防护。
+- 步骤 3 完成：增加页面切换、侧栏切换与 Escape 快捷键；调整手柄支持键盘；导航、详情栏和主要动作补足可访问名称及焦点样式。
+- `uv run pytest tests/unit/test_desktop.py` 通过（17 passed），覆盖键盘手柄、快捷键、Escape 和多行编辑器焦点保护。
+- 验收完成：`uv run pytest` 通过（152 passed in 21.49s）；受控无头 `ragdb-gui` 启动检查正常退出。
 
 ---
 

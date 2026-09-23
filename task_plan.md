@@ -6,7 +6,7 @@
 
 ## Current Phase
 
-第三阶段（键盘与可访问性）待实施；前两个阶段已完成定向测试。详细步骤见 `docs/superpowers/plans/2026-09-23-desktop-experience-polish-implementation.md`。
+已完成：三个实现阶段和验收均通过。详细步骤见 `docs/superpowers/plans/2026-09-23-desktop-experience-polish-implementation.md`。
 
 ## Current Decisions
 

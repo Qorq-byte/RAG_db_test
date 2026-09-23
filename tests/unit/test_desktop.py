@@ -258,6 +258,54 @@ def test_async_page_recovers_trigger_after_failure() -> None:
     assert page.feedback.text() == "失败：连接失败"
 
 
+def test_navigation_resize_handle_is_keyboard_accessible(tmp_path) -> None:
+    settings = QSettings(str(tmp_path / "layout.ini"), QSettings.Format.IniFormat)
+    manager = ThemeManager(settings)
+    window = MainWindow(theme_manager=manager)
+
+    handle = window.navigation.resize_handle
+    assert handle.accessibleName() == "调整导航栏宽度"
+    assert handle.focusPolicy().name == "StrongFocus"
+    handle.width_adjusted_by_key.emit(8)
+
+    assert window.navigation.width() == 244
+    assert manager.sidebar_width() == 244
+    window.close()
+
+
+def test_window_shortcuts_and_escape_follow_interaction_priority(tmp_path) -> None:
+    settings = QSettings(str(tmp_path / "layout.ini"), QSettings.Format.IniFormat)
+    window = MainWindow(theme_manager=ThemeManager(settings))
+    window.show()
+    window._select_page_from_shortcut(3)
+    APPLICATION.processEvents()
+
+    assert window.pages.currentIndex() == 3
+    window._toggle_sidebar_from_shortcut()
+    assert window.navigation.collapsed is True
+
+    window.navigation.set_collapsed(False)
+    window.select_page(2)
+    assert window.detail_panel.isVisible()
+    assert window.handle_escape() is True
+    assert window.detail_panel.isHidden()
+    assert ThemeManager(settings).detail_panel_visible() is False
+    window.close()
+
+
+def test_window_shortcuts_do_not_override_multiline_editor_focus() -> None:
+    window = MainWindow(_Runtime())
+    window.show()
+    window.select_page(3)
+    window.pages.widget(3).transcript.setFocus()
+    APPLICATION.processEvents()
+
+    window._select_page_from_shortcut(1)
+
+    assert window.pages.currentIndex() == 3
+    window.close()
+
+
 def test_shared_visual_components_construct_and_update() -> None:
     shell = PageShell("检索", "查找知识库证据")
     card = StatCard("资料", "12")

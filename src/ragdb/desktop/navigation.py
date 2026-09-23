@@ -1,7 +1,7 @@
 """Animated sidebar and top bar for the desktop workbench."""
 
 from PySide6.QtCore import QEasingCurve, Property, QPropertyAnimation, QRect, Qt, Signal
-from PySide6.QtGui import QEnterEvent, QMouseEvent, QPainter, QPen
+from PySide6.QtGui import QEnterEvent, QKeyEvent, QMouseEvent, QPainter, QPen
 from PySide6.QtWidgets import (
     QComboBox,
     QFrame,
@@ -32,6 +32,8 @@ class NavButton(QPushButton):
         self.setCheckable(True)
         self.setCursor(QtCursor.pointing())
         self.setToolTip(label)
+        self.setAccessibleName(label)
+        self.setAccessibleDescription(f"切换到{label}页面")
         self.setFixedHeight(40)
         self.setProperty("navItem", True)
 
@@ -70,6 +72,54 @@ class QtCursor:
         return Qt.CursorShape.ArrowCursor
 
 
+class SidebarResizeHandle(QToolButton):
+    resize_started = Signal(int)
+    resized = Signal(int)
+    resize_finished = Signal()
+    width_adjusted_by_key = Signal(int)
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.setCursor(QtCursor.horizontal_resize())
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self.setToolTip("拖拽或使用左右方向键调整导航栏宽度")
+        self.setAccessibleName("调整导航栏宽度")
+        self.setAccessibleDescription("拖拽，或按左右方向键调整导航栏宽度")
+        self.setStyleSheet("border: none; background: transparent;")
+
+    def mousePressEvent(self, event: QMouseEvent) -> None:
+        if event.button() == Qt.MouseButton.LeftButton:
+            self.resize_started.emit(int(event.globalPosition().x()))
+            event.accept()
+            return
+        super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event: QMouseEvent) -> None:
+        if event.buttons() & Qt.MouseButton.LeftButton:
+            self.resized.emit(int(event.globalPosition().x()))
+            event.accept()
+            return
+        super().mouseMoveEvent(event)
+
+    def mouseReleaseEvent(self, event: QMouseEvent) -> None:
+        if event.button() == Qt.MouseButton.LeftButton:
+            self.resize_finished.emit()
+            event.accept()
+            return
+        super().mouseReleaseEvent(event)
+
+    def keyPressEvent(self, event: QKeyEvent) -> None:
+        if event.key() == Qt.Key.Key_Left:
+            self.width_adjusted_by_key.emit(-8)
+            event.accept()
+            return
+        if event.key() == Qt.Key.Key_Right:
+            self.width_adjusted_by_key.emit(8)
+            event.accept()
+            return
+        super().keyPressEvent(event)
+
+
 class SidebarWidget(QWidget):
     page_selected = Signal(int)
     collapsed_changed = Signal(bool)
@@ -104,6 +154,7 @@ class SidebarWidget(QWidget):
         self.toggle = QToolButton()
         self.toggle.setText("‹")
         self.toggle.setToolTip("折叠导航")
+        self.toggle.setAccessibleName("折叠导航栏")
         self.toggle.clicked.connect(self.toggle_collapsed)
         top.addWidget(self.brand)
         top.addStretch()
@@ -129,6 +180,12 @@ class SidebarWidget(QWidget):
                 layout.addWidget(button)
             layout.addSpacing(8)
         layout.addStretch()
+        self.resize_handle = SidebarResizeHandle()
+        self.resize_handle.setParent(self)
+        self.resize_handle.resize_started.connect(self._start_resize)
+        self.resize_handle.resized.connect(self._resize_to)
+        self.resize_handle.resize_finished.connect(self._finish_resize)
+        self.resize_handle.width_adjusted_by_key.connect(self._adjust_width_by_key)
         self.highlight = QFrame(self)
         self.highlight.setObjectName("navHover")
         self.highlight.lower()
@@ -189,6 +246,7 @@ class SidebarWidget(QWidget):
         target = 68 if collapsed else self._expanded_width
         self.brand.setText("R" if collapsed else "RAG DB")
         self.collection.setVisible(not collapsed)
+        self.resize_handle.setVisible(not collapsed)
         self.toggle.setText("›" if collapsed else "‹")
         for label in self.group_labels:
             label.setVisible(not collapsed)
@@ -210,17 +268,14 @@ class SidebarWidget(QWidget):
 
     def mousePressEvent(self, event: QMouseEvent) -> None:
         if event.button() == Qt.MouseButton.LeftButton and self._is_resize_edge(event):
-            self._resizing = True
-            self._resize_origin_x = int(event.globalPosition().x())
-            self._resize_origin_width = self._expanded_width
+            self._start_resize(int(event.globalPosition().x()))
             event.accept()
             return
         super().mousePressEvent(event)
 
     def mouseMoveEvent(self, event: QMouseEvent) -> None:
         if self._resizing:
-            width = self._resize_origin_width + int(event.globalPosition().x()) - self._resize_origin_x
-            self.set_expanded_width(width)
+            self._resize_to(int(event.globalPosition().x()))
             event.accept()
             return
         self.setCursor(
@@ -230,14 +285,35 @@ class SidebarWidget(QWidget):
 
     def mouseReleaseEvent(self, event: QMouseEvent) -> None:
         if self._resizing and event.button() == Qt.MouseButton.LeftButton:
-            self._resizing = False
-            self.width_adjusted.emit(self._expanded_width)
+            self._finish_resize()
             event.accept()
             return
         super().mouseReleaseEvent(event)
 
     def _is_resize_edge(self, event: QMouseEvent) -> bool:
         return not self._collapsed and event.position().x() >= self.width() - 10
+
+    def _start_resize(self, global_x: int) -> None:
+        self._resizing = True
+        self._resize_origin_x = global_x
+        self._resize_origin_width = self._expanded_width
+
+    def _resize_to(self, global_x: int) -> None:
+        self.set_expanded_width(
+            self._resize_origin_width + global_x - self._resize_origin_x
+        )
+
+    def _finish_resize(self) -> None:
+        self._resizing = False
+        self.width_adjusted.emit(self._expanded_width)
+
+    def _adjust_width_by_key(self, delta: int) -> None:
+        self.set_expanded_width(self._expanded_width + delta)
+        self.width_adjusted.emit(self._expanded_width)
+
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        self.resize_handle.setGeometry(self.width() - 8, 0, 8, self.height())
 
 
 class TopBar(QWidget):
@@ -262,15 +338,17 @@ class TopBar(QWidget):
         self.theme.currentIndexChanged.connect(
             lambda _index: theme_manager.set_mode(self.theme.currentData())
         )
-        detail = QToolButton()
-        detail.setText("详情")
-        detail.clicked.connect(self.detail_toggled)
+        self.detail_button = QToolButton()
+        self.detail_button.setText("详情")
+        self.detail_button.setToolTip("显示或隐藏详情面板")
+        self.detail_button.setAccessibleName("显示或隐藏详情面板")
+        self.detail_button.clicked.connect(self.detail_toggled)
         layout.addWidget(self.title)
         layout.addWidget(self.collection)
         layout.addStretch()
         layout.addWidget(self.task_status)
         layout.addWidget(self.theme)
-        layout.addWidget(detail)
+        layout.addWidget(self.detail_button)
 
     def set_page(self, title: str) -> None:
         self.title.setText(title)

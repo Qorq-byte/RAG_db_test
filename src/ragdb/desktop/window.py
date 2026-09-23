@@ -1,12 +1,16 @@
 """Main desktop workbench window."""
 
 from PySide6.QtCore import QThreadPool, Qt, Signal
+from PySide6.QtGui import QKeyEvent, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
+    QApplication,
+    QDialog,
     QHBoxLayout,
     QLabel,
     QMainWindow,
     QSplitter,
     QStackedWidget,
+    QTextEdit,
     QVBoxLayout,
     QWidget,
 )
@@ -115,6 +119,8 @@ class MainWindow(QMainWindow):
         )
         self.navigation.width_adjusted.connect(self.theme_manager.set_sidebar_width)
         self.top_bar.detail_toggled.connect(self.toggle_detail_preference)
+        self.detail_panel.closed.connect(self.close_detail_preference)
+        self._shortcuts = self._create_shortcuts()
         self.navigation.select_page(0)
         self._apply_responsive_layout()
         self.statusBar().showMessage("就绪")
@@ -125,8 +131,14 @@ class MainWindow(QMainWindow):
         self._apply_detail_visibility(index in (2, 3, 4))
 
     def toggle_detail_preference(self) -> None:
-        self._detail_panel_preference = not self._detail_panel_preference
-        self.theme_manager.set_detail_panel_visible(self._detail_panel_preference)
+        self.set_detail_preference(not self._detail_panel_preference)
+
+    def close_detail_preference(self) -> None:
+        self.set_detail_preference(False)
+
+    def set_detail_preference(self, visible: bool) -> None:
+        self._detail_panel_preference = visible
+        self.theme_manager.set_detail_panel_visible(visible)
         self._apply_detail_visibility(self.pages.currentIndex() in (2, 3, 4))
 
     def _apply_detail_visibility(self, page_supports_details: bool) -> None:
@@ -146,6 +158,46 @@ class MainWindow(QMainWindow):
         else:
             self.navigation.set_collapsed(self.theme_manager.sidebar_collapsed())
         self._apply_detail_visibility(self.pages.currentIndex() in (2, 3, 4))
+
+    def _create_shortcuts(self) -> tuple[QShortcut, ...]:
+        shortcuts = []
+        for index in range(len(PAGES)):
+            shortcut = QShortcut(QKeySequence(f"Ctrl+{index + 1}"), self)
+            shortcut.activated.connect(
+                lambda target=index: self._select_page_from_shortcut(target)
+            )
+            shortcuts.append(shortcut)
+        toggle = QShortcut(QKeySequence("Ctrl+B"), self)
+        toggle.activated.connect(self._toggle_sidebar_from_shortcut)
+        shortcuts.append(toggle)
+        return tuple(shortcuts)
+
+    def _can_use_window_shortcut(self) -> bool:
+        return not isinstance(QApplication.focusWidget(), QTextEdit)
+
+    def _select_page_from_shortcut(self, index: int) -> None:
+        if self._can_use_window_shortcut():
+            self.navigation.select_page(index)
+
+    def _toggle_sidebar_from_shortcut(self) -> None:
+        if self._can_use_window_shortcut() and not self._narrow_layout:
+            self.navigation.toggle_collapsed()
+
+    def handle_escape(self) -> bool:
+        if self.detail_panel.isVisible():
+            self.close_detail_preference()
+            return True
+        modal = QApplication.activeModalWidget()
+        if isinstance(modal, QDialog):
+            modal.reject()
+            return True
+        return False
+
+    def keyPressEvent(self, event: QKeyEvent) -> None:
+        if event.key() == Qt.Key.Key_Escape and self.handle_escape():
+            event.accept()
+            return
+        super().keyPressEvent(event)
 
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)

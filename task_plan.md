@@ -6,7 +6,7 @@
 
 ## Current Phase
 
-第二阶段（统一后台操作反馈）待实施；第一阶段已完成定向测试。详细步骤见 `docs/superpowers/plans/2026-09-23-desktop-experience-polish-implementation.md`。
+第三阶段（键盘与可访问性）待实施；前两个阶段已完成定向测试。详细步骤见 `docs/superpowers/plans/2026-09-23-desktop-experience-polish-implementation.md`。
 
 ## Current Decisions
 

@@ -1,9 +1,10 @@
 import os
+from threading import Event
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6.QtWidgets import QApplication
-from PySide6.QtCore import QSettings
+from PySide6.QtWidgets import QApplication, QPushButton
+from PySide6.QtCore import QSettings, QThreadPool
 
 from ragdb.desktop.window import MainWindow, PAGES
 from ragdb.desktop.workers import BackgroundTask
@@ -17,6 +18,7 @@ from ragdb.desktop.components import (
     StatusBadge,
 )
 from ragdb.desktop.theme import ThemeManager, ThemeMode
+from ragdb.desktop.study_pages import AsyncPage
 
 
 APPLICATION = QApplication.instance() or QApplication([])
@@ -213,6 +215,47 @@ def test_detail_preference_is_restored_for_supported_pages(tmp_path) -> None:
     assert window.detail_panel.isHidden()
     assert manager.detail_panel_visible() is False
     window.close()
+
+
+def test_async_page_prevents_duplicate_submission_and_restores_trigger() -> None:
+    page = AsyncPage(None, "测试", "测试后台操作")
+    trigger = QPushButton("执行")
+    started, release = Event(), Event()
+    completed = []
+
+    def operation():
+        started.set()
+        release.wait(1)
+        return "完成"
+
+    assert page.run_task(operation, completed.append, trigger, "操作完成") is True
+    assert started.wait(1)
+    assert trigger.isEnabled() is False
+    assert page.run_task(lambda: None, completed.append, trigger) is False
+    assert "尚未完成" in page.feedback.text()
+
+    release.set()
+    QThreadPool.globalInstance().waitForDone(1000)
+    APPLICATION.processEvents()
+
+    assert trigger.isEnabled() is True
+    assert completed == ["完成"]
+    assert page.feedback.text() == "操作完成"
+
+
+def test_async_page_recovers_trigger_after_failure() -> None:
+    page = AsyncPage(None, "测试", "测试后台操作")
+    trigger = QPushButton("执行")
+
+    def operation():
+        raise RuntimeError("连接失败")
+
+    assert page.run_task(operation, lambda _result: None, trigger) is True
+    QThreadPool.globalInstance().waitForDone(1000)
+    APPLICATION.processEvents()
+
+    assert trigger.isEnabled() is True
+    assert page.feedback.text() == "失败：连接失败"
 
 
 def test_shared_visual_components_construct_and_update() -> None:

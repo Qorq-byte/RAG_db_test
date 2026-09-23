@@ -31,6 +31,7 @@ class AsyncPage(PageShell):
         self.collection_id = None
         self.generation = 0
         self._tasks = set()
+        self._task_in_flight = False
         self.feedback = StatusBadge("等待操作", "success")
         self.actions.addWidget(self.feedback)
 
@@ -43,8 +44,14 @@ class AsyncPage(PageShell):
         self.feedback.style().unpolish(self.feedback)
         self.feedback.style().polish(self.feedback)
 
-    def run_task(self, function, success) -> None:
+    def run_task(self, function, success, trigger=None, success_message: str = "已完成") -> bool:
+        if self._task_in_flight:
+            self._set_feedback("当前操作尚未完成", "warning")
+            return False
         token = (self.collection_id, self.generation)
+        self._task_in_flight = True
+        if trigger is not None:
+            trigger.setEnabled(False)
         self._set_feedback("处理中…", "warning")
         task = BackgroundTask(token, function)
         self._tasks.add(task)
@@ -52,7 +59,7 @@ class AsyncPage(PageShell):
         def completed(current, result):
             if current == (self.collection_id, self.generation):
                 success(result)
-                self._set_feedback("已完成", "success")
+                self._set_feedback(success_message, "success")
 
         def failed(current, error):
             if current == (self.collection_id, self.generation):
@@ -60,10 +67,15 @@ class AsyncPage(PageShell):
 
         task.signals.succeeded.connect(completed)
         task.signals.failed.connect(failed)
-        task.signals.finished.connect(
-            lambda _token, current=task: self._tasks.discard(current)
-        )
+        def finished(_token, current=task):
+            self._tasks.discard(current)
+            self._task_in_flight = False
+            if trigger is not None:
+                trigger.setEnabled(True)
+
+        task.signals.finished.connect(finished)
         QThreadPool.globalInstance().start(task)
+        return True
 
     def require_collection(self) -> bool:
         if self.collection_id is None:
@@ -84,10 +96,10 @@ class SearchPage(AsyncPage):
         row = QHBoxLayout(search_bar)
         self.query = QLineEdit()
         self.query.setPlaceholderText("搜索概念、事实或代码符号")
-        button = QPushButton("检索")
-        button.setProperty("primary", True)
+        self.search_button = QPushButton("检索")
+        self.search_button.setProperty("primary", True)
         row.addWidget(self.query, 1)
-        row.addWidget(button)
+        row.addWidget(self.search_button)
         layout.addWidget(search_bar)
         self.result_caption = QLabel("结果会按相关性排序，并保留来源位置。")
         self.result_caption.setProperty("muted", True)
@@ -96,7 +108,7 @@ class SearchPage(AsyncPage):
         self.results.setSpacing(8)
         layout.addWidget(self.results, 1)
         self.set_content(content)
-        button.clicked.connect(self.search)
+        self.search_button.clicked.connect(self.search)
         self.query.returnPressed.connect(self.search)
         self.results.currentItemChanged.connect(self.show_details)
 
@@ -107,6 +119,8 @@ class SearchPage(AsyncPage):
         self.run_task(
             lambda: self.runtime.search_service().search(collection_id, query),
             self.show_results,
+            self.search_button,
+            "检索完成",
         )
 
     def show_results(self, hits) -> None:
@@ -160,14 +174,14 @@ class ChatPage(AsyncPage):
         row = QHBoxLayout(composer)
         self.question = QLineEdit()
         self.question.setPlaceholderText("向当前知识集合提问")
-        ask = QPushButton("发送")
-        ask.setProperty("primary", True)
+        self.ask_button = QPushButton("发送")
+        self.ask_button.setProperty("primary", True)
         row.addWidget(self.question, 1)
-        row.addWidget(ask)
+        row.addWidget(self.ask_button)
         layout.addWidget(composer)
         self.set_content(content)
         self.sessions.currentIndexChanged.connect(self.select_session)
-        ask.clicked.connect(self.ask)
+        self.ask_button.clicked.connect(self.ask)
         self.question.returnPressed.connect(self.ask)
         new.clicked.connect(self.new_session)
 
@@ -218,6 +232,8 @@ class ChatPage(AsyncPage):
                 collection_id, question, session_id
             ),
             lambda answer: self.show_answer(question, answer),
+            self.ask_button,
+            "已收到回答",
         )
 
     def show_answer(self, question, answer) -> None:
@@ -242,11 +258,11 @@ class ArtifactsPage(AsyncPage):
         self.topic = QLineEdit()
         self.topic.setPlaceholderText("生成主题")
         self.topic.setMinimumWidth(200)
-        generate = QPushButton("生成")
-        generate.setProperty("primary", True)
+        self.generate_button = QPushButton("生成")
+        self.generate_button.setProperty("primary", True)
         delete = QPushButton("删除")
         delete.setProperty("danger", True)
-        for widget in (self.kind, self.topic, generate, delete):
+        for widget in (self.kind, self.topic, self.generate_button, delete):
             self.actions.addWidget(widget)
         splitter = QSplitter(Qt.Orientation.Horizontal)
         history = QFrame()
@@ -266,7 +282,7 @@ class ArtifactsPage(AsyncPage):
         splitter.addWidget(preview)
         splitter.setStretchFactor(1, 2)
         self.set_content(splitter)
-        generate.clicked.connect(self.generate)
+        self.generate_button.clicked.connect(self.generate)
         delete.clicked.connect(self.delete)
         self.items.currentItemChanged.connect(self.show_artifact)
 
@@ -300,6 +316,8 @@ class ArtifactsPage(AsyncPage):
                 collection_id, kind, topic
             ),
             self.generated,
+            self.generate_button,
+            "已生成学习产物",
         )
 
     def generated(self, artifact) -> None:

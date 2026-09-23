@@ -98,15 +98,16 @@ class CollectionsPage(PageShell):
         super().__init__("集合与资料", "组织证据源，并跟踪每份资料的处理状态。")
         self.runtime = runtime
         self._tasks = set()
+        self._import_in_flight = False
         create = QPushButton("新建集合")
         create.setProperty("primary", True)
         delete = QPushButton("删除集合")
         delete.setProperty("danger", True)
         refresh = QPushButton("刷新")
-        import_button = QToolButton()
-        import_button.setText("导入资料")
-        import_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
-        menu = QMenu(import_button)
+        self.import_button = QToolButton()
+        self.import_button.setText("导入资料")
+        self.import_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+        menu = QMenu(self.import_button)
         for label, callback in (
             ("文件", self.import_file),
             ("目录", self.import_directory),
@@ -115,9 +116,9 @@ class CollectionsPage(PageShell):
             ("GitHub 仓库", self.import_repository),
         ):
             menu.addAction(label, callback)
-        import_button.setMenu(menu)
+        self.import_button.setMenu(menu)
         self.feedback = StatusBadge("就绪", "success")
-        for widget in (self.feedback, refresh, delete, import_button, create):
+        for widget in (self.feedback, refresh, delete, self.import_button, create):
             self.actions.addWidget(widget)
 
         splitter = QSplitter(Qt.Orientation.Horizontal)
@@ -231,6 +232,12 @@ class CollectionsPage(PageShell):
         return item.data(Qt.ItemDataRole.UserRole)
 
     def _run(self, collection, function) -> None:
+        if self._import_in_flight:
+            self.feedback.setText("当前导入尚未完成")
+            self.feedback.setProperty("status", "warning")
+            return
+        self._import_in_flight = True
+        self.import_button.setEnabled(False)
         self.feedback.setText("正在导入…")
         self.feedback.setProperty("status", "warning")
         self.feedback.style().unpolish(self.feedback)
@@ -239,12 +246,19 @@ class CollectionsPage(PageShell):
         self._tasks.add(task)
         task.signals.succeeded.connect(self._import_finished)
         task.signals.failed.connect(self._import_failed)
-        task.signals.finished.connect(
-            lambda _token, current=task: self._tasks.discard(current)
-        )
+        def finished(_token, current=task) -> None:
+            self._tasks.discard(current)
+            self._import_in_flight = False
+            self.import_button.setEnabled(True)
+
+        task.signals.finished.connect(finished)
         QThreadPool.globalInstance().start(task)
 
     def _import_failed(self, _token, error: str) -> None:
+        item = self.collections.currentItem()
+        current = item.data(Qt.ItemDataRole.UserRole) if item else None
+        if current is None or current.id != _token:
+            return
         self.feedback.setText(f"导入失败：{error}")
         self.feedback.setProperty("status", "failure")
 

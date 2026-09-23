@@ -9,6 +9,9 @@
 - 已建立详细实施计划。
 - 步骤 1 完成：侧栏宽度、折叠和详情栏偏好均已安全持久化；支持边缘拖拽调宽、减少动效以及窄窗临时收起和恢复。
 - `uv run pytest tests/unit/test_desktop.py` 通过（12 passed）。首次沙箱执行无法访问用户级 uv 缓存，经授权重试后通过。
+- 第一阶段本地提交：`35523de feat: persist desktop layout preferences`。推送 `origin/main` 被安全策略拒绝，因为直接修改共享默认分支需要用户明确确认；未重试。
+- 步骤 2 完成：检索、问答和学习产物提交会防止重复请求、在后台任务结束后恢复入口并展示结果状态；集合导入也采用相同的防重复与恢复规则。
+- `uv run pytest tests/unit/test_desktop.py` 通过（14 passed），覆盖成功、失败和重复提交防护。
 
 ---
 

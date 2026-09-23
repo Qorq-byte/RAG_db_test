@@ -33,6 +33,7 @@ Copy-Item config.example.toml config.toml
 - `crawl`：网页抓取深度、页数、速率、超时和 User-Agent。
 - `rerank`：是否启用重排序、模型与批大小。
 - `ocr`：可选本机 Tesseract OCR 的开关、路径、语言与渲染 DPI。
+- `chat`：本地 Ollama 或 OpenAI 兼容云端问答模型及其上下文预算。
 
 默认使用本地嵌入模型 `BAAI/bge-small-zh-v1.5`。首次实际导入或检索时，底层库可能下载该模型；`ragdb doctor` 不会下载模型。
 
@@ -49,6 +50,7 @@ cloud_base_url = "https://api.openai.com/v1"
 
 ```text
 RAGDB_EMBEDDING__CLOUD_API_KEY=your-secret-key
+RAGDB_CHAT__CLOUD_API_KEY=your-secret-key
 ```
 
 可通过全局选项选择另一份配置：
@@ -79,6 +81,20 @@ uv run ragdb ingest text "RAG 将检索结果注入生成提示词。" --collect
 uv run ragdb search "注意力机制如何工作？" --collection ai-notes --tag transformer
 uv run ragdb search "向量检索" --collection ai-notes --date-from 2026-01-01
 ```
+
+## 检索增强问答
+
+问答严格依据当前集合的检索证据作答，并显示来源编号。默认调用本机 Ollama；也可将 `chat.provider` 改为 `cloud`，并通过环境变量配置 `RAGDB_CHAT__CLOUD_API_KEY`。
+
+```powershell
+uv run ragdb chat ask "RAG 的检索与生成如何协作？" --collection ai-notes
+uv run ragdb chat ask "请再举一个例子" --collection ai-notes --session <SESSION_ID>
+uv run ragdb chat session list --collection ai-notes
+uv run ragdb chat session show <SESSION_ID> --collection ai-notes
+uv run ragdb chat session delete <SESSION_ID> --collection ai-notes
+```
+
+会话只属于一个知识集合；删除集合会同时删除其会话。没有检索到足够证据时，系统不会调用模型，而会明确说明无法依据知识库回答。
 
 管理集合和资料来源：
 

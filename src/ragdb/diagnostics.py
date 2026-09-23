@@ -50,6 +50,7 @@ def run_diagnostics(config_path: Path) -> list[DiagnosticResult]:
             _check_git(),
             _check_local_embedding_dependency(settings),
             _check_cloud_embedding_configuration(settings),
+            _check_chat_configuration(settings),
             _check_ocr(settings),
         )
     )
@@ -218,6 +219,23 @@ def _check_cloud_embedding_configuration(settings: AppSettings) -> DiagnosticRes
             "补齐云端模型、Base URL，并通过 .env 或环境变量设置 API Key。",
         )
     return DiagnosticResult("云端嵌入配置", DiagnosticStatus.PASS, "云端嵌入配置完整；未发送 API 请求。")
+
+
+def _check_chat_configuration(settings: AppSettings) -> DiagnosticResult:
+    if settings.chat.provider == "local":
+        if not settings.chat.local_model.strip() or not settings.chat.local_base_url.strip():
+            return DiagnosticResult("本地问答配置", DiagnosticStatus.FAILURE, "缺少本地模型或 Base URL。", "设置 chat.local_model 与 chat.local_base_url。")
+        return DiagnosticResult("本地问答配置", DiagnosticStatus.PASS, "本地模型配置完整；未发送 API 请求。")
+    missing: list[str] = []
+    if not settings.chat.cloud_model.strip():
+        missing.append("chat.cloud_model")
+    if not settings.chat.cloud_base_url.strip():
+        missing.append("chat.cloud_base_url")
+    if settings.chat.cloud_api_key is None or not settings.chat.cloud_api_key.get_secret_value().strip():
+        missing.append("RAGDB_CHAT__CLOUD_API_KEY")
+    if missing:
+        return DiagnosticResult("云端问答配置", DiagnosticStatus.FAILURE, f"缺少 {', '.join(missing)}。", "通过 .env 或环境变量设置 API Key。")
+    return DiagnosticResult("云端问答配置", DiagnosticStatus.PASS, "云端模型配置完整；未发送 API 请求。")
 
 
 def _check_ocr(settings: AppSettings) -> DiagnosticResult:

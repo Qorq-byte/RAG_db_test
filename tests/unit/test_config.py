@@ -93,6 +93,19 @@ def test_secret_value_is_ignored_in_toml(tmp_path: Path) -> None:
     assert settings.embedding.cloud_api_key is None
 
 
+def test_chat_secret_value_is_ignored_in_toml(tmp_path: Path) -> None:
+    config_path = tmp_path / "config.toml"
+    config_path.write_text(
+        '[chat]\nprovider = "cloud"\ncloud_api_key = "must-not-load"\n',
+        encoding="utf-8",
+    )
+
+    settings = load_settings(config_path=config_path, env_file=tmp_path / ".env")
+
+    assert settings.chat.provider == "cloud"
+    assert settings.chat.cloud_api_key is None
+
+
 def test_invalid_values_are_rejected(tmp_path: Path) -> None:
     with pytest.raises(ValidationError):
         load_settings(

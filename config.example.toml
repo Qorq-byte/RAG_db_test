@@ -41,3 +41,15 @@ enabled = false
 executable_path = "D:/Dinstall/Tesseract-OCR/tesseract.exe"
 languages = "chi_sim+eng"
 dpi = 200
+
+[chat]
+provider = "local"
+local_model = "qwen2.5:7b"
+local_base_url = "http://127.0.0.1:11434"
+local_timeout_seconds = 120.0
+cloud_model = "gpt-4.1-mini"
+cloud_base_url = "https://api.openai.com/v1"
+cloud_timeout_seconds = 60.0
+evidence_limit = 6
+evidence_character_budget = 12000
+history_character_budget = 6000

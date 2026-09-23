@@ -8,6 +8,8 @@ from pydantic import JsonValue
 
 from ragdb.domain.models import (
     Chunk,
+    ChatCompletion,
+    ChatPromptMessage,
     Collection,
     Conversation,
     ConversationMessage,
@@ -131,6 +133,17 @@ class EmbeddingProvider(Protocol):
     def dimension(self) -> int: ...
 
     def embed_texts(self, texts: Sequence[str]) -> Sequence[Sequence[float]]: ...
+
+
+@runtime_checkable
+class ChatModel(Protocol):
+    @property
+    def provider_name(self) -> str: ...
+
+    @property
+    def model_name(self) -> str: ...
+
+    def complete(self, messages: Sequence[ChatPromptMessage]) -> ChatCompletion: ...
 
 
 @runtime_checkable

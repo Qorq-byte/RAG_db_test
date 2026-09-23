@@ -10,6 +10,8 @@ from ragdb.domain.enums import (
 )
 from ragdb.domain.models import (
     Chunk,
+    ChatCompletion,
+    ChatPromptMessage,
     Collection,
     Conversation,
     ConversationMessage,
@@ -27,6 +29,8 @@ from ragdb.domain.models import (
 
 __all__ = [
     "Chunk",
+    "ChatCompletion",
+    "ChatPromptMessage",
     "Collection",
     "Conversation",
     "ConversationMessage",

@@ -1,7 +1,7 @@
 """Validated domain models shared by all application layers."""
 
 from datetime import datetime, timezone
-from typing import Annotated, Self
+from typing import Annotated, Literal, Self
 from uuid import UUID, uuid4
 
 from pydantic import (
@@ -192,6 +192,15 @@ class MessageCitation(DomainModel):
     source_title: DisplayName
     source_uri: NonEmptyText
     position: SourcePosition = Field(default_factory=SourcePosition)
+
+
+class ChatPromptMessage(DomainModel):
+    role: Literal["system", "user", "assistant"]
+    content: NonEmptyText
+
+
+class ChatCompletion(DomainModel):
+    content: NonEmptyText
 
 
 class RetrievedChunk(DomainModel):

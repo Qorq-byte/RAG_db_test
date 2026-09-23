@@ -75,6 +75,20 @@ class OcrSettings(ConfigSection):
     dpi: int = Field(default=200, ge=72, le=600)
 
 
+class ChatSettings(ConfigSection):
+    provider: Literal["cloud", "local"] = "local"
+    cloud_model: str = "gpt-4.1-mini"
+    cloud_base_url: str = "https://api.openai.com/v1"
+    cloud_api_key: SecretStr | None = None
+    cloud_timeout_seconds: float = Field(default=60.0, gt=0)
+    local_model: str = "qwen2.5:7b"
+    local_base_url: str = "http://127.0.0.1:11434"
+    local_timeout_seconds: float = Field(default=120.0, gt=0)
+    evidence_limit: int = Field(default=6, ge=1, le=50)
+    evidence_character_budget: int = Field(default=12000, ge=500)
+    history_character_budget: int = Field(default=6000, ge=0)
+
+
 class AppSettings(BaseSettings):
     """Validated settings for the ragdb application."""
 
@@ -92,6 +106,7 @@ class AppSettings(BaseSettings):
     crawl: CrawlSettings = Field(default_factory=CrawlSettings)
     rerank: RerankSettings = Field(default_factory=RerankSettings)
     ocr: OcrSettings = Field(default_factory=OcrSettings)
+    chat: ChatSettings = Field(default_factory=ChatSettings)
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "INFO"
 
 
@@ -103,6 +118,9 @@ class SafeTomlConfigSettingsSource(TomlConfigSettingsSource):
         embedding = values.get("embedding")
         if isinstance(embedding, dict):
             embedding.pop("cloud_api_key", None)
+        chat = values.get("chat")
+        if isinstance(chat, dict):
+            chat.pop("cloud_api_key", None)
         return values
 
 

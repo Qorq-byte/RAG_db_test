@@ -16,6 +16,7 @@ venv/
 
 # Local application data and secrets
 .data/
+.superpowers/
 .env
 *.log
 

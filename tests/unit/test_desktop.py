@@ -3,10 +3,13 @@ import os
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtWidgets import QApplication
+from PySide6.QtCore import QSettings
 
 from ragdb.desktop.window import MainWindow, PAGES
 from ragdb.desktop.workers import BackgroundTask
 from ragdb.domain.models import Collection
+from ragdb.desktop.components import DetailPanel, EmptyState, PageShell, StatCard, StatusBadge
+from ragdb.desktop.theme import ThemeManager, ThemeMode
 
 
 APPLICATION = QApplication.instance() or QApplication([])
@@ -85,3 +88,32 @@ def test_collection_selection_updates_global_context_and_overview() -> None:
     assert window.collection_context.collection_name == "人工智能"
     assert "人工智能" in window.overview_page.summary.text()
     window.close()
+
+
+def test_theme_preferences_are_persisted_and_applied(tmp_path) -> None:
+    settings = QSettings(str(tmp_path / "appearance.ini"), QSettings.Format.IniFormat)
+    manager = ThemeManager(settings)
+
+    manager.set_mode(ThemeMode.DARK)
+    manager.set_reduce_motion(True)
+
+    reloaded = ThemeManager(settings)
+    assert reloaded.mode is ThemeMode.DARK
+    assert reloaded.reduce_motion is True
+    assert "#101419" in APPLICATION.styleSheet()
+
+
+def test_shared_visual_components_construct_and_update() -> None:
+    shell = PageShell("检索", "查找知识库证据")
+    card = StatCard("资料", "12")
+    badge = StatusBadge("通过", "success")
+    empty = EmptyState("暂无结果", "尝试调整关键词")
+    detail = DetailPanel()
+    detail.show_text("来源内容", "来源")
+
+    shell.set_content(card)
+    assert shell.states.currentWidget() is card
+    assert badge.property("status") == "success"
+    assert empty is not None
+    assert detail.title.text() == "来源"
+    assert detail.content.toPlainText() == "来源内容"

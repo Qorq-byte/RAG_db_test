@@ -15,6 +15,7 @@ from ragdb.infrastructure.database import SQLiteArtifactRepository, SQLiteChunkR
 from ragdb.infrastructure.embeddings import create_embedding_provider
 from ragdb.infrastructure.retrieval import CrossEncoderReranker
 from ragdb.infrastructure.parsers import ParserRegistry
+from ragdb.infrastructure.parsers.ocr import TesseractOcr
 from ragdb.infrastructure.vectorstore import ChromaVectorStore
 from ragdb.infrastructure.web import WebCrawler
 from ragdb.infrastructure.github import PublicGitHubImporter
@@ -45,7 +46,10 @@ class ApplicationRuntime:
 
     def ingestion_service(self) -> LocalIngestionService:
         settings = self.settings
-        return LocalIngestionService(SQLiteSourceRepository(self.database), SQLiteChunkRepository(self.database), SQLiteTaskRepository(self.database), ParserRegistry(), StructuredChunker(settings.chunking), SQLiteKeywordIndex(self.database), create_embedding_provider(settings.embedding), ChromaVectorStore(settings.storage.data_dir / settings.storage.chroma_directory), SQLiteGenerationRepository(self.database))
+        ocr = None
+        if settings.ocr.enabled and settings.ocr.executable_path is not None:
+            ocr = TesseractOcr(settings.ocr.executable_path, settings.ocr.languages, settings.ocr.dpi)
+        return LocalIngestionService(SQLiteSourceRepository(self.database), SQLiteChunkRepository(self.database), SQLiteTaskRepository(self.database), ParserRegistry(ocr=ocr), StructuredChunker(settings.chunking), SQLiteKeywordIndex(self.database), create_embedding_provider(settings.embedding), ChromaVectorStore(settings.storage.data_dir / settings.storage.chroma_directory), SQLiteGenerationRepository(self.database))
 
     def search_service(self) -> SearchService:
         settings = self.settings

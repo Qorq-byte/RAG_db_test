@@ -44,6 +44,7 @@ from ragdb.infrastructure.web import WebCrawler
 from ragdb.infrastructure.github import PublicGitHubImporter
 from ragdb.infrastructure.watcher import DebouncedPathEvents, start_observer
 from ragdb.infrastructure.chat import create_chat_model
+from ragdb.runtime import ApplicationRuntime
 import time
 
 
@@ -92,10 +93,7 @@ def _pending(feature: str) -> None:
 
 def _collection_service(ctx: typer.Context) -> CollectionService:
     settings, database = _runtime(ctx)
-    vector_store = ChromaVectorStore(
-        settings.storage.data_dir / settings.storage.chroma_directory
-    )
-    return CollectionService(SQLiteCollectionRepository(database), vector_store)
+    return ApplicationRuntime(settings, database).collection_service()
 
 
 def _runtime(ctx: typer.Context):
@@ -127,31 +125,14 @@ def _record_operation(
 
 def _local_ingestion_service(ctx: typer.Context) -> tuple[LocalIngestionService, SQLiteCollectionRepository]:
     settings, database = _runtime(ctx)
-    return (
-        LocalIngestionService(
-            SQLiteSourceRepository(database),
-            SQLiteChunkRepository(database),
-            SQLiteTaskRepository(database),
-            ParserRegistry(ocr=_ocr(settings)),
-            StructuredChunker(settings.chunking),
-            SQLiteKeywordIndex(database),
-            create_embedding_provider(settings.embedding),
-            ChromaVectorStore(settings.storage.data_dir / settings.storage.chroma_directory),
-            SQLiteGenerationRepository(database),
-        ),
-        SQLiteCollectionRepository(database),
-    )
+    runtime = ApplicationRuntime(settings, database)
+    return runtime.ingestion_service(), runtime.collections
 
 
 def _source_service(ctx: typer.Context) -> tuple[SourceService, SQLiteCollectionRepository]:
     settings, database = _runtime(ctx)
-    return (
-        SourceService(
-            SQLiteSourceRepository(database),
-            ChromaVectorStore(settings.storage.data_dir / settings.storage.chroma_directory),
-        ),
-        SQLiteCollectionRepository(database),
-    )
+    runtime = ApplicationRuntime(settings, database)
+    return runtime.source_service(), runtime.collections
 
 
 def _ocr(settings):
@@ -162,25 +143,8 @@ def _ocr(settings):
 
 def _search_service(ctx: typer.Context) -> tuple[SearchService, SQLiteCollectionRepository]:
     settings, database = _runtime(ctx)
-    reranker = None
-    if settings.rerank.enabled:
-        if not settings.rerank.model:
-            raise typer.BadParameter("启用重排序时必须配置 rerank.model")
-        reranker = CrossEncoderReranker(settings.rerank.model, settings.rerank.batch_size)
-    return (
-        SearchService(
-            create_embedding_provider(settings.embedding),
-            ChromaVectorStore(settings.storage.data_dir / settings.storage.chroma_directory),
-            SQLiteKeywordIndex(database), SQLiteSourceRepository(database),
-            vector_top_k=settings.retrieval.vector_top_k,
-            keyword_top_k=settings.retrieval.keyword_top_k,
-            result_top_k=settings.retrieval.result_top_k,
-            rrf_k=settings.retrieval.rrf_k,
-            reranker=reranker,
-            rerank_candidate_count=settings.rerank.candidate_count,
-        ),
-        SQLiteCollectionRepository(database),
-    )
+    runtime = ApplicationRuntime(settings, database)
+    return runtime.search_service(), runtime.collections
 
 
 def _require_collection(repository: SQLiteCollectionRepository, name: str):

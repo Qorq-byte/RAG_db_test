@@ -32,6 +32,7 @@ Copy-Item config.example.toml config.toml
 - `retrieval`：向量、关键词和最终结果的数量，以及 RRF 参数。
 - `crawl`：网页抓取深度、页数、速率、超时和 User-Agent。
 - `rerank`：是否启用重排序、模型与批大小。
+- `ocr`：可选本机 Tesseract OCR 的开关、路径、语言与渲染 DPI。
 
 默认使用本地嵌入模型 `BAAI/bge-small-zh-v1.5`。首次实际导入或检索时，底层库可能下载该模型；`ragdb doctor` 不会下载模型。
 
@@ -133,6 +134,29 @@ uv run ragdb doctor
 该命令按检查项输出“通过”、“警告”或“失败”，并在警告或失败时给出修复建议。它会检查 Python 版本、配置解析、数据目录权限、SQLite FTS5、ChromaDB、Git、本地嵌入依赖，以及启用云端嵌入时的模型、Base URL 和密钥配置。
 
 诊断不会下载模型、调用云端 API、创建知识库索引或修改已有资料。仅出现“失败”时命令以非零状态退出；只有“警告”时仍以 0 退出。
+
+扫描 PDF 可启用本机 Tesseract；例如本项目安装位置为：
+
+```toml
+[ocr]
+enabled = true
+executable_path = "D:/Dinstall/Tesseract-OCR/tesseract.exe"
+languages = "chi_sim+eng"
+```
+
+嵌入供应商或模型变更后，系统会拒绝混用已有索引并提示重建：
+
+```powershell
+uv run ragdb reindex --collection ai-notes
+```
+
+可查看目录批量导入的历史任务和操作日志：
+
+```powershell
+uv run ragdb task list --collection ai-notes
+uv run ragdb task show <TASK_ID>
+uv run ragdb log list --collection ai-notes
+```
 
 ## 数据与隐私
 

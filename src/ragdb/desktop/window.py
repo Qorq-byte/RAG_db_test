@@ -44,9 +44,15 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("ragdb 学习工作台")
         self.resize(1280, 800)
         self.collection_context = CollectionContext()
-        self.navigation = SidebarWidget(self.theme_manager.reduce_motion)
+        self.navigation = SidebarWidget(
+            self.theme_manager.reduce_motion,
+            expanded_width=self.theme_manager.sidebar_width(),
+            collapsed=self.theme_manager.sidebar_collapsed(),
+        )
         self.pages = QStackedWidget()
         self.detail_panel = DetailPanel()
+        self._detail_panel_preference = self.theme_manager.detail_panel_visible()
+        self._narrow_layout = False
         self.details = self.detail_panel.content
         self.top_bar = TopBar(self.theme_manager)
         self.collection_context.changed.connect(
@@ -104,22 +110,46 @@ class MainWindow(QMainWindow):
         root_layout.addWidget(content, 1)
         self.setCentralWidget(root)
         self.navigation.page_selected.connect(self.select_page)
-        self.top_bar.detail_toggled.connect(
-            lambda: self.detail_panel.setVisible(not self.detail_panel.isVisible())
+        self.navigation.user_collapsed_changed.connect(
+            self.theme_manager.set_sidebar_collapsed
         )
+        self.navigation.width_adjusted.connect(self.theme_manager.set_sidebar_width)
+        self.top_bar.detail_toggled.connect(self.toggle_detail_preference)
         self.navigation.select_page(0)
+        self._apply_responsive_layout()
         self.statusBar().showMessage("就绪")
 
     def select_page(self, index: int) -> None:
         self.pages.setCurrentIndex(index)
         self.top_bar.set_page(PAGES[index])
-        self.detail_panel.setVisible(index in (2, 3, 4))
+        self._apply_detail_visibility(index in (2, 3, 4))
+
+    def toggle_detail_preference(self) -> None:
+        self._detail_panel_preference = not self._detail_panel_preference
+        self.theme_manager.set_detail_panel_visible(self._detail_panel_preference)
+        self._apply_detail_visibility(self.pages.currentIndex() in (2, 3, 4))
+
+    def _apply_detail_visibility(self, page_supports_details: bool) -> None:
+        self.detail_panel.setVisible(
+            page_supports_details
+            and self._detail_panel_preference
+            and not self._narrow_layout
+        )
+
+    def _apply_responsive_layout(self) -> None:
+        narrow = self.width() < 1100
+        if narrow == self._narrow_layout:
+            return
+        self._narrow_layout = narrow
+        if narrow:
+            self.navigation.set_collapsed(True)
+        else:
+            self.navigation.set_collapsed(self.theme_manager.sidebar_collapsed())
+        self._apply_detail_visibility(self.pages.currentIndex() in (2, 3, 4))
 
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
-        if self.width() < 1100:
-            self.navigation.set_collapsed(True)
-            self.detail_panel.hide()
+        self._apply_responsive_layout()
 
     def closeEvent(self, event) -> None:
         QThreadPool.globalInstance().waitForDone(5000)

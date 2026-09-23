@@ -1,7 +1,7 @@
 """Animated sidebar and top bar for the desktop workbench."""
 
-from PySide6.QtCore import QEasingCurve, Property, QPropertyAnimation, QRect, Signal
-from PySide6.QtGui import QEnterEvent, QPainter, QPen
+from PySide6.QtCore import QEasingCurve, Property, QPropertyAnimation, QRect, Qt, Signal
+from PySide6.QtGui import QEnterEvent, QMouseEvent, QPainter, QPen
 from PySide6.QtWidgets import (
     QComboBox,
     QFrame,
@@ -59,22 +59,40 @@ class NavButton(QPushButton):
 class QtCursor:
     @staticmethod
     def pointing():
-        from PySide6.QtCore import Qt
-
         return Qt.CursorShape.PointingHandCursor
+
+    @staticmethod
+    def horizontal_resize():
+        return Qt.CursorShape.SizeHorCursor
+
+    @staticmethod
+    def arrow():
+        return Qt.CursorShape.ArrowCursor
 
 
 class SidebarWidget(QWidget):
     page_selected = Signal(int)
     collapsed_changed = Signal(bool)
+    user_collapsed_changed = Signal(bool)
+    width_adjusted = Signal(int)
 
-    def __init__(self, reduce_motion: bool = False) -> None:
+    def __init__(
+        self,
+        reduce_motion: bool = False,
+        expanded_width: int = 236,
+        collapsed: bool = False,
+    ) -> None:
         super().__init__()
         self.setObjectName("sidebar")
         self._collapsed = False
+        self._expanded_width = self._clamp_width(expanded_width)
+        self._resizing = False
+        self._resize_origin_x = 0
+        self._resize_origin_width = self._expanded_width
         self.reduce_motion = reduce_motion
-        self.setMinimumWidth(236)
-        self.setMaximumWidth(236)
+        self.setMouseTracking(True)
+        self.setToolTip("拖拽右侧边缘以调整导航栏宽度")
+        self.set_sidebar_width(self._expanded_width)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(12, 14, 12, 14)
         layout.setSpacing(5)
@@ -122,6 +140,12 @@ class SidebarWidget(QWidget):
         self.width_animation.setDuration(190)
         self.width_animation.setEasingCurve(QEasingCurve.Type.OutCubic)
         self.select_page(0)
+        if collapsed:
+            self.set_collapsed(True)
+
+    @staticmethod
+    def _clamp_width(width: int) -> int:
+        return max(160, min(400, width))
 
     def get_sidebar_width(self) -> int:
         return self.width()
@@ -154,13 +178,15 @@ class SidebarWidget(QWidget):
             self.hover_animation.start()
 
     def toggle_collapsed(self) -> None:
-        self.set_collapsed(not self._collapsed)
+        collapsed = not self._collapsed
+        self.set_collapsed(collapsed)
+        self.user_collapsed_changed.emit(collapsed)
 
     def set_collapsed(self, collapsed: bool) -> None:
         if collapsed == self._collapsed:
             return
         self._collapsed = collapsed
-        target = 68 if collapsed else 236
+        target = 68 if collapsed else self._expanded_width
         self.brand.setText("R" if collapsed else "RAG DB")
         self.collection.setVisible(not collapsed)
         self.toggle.setText("›" if collapsed else "‹")
@@ -176,6 +202,42 @@ class SidebarWidget(QWidget):
             self.width_animation.setEndValue(target)
             self.width_animation.start()
         self.collapsed_changed.emit(collapsed)
+
+    def set_expanded_width(self, width: int) -> None:
+        self._expanded_width = self._clamp_width(width)
+        if not self._collapsed:
+            self.set_sidebar_width(self._expanded_width)
+
+    def mousePressEvent(self, event: QMouseEvent) -> None:
+        if event.button() == Qt.MouseButton.LeftButton and self._is_resize_edge(event):
+            self._resizing = True
+            self._resize_origin_x = int(event.globalPosition().x())
+            self._resize_origin_width = self._expanded_width
+            event.accept()
+            return
+        super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event: QMouseEvent) -> None:
+        if self._resizing:
+            width = self._resize_origin_width + int(event.globalPosition().x()) - self._resize_origin_x
+            self.set_expanded_width(width)
+            event.accept()
+            return
+        self.setCursor(
+            QtCursor.horizontal_resize() if self._is_resize_edge(event) else QtCursor.arrow()
+        )
+        super().mouseMoveEvent(event)
+
+    def mouseReleaseEvent(self, event: QMouseEvent) -> None:
+        if self._resizing and event.button() == Qt.MouseButton.LeftButton:
+            self._resizing = False
+            self.width_adjusted.emit(self._expanded_width)
+            event.accept()
+            return
+        super().mouseReleaseEvent(event)
+
+    def _is_resize_edge(self, event: QMouseEvent) -> bool:
+        return not self._collapsed and event.position().x() >= self.width() - 10
 
 
 class TopBar(QWidget):

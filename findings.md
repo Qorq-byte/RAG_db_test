@@ -1,4 +1,16 @@
-# Findings: 网页与公开 GitHub 仓库导入
+# Findings: 桌面端实际体验与交互完善
+
+## 2026-09-23 当前基线
+
+- 桌面端使用原生 PySide6，现有设计明确不引入 React、Tailwind 或 WebEngine。
+- `SidebarWidget` 已有分组、折叠、悬停高亮与宽度动效，但没有拖拽调宽、布局偏好持久化或响应式状态恢复。
+- `MainWindow` 在窄窗口会强制收起导航和隐藏详情栏，恢复宽度时不会还原用户偏好。
+- `CollectionsPage` 为后台导入维护了局部任务集与状态徽标；其余异步页面缺少统一的重复提交与过期结果防护契约。
+- 当前完整自动回归：`144 passed`（2026-09-23）。
+
+---
+
+# Historical Findings: 网页与公开 GitHub 仓库导入
 
 ## 当前实现
 

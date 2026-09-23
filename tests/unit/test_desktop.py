@@ -154,6 +154,67 @@ def test_theme_preferences_are_persisted_and_applied(tmp_path) -> None:
     assert "#101419" in APPLICATION.styleSheet()
 
 
+def test_layout_preferences_are_normalized_and_persisted(tmp_path) -> None:
+    settings = QSettings(str(tmp_path / "layout.ini"), QSettings.Format.IniFormat)
+    settings.setValue("layout/sidebar_width", "not-a-number")
+    manager = ThemeManager(settings)
+
+    assert manager.sidebar_width() == 236
+    manager.set_sidebar_width(999)
+    manager.set_sidebar_collapsed(True)
+    manager.set_detail_panel_visible(False)
+
+    reloaded = ThemeManager(settings)
+    assert reloaded.sidebar_width() == 400
+    assert reloaded.sidebar_collapsed() is True
+    assert reloaded.detail_panel_visible() is False
+
+
+def test_responsive_layout_temporarily_overrides_saved_preferences(tmp_path) -> None:
+    settings = QSettings(str(tmp_path / "layout.ini"), QSettings.Format.IniFormat)
+    manager = ThemeManager(settings)
+    manager.set_sidebar_width(280)
+    manager.set_sidebar_collapsed(False)
+    manager.set_detail_panel_visible(True)
+    window = MainWindow(theme_manager=manager)
+    window.show()
+    window.select_page(2)
+    APPLICATION.processEvents()
+
+    assert window.navigation.collapsed is False
+    assert window.detail_panel.isVisible()
+    assert window.navigation.width() == 280
+
+    window.resize(1024, 640)
+    APPLICATION.processEvents()
+    assert window.navigation.collapsed is True
+    assert window.detail_panel.isHidden()
+    assert manager.sidebar_collapsed() is False
+    assert manager.detail_panel_visible() is True
+
+    window.resize(1280, 800)
+    APPLICATION.processEvents()
+    assert window.navigation.collapsed is False
+    assert window.detail_panel.isVisible()
+    assert window.navigation.width() == 280
+    window.close()
+
+
+def test_detail_preference_is_restored_for_supported_pages(tmp_path) -> None:
+    settings = QSettings(str(tmp_path / "layout.ini"), QSettings.Format.IniFormat)
+    manager = ThemeManager(settings)
+    window = MainWindow(theme_manager=manager)
+    window.show()
+    window.select_page(2)
+    APPLICATION.processEvents()
+
+    window.toggle_detail_preference()
+
+    assert window.detail_panel.isHidden()
+    assert manager.detail_panel_visible() is False
+    window.close()
+
+
 def test_shared_visual_components_construct_and_update() -> None:
     shell = PageShell("检索", "查找知识库证据")
     card = StatCard("资料", "12")

@@ -1,4 +1,18 @@
-# Progress Log: 网页与公开 GitHub 仓库导入
+# Progress Log: 桌面端实际体验与交互完善
+
+## 2026-09-23
+
+- 审查已完成的桌面工作台与 UI 重构；确认当前主线已与 `origin/main` 对齐，工作区存在用户保留的测试改动及“前端设计”目录。
+- 在用户确认的范围内完成完整回归：`uv run pytest`，`144 passed in 19.63s`。
+- 用户确认以提供的侧栏交互语言为基准，并批准导航布局、操作反馈、键盘可访问性三阶段方案。
+- 设计规格已提交：`098922c docs: design desktop experience polish`。
+- 已建立详细实施计划。
+- 步骤 1 完成：侧栏宽度、折叠和详情栏偏好均已安全持久化；支持边缘拖拽调宽、减少动效以及窄窗临时收起和恢复。
+- `uv run pytest tests/unit/test_desktop.py` 通过（12 passed）。首次沙箱执行无法访问用户级 uv 缓存，经授权重试后通过。
+
+---
+
+# Historical Progress Log: 网页与公开 GitHub 仓库导入
 
 ## 2026-09-20
 

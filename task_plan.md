@@ -1,4 +1,24 @@
-# Task Plan: 网页与公开 GitHub 仓库导入
+# Task Plan: 桌面端实际体验与交互完善
+
+## Goal
+
+在不改变 RAG 业务语义的前提下，完成已批准的桌面端导航布局、页面操作反馈和键盘可访问性三阶段体验完善。
+
+## Current Phase
+
+第二阶段（统一后台操作反馈）待实施；第一阶段已完成定向测试。详细步骤见 `docs/superpowers/plans/2026-09-23-desktop-experience-polish-implementation.md`。
+
+## Current Decisions
+
+| Decision | Rationale |
+| --- | --- |
+| 保持 PySide6 原生实现 | 当前工作台不是 React/Tailwind 项目，避免引入无关技术栈。 |
+| 分三阶段交付 | 降低布局、异步状态和无障碍行为相互影响的回归风险。 |
+| 响应式覆盖不写入设置 | 窄窗临时收起不应篡改用户的桌面偏好。 |
+
+---
+
+# Historical Plan: 网页与公开 GitHub 仓库导入
 
 ## Goal
 

@@ -73,6 +73,32 @@ class ThemeManager(QObject):
         self.settings.setValue("appearance/reduce_motion", enabled)
         self.changed.emit(self.resolved_mode().value, enabled)
 
+    def sidebar_width(self) -> int:
+        """Return the persisted expanded sidebar width within safe bounds."""
+        return self._bounded_int("layout/sidebar_width", 236, 160, 400)
+
+    def set_sidebar_width(self, width: int) -> None:
+        self.settings.setValue("layout/sidebar_width", max(160, min(400, width)))
+
+    def sidebar_collapsed(self) -> bool:
+        return self.settings.value("layout/sidebar_collapsed", False, type=bool)
+
+    def set_sidebar_collapsed(self, collapsed: bool) -> None:
+        self.settings.setValue("layout/sidebar_collapsed", collapsed)
+
+    def detail_panel_visible(self) -> bool:
+        return self.settings.value("layout/detail_panel_visible", True, type=bool)
+
+    def set_detail_panel_visible(self, visible: bool) -> None:
+        self.settings.setValue("layout/detail_panel_visible", visible)
+
+    def _bounded_int(self, key: str, default: int, minimum: int, maximum: int) -> int:
+        try:
+            value = int(self.settings.value(key, default))
+        except (TypeError, ValueError):
+            return default
+        return max(minimum, min(maximum, value))
+
     def apply(self) -> None:
         app = QApplication.instance()
         if app is not None:
@@ -103,6 +129,7 @@ def build_stylesheet(tokens: dict[str, str]) -> str:
     QLabel[status="failure"] {{ color: {tokens["danger"]}; background: {tokens["raised"]}; padding: 3px 8px; border-radius: 8px; }}
     QPushButton {{ background: {tokens["raised"]}; border: 1px solid {tokens["border"]}; border-radius: 7px; padding: 7px 12px; }}
     QPushButton:hover {{ border-color: {tokens["accent"]}; }}
+    QPushButton:focus, QToolButton:focus, QComboBox:focus, QListWidget:focus, QTableWidget:focus {{ outline: none; border: 2px solid {tokens["accent"]}; }}
     QPushButton[primary="true"] {{ background: {tokens["accent"]}; color: #071216; border-color: {tokens["accent"]}; font-weight: 600; }}
     QPushButton[danger="true"] {{ color: {tokens["danger"]}; }}
     QLineEdit, QComboBox, QTextEdit, QTextBrowser, QListWidget, QTableWidget, QTabWidget::pane {{ background: {tokens["panel"]}; border: 1px solid {tokens["border"]}; border-radius: 8px; padding: 7px; selection-background-color: {tokens["accent_soft"]}; }}

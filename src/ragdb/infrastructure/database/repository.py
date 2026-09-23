@@ -8,7 +8,7 @@ from datetime import datetime
 from pathlib import Path
 from uuid import UUID
 
-from ragdb.domain.enums import MessageRole, SourceStatus, SourceType, TaskStatus
+from ragdb.domain.enums import ArtifactType, MessageRole, SourceStatus, SourceType, TaskStatus
 from ragdb.domain.errors import (
     CollectionAlreadyExistsError,
     CollectionNotFoundError,
@@ -25,6 +25,8 @@ from ragdb.domain.models import (
     IngestionTask,
     MessageCitation,
     OperationLog,
+    ArtifactCitation,
+    LearningArtifact,
     Source,
     SourcePosition,
 )
@@ -648,3 +650,35 @@ class SQLiteOperationLogRepository:
         with self.database.connect() as connection:
             rows = connection.execute(query, (*values, limit)).fetchall()
         return [_operation_log_from_row(row) for row in rows]
+
+
+class SQLiteArtifactRepository:
+    def __init__(self, database: SQLiteDatabase) -> None:
+        self.database = database
+
+    def create(self, artifact: LearningArtifact, citations: Sequence[ArtifactCitation]) -> LearningArtifact:
+        if any(item.artifact_id != artifact.id for item in citations):
+            raise StorageError("引用必须属于该学习产物")
+        with self.database.connect() as connection:
+            connection.execute("INSERT INTO learning_artifacts (id, collection_id, artifact_type, title, content, provider, model, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", (str(artifact.id), str(artifact.collection_id), artifact.artifact_type.value, artifact.title, artifact.content, artifact.provider, artifact.model, artifact.created_at.isoformat()))
+            connection.executemany("INSERT INTO artifact_citations (artifact_id, display_index, chunk_id, source_id, source_generation, source_title, source_uri, position_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", [(str(item.artifact_id), item.display_index, item.chunk_id, str(item.source_id), item.source_generation, item.source_title, item.source_uri, _dump_json(item.position.model_dump(mode="json"))) for item in citations])
+        return artifact
+
+    def get(self, artifact_id: UUID) -> LearningArtifact | None:
+        with self.database.connect() as connection:
+            row = connection.execute("SELECT * FROM learning_artifacts WHERE id = ?", (str(artifact_id),)).fetchone()
+        return self._artifact(row) if row else None
+
+    def list_for_collection(self, collection_id: UUID) -> Sequence[LearningArtifact]:
+        with self.database.connect() as connection:
+            rows = connection.execute("SELECT * FROM learning_artifacts WHERE collection_id = ? ORDER BY created_at DESC", (str(collection_id),)).fetchall()
+        return [self._artifact(row) for row in rows]
+
+    def delete(self, artifact_id: UUID) -> bool:
+        with self.database.connect() as connection:
+            cursor = connection.execute("DELETE FROM learning_artifacts WHERE id = ?", (str(artifact_id),))
+        return cursor.rowcount > 0
+
+    @staticmethod
+    def _artifact(row: sqlite3.Row) -> LearningArtifact:
+        return LearningArtifact(id=UUID(row["id"]), collection_id=UUID(row["collection_id"]), artifact_type=ArtifactType(row["artifact_type"]), title=row["title"], content=row["content"], provider=row["provider"], model=row["model"], created_at=datetime.fromisoformat(row["created_at"]))

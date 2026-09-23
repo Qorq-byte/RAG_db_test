@@ -52,3 +52,11 @@ class RetrievalRoute(StrEnum):
 class MessageRole(StrEnum):
     USER = "user"
     ASSISTANT = "assistant"
+
+
+class ArtifactType(StrEnum):
+    SUMMARY = "summary"
+    OUTLINE = "outline"
+    NOTES = "notes"
+    QUIZ = "quiz"
+    CARDS = "cards"

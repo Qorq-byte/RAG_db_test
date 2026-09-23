@@ -5,7 +5,7 @@ import sqlite3
 from ragdb.domain.errors import StorageError
 
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 SCHEMA_SQL = """
 BEGIN IMMEDIATE;
@@ -156,6 +156,31 @@ CREATE TABLE message_citations (
 );
 """
 
+SCHEMA_V3_SQL = """
+CREATE TABLE learning_artifacts (
+    id TEXT PRIMARY KEY,
+    collection_id TEXT NOT NULL REFERENCES collections(id) ON DELETE CASCADE,
+    artifact_type TEXT NOT NULL CHECK (artifact_type IN ('summary', 'outline', 'notes', 'quiz', 'cards')),
+    title TEXT NOT NULL,
+    content TEXT NOT NULL,
+    provider TEXT NOT NULL,
+    model TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
+CREATE INDEX idx_learning_artifacts_collection_created ON learning_artifacts(collection_id, created_at DESC);
+CREATE TABLE artifact_citations (
+    artifact_id TEXT NOT NULL REFERENCES learning_artifacts(id) ON DELETE CASCADE,
+    display_index INTEGER NOT NULL CHECK (display_index >= 1),
+    chunk_id TEXT NOT NULL,
+    source_id TEXT NOT NULL,
+    source_generation INTEGER NOT NULL CHECK (source_generation >= 1),
+    source_title TEXT NOT NULL,
+    source_uri TEXT NOT NULL,
+    position_json TEXT NOT NULL DEFAULT '{}',
+    PRIMARY KEY(artifact_id, display_index)
+);
+"""
+
 
 def initialize_schema(connection: sqlite3.Connection) -> None:
     current_version = connection.execute("PRAGMA user_version").fetchone()[0]
@@ -170,6 +195,9 @@ def initialize_schema(connection: sqlite3.Connection) -> None:
         if current_version == 1:
             connection.executescript(SCHEMA_V2_SQL)
             current_version = 2
+        if current_version == 2:
+            connection.executescript(SCHEMA_V3_SQL)
+            current_version = 3
         connection.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
         connection.commit()
     except sqlite3.Error as exc:

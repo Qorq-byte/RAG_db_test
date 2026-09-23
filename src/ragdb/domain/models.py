@@ -14,7 +14,7 @@ from pydantic import (
     model_validator,
 )
 
-from ragdb.domain.enums import MessageRole, RetrievalRoute, SourceStatus, SourceType, TaskStatus
+from ragdb.domain.enums import ArtifactType, MessageRole, RetrievalRoute, SourceStatus, SourceType, TaskStatus
 
 
 NonEmptyText = Annotated[
@@ -201,6 +201,28 @@ class ChatPromptMessage(DomainModel):
 
 class ChatCompletion(DomainModel):
     content: NonEmptyText
+
+
+class LearningArtifact(DomainModel):
+    id: UUID = Field(default_factory=uuid4)
+    collection_id: UUID
+    artifact_type: ArtifactType
+    title: DisplayName
+    content: NonEmptyText
+    provider: NonEmptyText
+    model: NonEmptyText
+    created_at: AwareDatetime = Field(default_factory=utc_now)
+
+
+class ArtifactCitation(DomainModel):
+    artifact_id: UUID
+    display_index: int = Field(ge=1)
+    chunk_id: NonEmptyText
+    source_id: UUID
+    source_generation: int = Field(ge=1)
+    source_title: DisplayName
+    source_uri: NonEmptyText
+    position: SourcePosition = Field(default_factory=SourcePosition)
 
 
 class RetrievedChunk(DomainModel):

@@ -4,6 +4,7 @@ from ragdb.infrastructure.database.fts import SQLiteKeywordIndex
 from ragdb.infrastructure.database.repository import (
     SQLiteChunkRepository,
     SQLiteCollectionRepository,
+    SQLiteArtifactRepository,
     SQLiteConversationRepository,
     SQLiteDatabase,
     SQLiteGenerationRepository,
@@ -15,6 +16,7 @@ from ragdb.infrastructure.database.repository import (
 __all__ = [
     "SQLiteChunkRepository",
     "SQLiteCollectionRepository",
+    "SQLiteArtifactRepository",
     "SQLiteConversationRepository",
     "SQLiteDatabase",
     "SQLiteGenerationRepository",

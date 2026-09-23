@@ -6,6 +6,7 @@ from uuid import UUID
 from pydantic import JsonValue
 
 from ragdb.domain.enums import RetrievalRoute
+from ragdb.domain.errors import IndexConfigurationChangedError
 from ragdb.domain.models import SearchHit, SearchScores
 from ragdb.domain.ports import EmbeddingProvider, KeywordIndex, Reranker, SourceRepository, VectorStore
 from ragdb.infrastructure.retrieval.fusion import reciprocal_rank_fusion
@@ -43,6 +44,11 @@ class SearchService:
         query = query.strip()
         if not query:
             return []
+        for source in self.source_repository.list_for_collection(collection_id):
+            if source.current_generation and (source.embedding_provider, source.embedding_model) != (
+                self.embedding_provider.provider_name, self.embedding_provider.model_name
+            ):
+                raise IndexConfigurationChangedError(collection_id)
         embeddings = self.embedding_provider.embed_texts([query])
         if len(embeddings) != 1:
             raise RuntimeError("嵌入模型必须为单条查询返回一个向量")

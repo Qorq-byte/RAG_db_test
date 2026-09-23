@@ -708,6 +708,7 @@ def reindex(
     """重建指定集合的索引。"""
     try:
         service, collections = _local_ingestion_service(ctx)
+        service.allow_configuration_change = True
         target = _require_collection(collections, collection)
         items = []
         for source in service.source_repository.list_for_collection(target.id):

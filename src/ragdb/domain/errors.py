@@ -19,6 +19,11 @@ class StorageError(RagdbError):
     """Persistent storage could not complete an operation."""
 
 
+class IndexConfigurationChangedError(ConflictError):
+    def __init__(self, collection_id: UUID) -> None:
+        super().__init__(f"集合索引使用的嵌入配置已变化：{collection_id}；请先运行 ragdb reindex --collection NAME")
+
+
 class ParserError(RagdbError):
     """A source could not be selected for or converted by a parser."""
 

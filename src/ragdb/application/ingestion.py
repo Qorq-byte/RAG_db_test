@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from ragdb.domain.enums import SourceStatus, SourceType, TaskItemStatus, TaskStatus
-from ragdb.domain.errors import DocumentParseError, OcrRequiredError, RagdbError, UnsupportedSourceError
+from ragdb.domain.errors import DocumentParseError, IndexConfigurationChangedError, OcrRequiredError, RagdbError, UnsupportedSourceError
 from ragdb.domain.models import Collection, Document, DocumentUnit, IngestionTask, Source, utc_now
 from ragdb.domain.models import Metadata
 from ragdb.domain.ports import (
@@ -72,6 +72,7 @@ class LocalIngestionService:
         vector_store: VectorStore | None = None,
         generation_repository: object | None = None,
         max_file_size_bytes: int = 10 * 1024 * 1024,
+        allow_configuration_change: bool = False,
     ) -> None:
         if max_file_size_bytes < 1:
             raise ValueError("max_file_size_bytes must be positive")
@@ -87,6 +88,13 @@ class LocalIngestionService:
         self.vector_store = vector_store
         self.generation_repository = generation_repository
         self.max_file_size_bytes = max_file_size_bytes
+        self.allow_configuration_change = allow_configuration_change
+
+    def _ensure_configuration_matches(self, existing: Source | None) -> None:
+        if existing is None or existing.current_generation == 0 or self.allow_configuration_change or self.embedding_provider is None:
+            return
+        if (existing.embedding_provider, existing.embedding_model) != (self.embedding_provider.provider_name, self.embedding_provider.model_name):
+            raise IndexConfigurationChangedError(existing.collection_id)
 
     def ingest_file(self, collection: Collection, path: Path, metadata: Mapping[str, object] | None = None) -> IngestionResult:
         resolved = path.expanduser().resolve()
@@ -105,6 +113,7 @@ class LocalIngestionService:
         content_hash = hash_file(resolved)
         uri = resolved.as_uri()
         existing = self.source_repository.get_by_uri(collection.id, uri)
+        self._ensure_configuration_matches(existing)
         source_metadata = {"filename": resolved.name, "size_bytes": resolved.stat().st_size, **(metadata or {})}
         if existing is not None and existing.content_hash == content_hash and existing.metadata == source_metadata:
             return IngestionResult(uri, TaskItemStatus.SKIPPED, existing, "内容未变化")
@@ -143,6 +152,7 @@ class LocalIngestionService:
         content_hash = hashlib.sha256(normalized.encode("utf-8")).hexdigest()
         uri = f"manual://{content_hash}"
         existing = self.source_repository.get_by_uri(collection.id, uri)
+        self._ensure_configuration_matches(existing)
         source_metadata = {"character_count": len(normalized), **(metadata or {})}
         if existing is not None and existing.metadata == source_metadata:
             return IngestionResult(uri, TaskItemStatus.SKIPPED, existing, "内容未变化")
@@ -174,6 +184,7 @@ class LocalIngestionService:
             raise DocumentParseError(url, "网页不包含可索引正文")
         content_hash = hashlib.sha256(normalized.encode("utf-8")).hexdigest()
         existing = self.source_repository.get_by_uri(collection.id, url)
+        self._ensure_configuration_matches(existing)
         source_metadata = {"url": url, **(metadata or {})}
         if existing is not None and existing.content_hash == content_hash and existing.metadata == source_metadata:
             return IngestionResult(url, TaskItemStatus.SKIPPED, existing, "内容未变化")

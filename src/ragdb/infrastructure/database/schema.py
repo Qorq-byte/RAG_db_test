@@ -5,7 +5,7 @@ import sqlite3
 from ragdb.domain.errors import StorageError
 
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 
 SCHEMA_SQL = """
 BEGIN IMMEDIATE;
@@ -181,6 +181,16 @@ CREATE TABLE artifact_citations (
 );
 """
 
+SCHEMA_V4_SQL = """
+CREATE TABLE active_embedding_profile (
+    singleton_id INTEGER PRIMARY KEY CHECK (singleton_id = 1),
+    fingerprint TEXT NOT NULL,
+    settings_json TEXT NOT NULL,
+    namespace_id TEXT NOT NULL DEFAULT 'legacy',
+    updated_at TEXT NOT NULL
+);
+"""
+
 
 def initialize_schema(connection: sqlite3.Connection) -> None:
     current_version = connection.execute("PRAGMA user_version").fetchone()[0]
@@ -198,6 +208,9 @@ def initialize_schema(connection: sqlite3.Connection) -> None:
         if current_version == 2:
             connection.executescript(SCHEMA_V3_SQL)
             current_version = 3
+        if current_version == 3:
+            connection.executescript(SCHEMA_V4_SQL)
+            current_version = 4
         connection.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
         connection.commit()
     except sqlite3.Error as exc:

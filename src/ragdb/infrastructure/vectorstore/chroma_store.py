@@ -4,6 +4,7 @@ import json
 from collections import defaultdict
 from collections.abc import Mapping, Sequence
 from pathlib import Path
+import re
 from typing import TypeAlias
 from uuid import UUID
 
@@ -183,8 +184,11 @@ def _build_where(filters: Mapping[str, JsonValue] | None) -> ChromaWhere | None:
 class ChromaVectorStore:
     """Store externally generated embeddings in a persistent Chroma database."""
 
-    def __init__(self, directory: Path) -> None:
+    def __init__(self, directory: Path, namespace_id: str = "legacy") -> None:
         self.directory = directory
+        if namespace_id != "legacy" and not re.fullmatch(r"[a-f0-9]{12,64}", namespace_id):
+            raise ValueError("无效的嵌入命名空间 ID")
+        self.namespace_id = namespace_id
         self.directory.mkdir(parents=True, exist_ok=True)
         try:
             self._client = chromadb.PersistentClient(
@@ -195,13 +199,14 @@ class ChromaVectorStore:
             raise StorageError("初始化 ChromaDB 失败") from exc
 
     @staticmethod
-    def collection_name(collection_id: UUID) -> str:
-        return f"ragdb_{collection_id.hex}"
+    def collection_name(collection_id: UUID, namespace_id: str = "legacy") -> str:
+        suffix = "" if namespace_id == "legacy" else f"_{namespace_id[:24]}"
+        return f"ragdb_{collection_id.hex}{suffix}"
 
     def _get_collection(self, collection_id: UUID) -> ChromaCollection | None:
         try:
             return self._client.get_collection(
-                name=self.collection_name(collection_id),
+                name=self.collection_name(collection_id, self.namespace_id),
                 embedding_function=None,
             )
         except NotFoundError:
@@ -212,7 +217,7 @@ class ChromaVectorStore:
     def _get_or_create_collection(self, collection_id: UUID) -> ChromaCollection:
         try:
             return self._client.get_or_create_collection(
-                name=self.collection_name(collection_id),
+                name=self.collection_name(collection_id, self.namespace_id),
                 embedding_function=None,
                 metadata={"ragdb_collection_id": str(collection_id)},
             )
@@ -353,7 +358,7 @@ class ChromaVectorStore:
 
     def delete_collection(self, collection_id: UUID) -> None:
         try:
-            self._client.delete_collection(name=self.collection_name(collection_id))
+            self._client.delete_collection(name=self.collection_name(collection_id, self.namespace_id))
         except NotFoundError:
             return
         except ChromaError as exc:

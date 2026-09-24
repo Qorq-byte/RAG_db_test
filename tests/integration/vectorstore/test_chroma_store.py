@@ -53,6 +53,15 @@ def test_collection_name_uses_stable_uuid() -> None:
     )
 
 
+def test_embedding_profiles_use_isolated_chroma_namespaces() -> None:
+    collection_id = UUID("12345678-1234-5678-1234-567812345678")
+    profile_a = "a" * 64
+    profile_b = "b" * 64
+
+    assert ChromaVectorStore.collection_name(collection_id, profile_a) != ChromaVectorStore.collection_name(collection_id, profile_b)
+    assert ChromaVectorStore.collection_name(collection_id).endswith(collection_id.hex)
+
+
 def test_upsert_search_and_persist_chunks(tmp_path: Path) -> None:
     collection_id = uuid4()
     source_id = uuid4()

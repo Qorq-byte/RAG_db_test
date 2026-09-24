@@ -1,6 +1,7 @@
 """Shared application runtime used by CLI and desktop front ends."""
 
 from pathlib import Path
+from pydantic import SecretStr
 
 from ragdb.application.chat import AnswerService
 from ragdb.application.collections import CollectionService
@@ -11,8 +12,10 @@ from ragdb.application.sources import SourceService
 from ragdb.config import AppSettings, load_settings
 from ragdb.infrastructure.chat import create_chat_model
 from ragdb.infrastructure.chunking import StructuredChunker
-from ragdb.infrastructure.database import SQLiteArtifactRepository, SQLiteChunkRepository, SQLiteCollectionRepository, SQLiteConversationRepository, SQLiteDatabase, SQLiteGenerationRepository, SQLiteKeywordIndex, SQLiteOperationLogRepository, SQLiteSourceRepository, SQLiteTaskRepository
+from ragdb.infrastructure.database import SQLiteArtifactRepository, SQLiteChunkRepository, SQLiteCollectionRepository, SQLiteConversationRepository, SQLiteDatabase, SQLiteEmbeddingProfileRepository, SQLiteGenerationRepository, SQLiteKeywordIndex, SQLiteOperationLogRepository, SQLiteSourceRepository, SQLiteTaskRepository
 from ragdb.infrastructure.embeddings import create_embedding_provider
+from ragdb.infrastructure.credentials import SystemCredentialStore
+from ragdb.infrastructure.database.repository import embedding_profile_fingerprint
 from ragdb.infrastructure.retrieval import CrossEncoderReranker
 from ragdb.infrastructure.parsers import ParserRegistry
 from ragdb.infrastructure.parsers.ocr import TesseractOcr
@@ -26,6 +29,31 @@ class ApplicationRuntime:
         self.settings = settings
         self.database = database
         self.config_path = config_path
+        profile = SQLiteEmbeddingProfileRepository(database).initialize(settings.embedding)
+        active_settings, self.embedding_fingerprint, self.embedding_namespace = profile
+        if embedding_profile_fingerprint(settings.embedding) == self.embedding_fingerprint:
+            active_settings = active_settings.model_copy(
+                update={"cloud_api_key": settings.embedding.cloud_api_key}
+            )
+        elif settings.embedding.cloud_api_key is not None:
+            active_settings = active_settings.model_copy(
+                update={"cloud_api_key": settings.embedding.cloud_api_key}
+            )
+        elif active_settings.provider == "cloud":
+            secret = SystemCredentialStore().get(
+                f"embedding.{self.embedding_fingerprint}.cloud_api_key"
+            )
+            active_settings = active_settings.model_copy(
+                update={"cloud_api_key": SecretStr(secret) if secret else None}
+            )
+        self.settings.embedding = active_settings
+
+    def _vector_store(self) -> ChromaVectorStore:
+        namespace = "legacy" if self.embedding_namespace == "legacy" else self.embedding_fingerprint
+        return ChromaVectorStore(
+            self.settings.storage.data_dir / self.settings.storage.chroma_directory,
+            namespace_id=namespace,
+        )
 
     @classmethod
     def from_config(cls, config_path: Path = Path("config.toml")) -> "ApplicationRuntime":
@@ -39,17 +67,17 @@ class ApplicationRuntime:
         return SQLiteCollectionRepository(self.database)
 
     def collection_service(self) -> CollectionService:
-        return CollectionService(self.collections, ChromaVectorStore(self.settings.storage.data_dir / self.settings.storage.chroma_directory))
+        return CollectionService(self.collections, self._vector_store())
 
     def source_service(self) -> SourceService:
-        return SourceService(SQLiteSourceRepository(self.database), ChromaVectorStore(self.settings.storage.data_dir / self.settings.storage.chroma_directory))
+        return SourceService(SQLiteSourceRepository(self.database), self._vector_store())
 
     def ingestion_service(self) -> LocalIngestionService:
         settings = self.settings
         ocr = None
         if settings.ocr.enabled and settings.ocr.executable_path is not None:
             ocr = TesseractOcr(settings.ocr.executable_path, settings.ocr.languages, settings.ocr.dpi)
-        return LocalIngestionService(SQLiteSourceRepository(self.database), SQLiteChunkRepository(self.database), SQLiteTaskRepository(self.database), ParserRegistry(ocr=ocr), StructuredChunker(settings.chunking), SQLiteKeywordIndex(self.database), create_embedding_provider(settings.embedding), ChromaVectorStore(settings.storage.data_dir / settings.storage.chroma_directory), SQLiteGenerationRepository(self.database))
+        return LocalIngestionService(SQLiteSourceRepository(self.database), SQLiteChunkRepository(self.database), SQLiteTaskRepository(self.database), ParserRegistry(ocr=ocr), StructuredChunker(settings.chunking), SQLiteKeywordIndex(self.database), create_embedding_provider(settings.embedding), self._vector_store(), SQLiteGenerationRepository(self.database))
 
     def search_service(self) -> SearchService:
         settings = self.settings
@@ -60,7 +88,7 @@ class ApplicationRuntime:
             reranker = CrossEncoderReranker(settings.rerank.model, settings.rerank.batch_size)
         return SearchService(
             create_embedding_provider(settings.embedding),
-            ChromaVectorStore(settings.storage.data_dir / settings.storage.chroma_directory),
+            self._vector_store(),
             SQLiteKeywordIndex(self.database), SQLiteSourceRepository(self.database),
             vector_top_k=settings.retrieval.vector_top_k, keyword_top_k=settings.retrieval.keyword_top_k,
             result_top_k=settings.retrieval.result_top_k, rrf_k=settings.retrieval.rrf_k,

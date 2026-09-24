@@ -9,6 +9,15 @@
 - `/browse` 打开 TOMLKit 官方页面时遇到状态目录 ACL 启动超时；未进行其他网页浏览。keyring Windows 凭据库资料此前已由 `/browse` 查阅。
 - 用户既有 `tests/integration/test_collection_cli.py` 修改与未跟踪 `前端设计/` 仍保持原样。
 
+## 2026-09-24 模型设置阶段 2
+
+- SQLite schema 升至 v4，新增单例活动嵌入 profile；JSON 仅记录非敏感配置，保存稳定 SHA-256 指纹与向量命名空间。
+- `ApplicationRuntime` 初始化时以数据库 profile 为活动嵌入配置；旧数据库首次初始化继续指向旧版 Chroma 命名空间，避免既有向量失联。
+- Chroma 集合名支持按 profile 指纹隔离；collection/source/ingestion/search runtime 路径共用当前 profile 命名空间。
+- 云端嵌入凭据改按非敏感 profile 指纹区分，避免保存候选配置时覆盖旧活动 profile 的 key。
+- 定向验证：模型配置、数据库迁移/仓储、Chroma 向量测试和配置测试共 49 passed。
+- 全量验证：`uv run pytest -q`，163 passed in 22.94s。
+
 ## 2026-09-24 桌面端模型设置
 
 - 用户批准模型设置设计，范围包括问答/生成模型、本地/云端嵌入模型、连接测试及所有集合的安全重建。

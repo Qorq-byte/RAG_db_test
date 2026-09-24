@@ -5,6 +5,7 @@ import pytest
 
 from ragdb.application.model_settings import ModelSettingsService
 from ragdb.config import ChatSettings, EmbeddingSettings
+from ragdb.infrastructure.database.repository import embedding_profile_fingerprint
 from ragdb.infrastructure.chat.ollama import list_ollama_models
 
 
@@ -46,6 +47,17 @@ def test_embedding_test_validates_vector_without_index_mutation(monkeypatch) -> 
 
     monkeypatch.setattr("ragdb.application.model_settings.create_embedding_provider", lambda _: Provider())
     ModelSettingsService(credentials=MemoryCredentials()).test_embedding(EmbeddingSettings())
+
+
+def test_embedding_credentials_are_scoped_to_non_secret_profile(tmp_path: Path) -> None:
+    credentials = MemoryCredentials()
+    service = ModelSettingsService(tmp_path / "config.toml", tmp_path / ".env", credentials)
+    profile = EmbeddingSettings(provider="cloud", cloud_model="vector-a")
+    service.save_embedding(profile, "vector-key-a")
+    service.save_embedding(profile.model_copy(update={"cloud_model": "vector-b"}), "vector-key-b")
+
+    assert credentials.get(f"embedding.{embedding_profile_fingerprint(profile)}.cloud_api_key") == "vector-key-a"
+    assert len(credentials.values) == 2
 
 
 def test_environment_secret_takes_priority_over_system_credential(tmp_path: Path, monkeypatch) -> None:

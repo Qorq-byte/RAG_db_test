@@ -8,6 +8,8 @@
 - Chroma 当前按知识集合创建固定向量集合；应按嵌入配置指纹隔离不同向量维数。
 - SQLite `chunks` 保存所有来源的当前切片文本；重建可覆盖网页、GitHub、手动文本，而不依赖源文件可访问。
 - 现有 `reindex` 仅重新处理 `file://` 来源；全局模型更换需要新服务，不能复用现命令作为完整实现。
+- schema v4 的活动 profile 不含 API Key；`namespace_id=legacy` 兼容原有 `ragdb_{collection UUID}` 向量集合，新的 profile 使用自身指纹隔离。
+- 运行时的嵌入配置从 SQLite 活动 profile 还原；云端嵌入 key 依 profile 指纹存放，防止待切换模型的 key 替换当前活动模型密钥。
 
 ## 2026-09-24 进度核验
 

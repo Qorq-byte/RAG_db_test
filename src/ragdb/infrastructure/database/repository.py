@@ -1,5 +1,8 @@
 """SQLite repositories for domain objects."""
 
+from __future__ import annotations
+
+import hashlib
 import json
 import sqlite3
 from collections.abc import Iterator, Sequence
@@ -30,7 +33,78 @@ from ragdb.domain.models import (
     Source,
     SourcePosition,
 )
+from ragdb.config import EmbeddingSettings
 from ragdb.infrastructure.database.schema import initialize_schema
+
+
+def embedding_profile_fingerprint(settings: EmbeddingSettings) -> str:
+    """Stable identity for embedding behavior, excluding all credentials."""
+    encoded = json.dumps(
+        settings.model_dump(exclude={"cloud_api_key"}),
+        ensure_ascii=False, sort_keys=True, separators=(",", ":"),
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+class SQLiteEmbeddingProfileRepository:
+    """Persist the active embedding profile and its Chroma namespace."""
+
+    def __init__(self, database: SQLiteDatabase) -> None:
+        self.database = database
+
+    def get(self) -> tuple[EmbeddingSettings, str, str] | None:
+        with self.database.connect() as connection:
+            row = connection.execute(
+                "SELECT settings_json, fingerprint, namespace_id FROM active_embedding_profile WHERE singleton_id = 1"
+            ).fetchone()
+        if row is None:
+            return None
+        try:
+            settings = EmbeddingSettings.model_validate_json(row["settings_json"])
+        except ValueError as exc:
+            raise StorageError("数据库中的活动嵌入配置无效") from exc
+        if embedding_profile_fingerprint(settings) != row["fingerprint"]:
+            raise StorageError("数据库中的活动嵌入配置指纹不匹配")
+        if row["namespace_id"] not in {"legacy", row["fingerprint"]}:
+            raise StorageError("数据库中的活动向量命名空间不匹配")
+        return settings, row["fingerprint"], row["namespace_id"]
+
+    def initialize(self, settings: EmbeddingSettings) -> tuple[EmbeddingSettings, str, str]:
+        fingerprint = embedding_profile_fingerprint(settings)
+        payload = settings.model_dump_json(exclude={"cloud_api_key"})
+        now = datetime.now().astimezone().isoformat()
+        with self.database.connect() as connection:
+            connection.execute(
+                "INSERT OR IGNORE INTO active_embedding_profile "
+                "(singleton_id, fingerprint, settings_json, namespace_id, updated_at) VALUES (1, ?, ?, 'legacy', ?)",
+                (fingerprint, payload, now),
+            )
+            row = connection.execute(
+                "SELECT settings_json, fingerprint, namespace_id FROM active_embedding_profile WHERE singleton_id = 1"
+            ).fetchone()
+        active_settings = EmbeddingSettings.model_validate_json(row["settings_json"])
+        if embedding_profile_fingerprint(active_settings) != row["fingerprint"]:
+            raise StorageError("数据库中的活动嵌入配置指纹不匹配")
+        if row["namespace_id"] not in {"legacy", row["fingerprint"]}:
+            raise StorageError("数据库中的活动向量命名空间不匹配")
+        return active_settings, row["fingerprint"], row["namespace_id"]
+
+    def activate(self, settings: EmbeddingSettings, namespace_id: str) -> str:
+        """Atomically publish a previously built vector namespace."""
+        fingerprint = embedding_profile_fingerprint(settings)
+        if namespace_id != "legacy" and namespace_id != fingerprint:
+            raise ValueError("活动向量命名空间必须匹配嵌入配置指纹")
+        payload = settings.model_dump_json(exclude={"cloud_api_key"})
+        with self.database.connect() as connection:
+            connection.execute(
+                "INSERT INTO active_embedding_profile "
+                "(singleton_id, fingerprint, settings_json, namespace_id, updated_at) "
+                "VALUES (1, ?, ?, ?, ?) ON CONFLICT(singleton_id) DO UPDATE SET "
+                "fingerprint=excluded.fingerprint, settings_json=excluded.settings_json, "
+                "namespace_id=excluded.namespace_id, updated_at=excluded.updated_at",
+                (fingerprint, payload, namespace_id, datetime.now().astimezone().isoformat()),
+            )
+        return fingerprint
 
 
 def _dump_json(value: object) -> str:

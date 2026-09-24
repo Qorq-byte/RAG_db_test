@@ -13,6 +13,7 @@ from ragdb.config import AppSettings, ChatSettings, EmbeddingSettings, load_sett
 from ragdb.domain.models import ChatPromptMessage
 from ragdb.infrastructure.chat.factory import create_chat_model
 from ragdb.infrastructure.credentials import SystemCredentialStore
+from ragdb.infrastructure.database.repository import embedding_profile_fingerprint
 from ragdb.infrastructure.embeddings.factory import create_embedding_provider
 
 
@@ -42,8 +43,11 @@ class ModelSettingsService:
                 "cloud_api_key": _secret_from_store(self.credentials, "chat.cloud_api_key")
             })
         if settings.embedding.cloud_api_key is None and not self._secret_overridden("embedding"):
+            fingerprint = embedding_profile_fingerprint(settings.embedding)
             settings.embedding = settings.embedding.model_copy(update={
-                "cloud_api_key": _secret_from_store(self.credentials, "embedding.cloud_api_key")
+                "cloud_api_key": _secret_from_store(
+                    self.credentials, f"embedding.{fingerprint}.cloud_api_key"
+                ) or _secret_from_store(self.credentials, "embedding.cloud_api_key")
             })
         return settings
 
@@ -54,7 +58,13 @@ class ModelSettingsService:
 
     def save_embedding(self, settings: EmbeddingSettings, api_key: str | None = None) -> AppSettings:
         self._save_section("embedding", settings.model_dump(exclude={"cloud_api_key"}))
-        self._save_secret("embedding", api_key)
+        fingerprint = embedding_profile_fingerprint(settings)
+        key_name = f"embedding.{fingerprint}.cloud_api_key"
+        if api_key:
+            self.credentials.set(key_name, api_key)
+        elif api_key == "":
+            self.credentials.delete(key_name)
+            self.credentials.delete("embedding.cloud_api_key")
         return self.load()
 
     def test_chat(self, settings: ChatSettings) -> None:
@@ -74,8 +84,8 @@ class ModelSettingsService:
 
     def environment_overrides(self, section: str) -> set[str]:
         names = {
-            "chat": {"provider", "cloud_model", "cloud_base_url", "cloud_timeout_seconds", "local_model", "local_base_url", "local_timeout_seconds"},
-            "embedding": {"provider", "local_model", "cloud_model", "cloud_base_url", "cloud_timeout_seconds", "batch_size"},
+            "chat": {"provider", "cloud_model", "cloud_base_url", "cloud_api_key", "cloud_timeout_seconds", "local_model", "local_base_url", "local_timeout_seconds"},
+            "embedding": {"provider", "local_model", "cloud_model", "cloud_base_url", "cloud_api_key", "cloud_timeout_seconds", "batch_size"},
         }
         prefix = f"RAGDB_{section.upper()}__"
         env_names = {f"{prefix}{field.upper()}" for field in names[section]}

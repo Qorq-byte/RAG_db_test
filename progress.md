@@ -1,5 +1,15 @@
 # Progress Log: 桌面端实际体验与交互完善
 
+## 当前交付摘要（2026-09-24）
+
+- 模型设置阶段 1–4 完成；阶段 5“文档与最终验收”待执行。当前路线以 [task_plan.md](task_plan.md) 为入口。
+- 阶段 4 提交 `a8240ae` 已推送至 `origin/codex/desktop-model-settings-ui`；尚未合并 `main`。阶段 1–3 已合并至主线 `f021716`。
+- 最近一次完整回归：198 passed in 80.28s；Windows 原生 Qt 隐藏窗口渲染成功，已检查中文显示。
+- 验证边界：自动化包含替身模型服务和故障注入；真实 Ollama、真实云端接口及真实系统凭据读写链路尚需最终联调确认。
+- 本轮仅整理进度与下一阶段规划，未改动产品代码，未重新运行测试；保留下方历史记录。
+
+文档分工：本文件保留交付证据；[实施计划](docs/superpowers/plans/2026-09-24-desktop-model-settings-implementation.md) 维护执行步骤和验收条件；[findings.md](findings.md) 保留技术结论。
+
 ## 2026-09-24 模型设置阶段 4
 
 - 系统导航新增“模型设置”，分开配置问答/生成与嵌入模型；支持本地 Ollama、Sentence Transformers 和云端 OpenAI 兼容服务。

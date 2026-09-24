@@ -457,7 +457,8 @@ def watch_start(
                     elif operation == "delete":
                         source = service.source_repository.get_by_uri(target.id, event_path.resolve().as_uri())
                         if source is not None:
-                            SourceService(service.source_repository, service.vector_store).delete(source.id)
+                            SourceService(service.source_repository, service.vector_store,
+                                          operation_gate=service.operation_gate).delete(source.id)
                             typer.echo(f"已删除资料：{event_path}")
                 time.sleep(0.2)
         except KeyboardInterrupt:

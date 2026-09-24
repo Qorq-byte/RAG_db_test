@@ -363,3 +363,16 @@ class ChromaVectorStore:
             return
         except ChromaError as exc:
             raise StorageError("删除 ChromaDB 集合失败") from exc
+
+    def has_chunks(self, collection_id: UUID, chunk_ids: Sequence[str]) -> bool:
+        """Verify that every requested chunk was persisted in this namespace."""
+        if not chunk_ids:
+            return True
+        collection = self._get_collection(collection_id)
+        if collection is None:
+            return False
+        try:
+            stored = collection.get(ids=list(chunk_ids), include=[])
+            return set(stored["ids"]) == set(chunk_ids)
+        except ChromaError as exc:
+            raise StorageError("验证 ChromaDB 暂存向量失败") from exc

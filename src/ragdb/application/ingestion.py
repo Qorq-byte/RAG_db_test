@@ -5,6 +5,7 @@ import os
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
+from ragdb.application.operation_guard import guarded_mutation
 
 from ragdb.domain.enums import SourceStatus, SourceType, TaskItemStatus, TaskStatus
 from ragdb.domain.errors import DocumentParseError, IndexConfigurationChangedError, OcrRequiredError, RagdbError, UnsupportedSourceError
@@ -31,6 +32,7 @@ SOURCE_TYPES_BY_EXTENSION = {
     ".docx": SourceType.WORD,
     ".pptx": SourceType.POWERPOINT,
 }
+
 
 CODE_EXTENSIONS = {
     ".c", ".cc", ".cpp", ".cs", ".css", ".go", ".h", ".hpp", ".html",
@@ -73,6 +75,7 @@ class LocalIngestionService:
         generation_repository: object | None = None,
         max_file_size_bytes: int = 10 * 1024 * 1024,
         allow_configuration_change: bool = False,
+        operation_gate: object | None = None,
     ) -> None:
         if max_file_size_bytes < 1:
             raise ValueError("max_file_size_bytes must be positive")
@@ -89,6 +92,7 @@ class LocalIngestionService:
         self.generation_repository = generation_repository
         self.max_file_size_bytes = max_file_size_bytes
         self.allow_configuration_change = allow_configuration_change
+        self.operation_gate = operation_gate
 
     def _ensure_configuration_matches(self, existing: Source | None) -> None:
         if existing is None or existing.current_generation == 0 or self.allow_configuration_change or self.embedding_provider is None:
@@ -96,6 +100,7 @@ class LocalIngestionService:
         if (existing.embedding_provider, existing.embedding_model) != (self.embedding_provider.provider_name, self.embedding_provider.model_name):
             raise IndexConfigurationChangedError(existing.collection_id)
 
+    @guarded_mutation
     def ingest_file(self, collection: Collection, path: Path, metadata: Mapping[str, object] | None = None) -> IngestionResult:
         resolved = path.expanduser().resolve()
         if not resolved.is_file():
@@ -140,6 +145,7 @@ class LocalIngestionService:
         if cleanup is not None:
             cleanup(source.collection_id, source.id, source.current_generation)
 
+    @guarded_mutation
     def ingest_text(
         self,
         collection: Collection,
@@ -178,6 +184,7 @@ class LocalIngestionService:
             ),
         )
 
+    @guarded_mutation
     def ingest_web_page(self, collection: Collection, url: str, title: str, text: str, metadata: Mapping[str, object] | None = None) -> IngestionResult:
         normalized = text.strip()
         if not normalized:
@@ -199,6 +206,7 @@ class LocalIngestionService:
             lambda: Document(source_id=source.id, title=source.title, units=(DocumentUnit(text=normalized),), metadata={"format": "web", "url": url}),
         )
 
+    @guarded_mutation
     def ingest_directory(
         self, collection: Collection, path: Path, metadata: Mapping[str, object] | None = None,
         on_item: Callable[[IngestionResult], None] | None = None,

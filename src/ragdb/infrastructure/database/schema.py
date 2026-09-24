@@ -5,7 +5,7 @@ import sqlite3
 from ragdb.domain.errors import StorageError
 
 
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 
 SCHEMA_SQL = """
 BEGIN IMMEDIATE;
@@ -191,6 +191,21 @@ CREATE TABLE active_embedding_profile (
 );
 """
 
+SCHEMA_V5_SQL = """
+CREATE TABLE embedding_operation_gate (
+    singleton_id INTEGER PRIMARY KEY CHECK (singleton_id = 1),
+    rebuild_active INTEGER NOT NULL DEFAULT 0 CHECK (rebuild_active IN (0, 1)),
+    rebuild_owner_pid INTEGER
+);
+INSERT INTO embedding_operation_gate (singleton_id, rebuild_active)
+VALUES (1, 0);
+CREATE TABLE embedding_ingestion_leases (
+    lease_id TEXT PRIMARY KEY,
+    owner_pid INTEGER NOT NULL,
+    started_at TEXT NOT NULL
+);
+"""
+
 
 def initialize_schema(connection: sqlite3.Connection) -> None:
     current_version = connection.execute("PRAGMA user_version").fetchone()[0]
@@ -211,6 +226,9 @@ def initialize_schema(connection: sqlite3.Connection) -> None:
         if current_version == 3:
             connection.executescript(SCHEMA_V4_SQL)
             current_version = 4
+        if current_version == 4:
+            connection.executescript(SCHEMA_V5_SQL)
+            current_version = 5
         connection.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
         connection.commit()
     except sqlite3.Error as exc:

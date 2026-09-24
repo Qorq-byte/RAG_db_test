@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any, Protocol
 
 import os
+import tempfile
 import tomlkit
 from pydantic import SecretStr
 
@@ -67,6 +68,18 @@ class ModelSettingsService:
             self.credentials.delete("embedding.cloud_api_key")
         return self.load()
 
+    def store_embedding_credential(self, settings: EmbeddingSettings) -> None:
+        if settings.provider == "cloud" and settings.cloud_api_key is not None:
+            fingerprint = embedding_profile_fingerprint(settings)
+            self.credentials.set(
+                f"embedding.{fingerprint}.cloud_api_key",
+                settings.cloud_api_key.get_secret_value(),
+            )
+
+    def persist_embedding(self, settings: EmbeddingSettings) -> None:
+        """Sync the published profile without loading credentials or environment overrides."""
+        self._save_section("embedding", settings.model_dump(exclude={"cloud_api_key"}))
+
     def test_chat(self, settings: ChatSettings) -> None:
         model = create_chat_model(settings)
         model.complete([ChatPromptMessage(role="user", content="Reply with OK.")])
@@ -126,8 +139,20 @@ class ModelSettingsService:
             document[section] = table
         for name, value in values.items():
             table[name] = str(value) if isinstance(value, Path) else value
+        table.pop("cloud_api_key", None)
         self.config_path.parent.mkdir(parents=True, exist_ok=True)
-        self.config_path.write_text(tomlkit.dumps(document), encoding="utf-8")
+        temporary = None
+        try:
+            with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=self.config_path.parent,
+                                             prefix=".ragdb-config-", suffix=".tmp", delete=False) as stream:
+                temporary = Path(stream.name)
+                stream.write(tomlkit.dumps(document))
+                stream.flush()
+                os.fsync(stream.fileno())
+            os.replace(temporary, self.config_path)
+        finally:
+            if temporary is not None:
+                temporary.unlink(missing_ok=True)
 
 
 def settings_with_secret(settings: ChatSettings | EmbeddingSettings, secret: str | None):

@@ -4,12 +4,13 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import sqlite3
 from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from ragdb.domain.enums import ArtifactType, MessageRole, SourceStatus, SourceType, TaskStatus
 from ragdb.domain.errors import (
@@ -21,6 +22,7 @@ from ragdb.domain.errors import (
     TaskNotFoundError,
 )
 from ragdb.domain.models import (
+    ArtifactCitation,
     Chunk,
     Collection,
     Conversation,
@@ -28,7 +30,6 @@ from ragdb.domain.models import (
     IngestionTask,
     MessageCitation,
     OperationLog,
-    ArtifactCitation,
     LearningArtifact,
     Source,
     SourcePosition,
@@ -104,7 +105,135 @@ class SQLiteEmbeddingProfileRepository:
                 "namespace_id=excluded.namespace_id, updated_at=excluded.updated_at",
                 (fingerprint, payload, namespace_id, datetime.now().astimezone().isoformat()),
             )
+            connection.execute(
+                "UPDATE sources SET embedding_provider = ?, embedding_model = ? "
+                "WHERE current_generation > 0",
+                (settings.provider, settings.local_model if settings.provider == "local" else settings.cloud_model),
+            )
         return fingerprint
+
+
+class SQLiteEmbeddingOperationGate:
+    """Cross-process SQLite gate: rebuild is exclusive with all ingestion."""
+
+    def __init__(self, database: SQLiteDatabase, expected_profile: tuple[str, str] | None = None) -> None:
+        self.database = database
+        self.expected_profile = expected_profile
+
+    def ensure_current(self, connection=None) -> None:
+        if self.expected_profile is None:
+            return
+        if connection is None:
+            with self.database.connect() as connection:
+                self.ensure_current(connection)
+            return
+        row = connection.execute(
+            "SELECT fingerprint, namespace_id FROM active_embedding_profile WHERE singleton_id = 1"
+        ).fetchone()
+        if row is None or tuple(row) != self.expected_profile:
+            raise StorageError("嵌入模型已切换，请刷新页面或重新执行命令。")
+
+    @staticmethod
+    def _process_is_alive(process_id: int | None) -> bool:
+        if process_id is None or process_id < 1:
+            return False
+        if os.name == "nt":
+            # os.kill(pid, 0) terminates processes on Windows; query a handle instead.
+            import ctypes
+            from ctypes import wintypes
+
+            kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+            kernel.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+            kernel.OpenProcess.restype = wintypes.HANDLE
+            kernel.GetExitCodeProcess.argtypes = [wintypes.HANDLE, ctypes.POINTER(wintypes.DWORD)]
+            kernel.CloseHandle.argtypes = [wintypes.HANDLE]
+            handle = kernel.OpenProcess(0x1000, False, process_id)
+            if not handle:
+                return ctypes.get_last_error() != 87
+            try:
+                code = wintypes.DWORD()
+                return not kernel.GetExitCodeProcess(handle, ctypes.byref(code)) or code.value == 259
+            finally:
+                kernel.CloseHandle(handle)
+        try:
+            os.kill(process_id, 0)
+            return True
+        except ProcessLookupError:
+            return False
+        except PermissionError:
+            return True
+        except OSError as exc:
+            # Windows reports ERROR_INVALID_PARAMETER (87) for a nonexistent PID.
+            if getattr(exc, "winerror", None) == 87:
+                return False
+            raise
+
+    @classmethod
+    def _recover_stale(cls, connection: sqlite3.Connection) -> None:
+        gate = connection.execute(
+            "SELECT rebuild_active, rebuild_owner_pid FROM embedding_operation_gate WHERE singleton_id = 1"
+        ).fetchone()
+        if gate and gate["rebuild_active"] and not cls._process_is_alive(gate["rebuild_owner_pid"]):
+            connection.execute(
+                "UPDATE embedding_operation_gate SET rebuild_active = 0, rebuild_owner_pid = NULL WHERE singleton_id = 1"
+            )
+        pids = connection.execute(
+            "SELECT DISTINCT owner_pid FROM embedding_ingestion_leases"
+        ).fetchall()
+        for row in pids:
+            if not cls._process_is_alive(row["owner_pid"]):
+                connection.execute(
+                    "DELETE FROM embedding_ingestion_leases WHERE owner_pid = ?", (row["owner_pid"],)
+                )
+
+    @contextmanager
+    def ingestion(self):
+        lease_id = str(uuid4())
+        with self.database.connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            self._recover_stale(connection)
+            row = connection.execute(
+                "SELECT rebuild_active FROM embedding_operation_gate WHERE singleton_id = 1"
+            ).fetchone()
+            if row is None or row["rebuild_active"]:
+                raise StorageError("嵌入索引正在全局重建，暂时不能导入或删除资料。")
+            self.ensure_current(connection)
+            connection.execute(
+                "INSERT INTO embedding_ingestion_leases (lease_id, owner_pid, started_at) VALUES (?, ?, ?)",
+                (lease_id, os.getpid(), datetime.now().astimezone().isoformat()),
+            )
+        try:
+            yield
+        finally:
+            with self.database.connect() as connection:
+                connection.execute(
+                    "DELETE FROM embedding_ingestion_leases WHERE lease_id = ?", (lease_id,)
+                )
+
+    @contextmanager
+    def rebuild(self):
+        with self.database.connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            self._recover_stale(connection)
+            row = connection.execute(
+                "SELECT rebuild_active FROM embedding_operation_gate WHERE singleton_id = 1"
+            ).fetchone()
+            ingestions = connection.execute(
+                "SELECT COUNT(*) FROM embedding_ingestion_leases"
+            ).fetchone()[0]
+            if row is None or row["rebuild_active"] or ingestions:
+                raise StorageError("有资料正在导入或另一项嵌入重建正在运行，请稍后重试。")
+            connection.execute(
+                "UPDATE embedding_operation_gate SET rebuild_active = 1, rebuild_owner_pid = ? WHERE singleton_id = 1",
+                (os.getpid(),),
+            )
+        try:
+            yield
+        finally:
+            with self.database.connect() as connection:
+                connection.execute(
+                    "UPDATE embedding_operation_gate SET rebuild_active = 0, rebuild_owner_pid = NULL WHERE singleton_id = 1"
+                )
 
 
 def _dump_json(value: object) -> str:

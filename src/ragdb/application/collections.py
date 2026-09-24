@@ -1,6 +1,7 @@
 """Application service for knowledge collection management."""
 
 from collections.abc import Sequence
+from ragdb.application.operation_guard import guarded_mutation
 
 from ragdb.domain.errors import CollectionNotFoundError
 from ragdb.domain.models import Collection
@@ -12,10 +13,13 @@ class CollectionService:
         self,
         repository: CollectionRepository,
         vector_store: VectorStore,
+        *, operation_gate=None,
     ) -> None:
         self.repository = repository
         self.vector_store = vector_store
+        self.operation_gate = operation_gate
 
+    @guarded_mutation
     def create(self, name: str, description: str | None = None) -> Collection:
         return self.repository.create(Collection(name=name, description=description))
 
@@ -28,6 +32,7 @@ class CollectionService:
             raise CollectionNotFoundError(name)
         return collection
 
+    @guarded_mutation
     def delete_by_name(self, name: str) -> Collection:
         collection = self.get_by_name(name)
         if not self.repository.delete(collection.id):

@@ -1,6 +1,6 @@
 """Hybrid search orchestration."""
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from uuid import UUID
 
 from pydantic import JsonValue
@@ -26,6 +26,7 @@ class SearchService:
         rrf_k: int = 60,
         reranker: Reranker | None = None,
         rerank_candidate_count: int = 20,
+        ensure_current: Callable[[], None] | None = None,
     ) -> None:
         self.embedding_provider = embedding_provider
         self.vector_store = vector_store
@@ -37,6 +38,7 @@ class SearchService:
         self.rrf_k = rrf_k
         self.reranker = reranker
         self.rerank_candidate_count = rerank_candidate_count
+        self.ensure_current = ensure_current
 
     def search(
         self, collection_id: UUID, query: str, filters: Mapping[str, JsonValue] | None = None
@@ -44,6 +46,8 @@ class SearchService:
         query = query.strip()
         if not query:
             return []
+        if self.ensure_current:
+            self.ensure_current()
         for source in self.source_repository.list_for_collection(collection_id):
             if source.current_generation and (source.embedding_provider, source.embedding_model) != (
                 self.embedding_provider.provider_name, self.embedding_provider.model_name
@@ -77,4 +81,6 @@ class SearchService:
                 scores=SearchScores(semantic=vector_scores.get(item.chunk.id), keyword=keyword_scores.get(item.chunk.id), fusion=item.score),
                 metadata=item.chunk.metadata,
             ))
+        if self.ensure_current:
+            self.ensure_current()
         return hits

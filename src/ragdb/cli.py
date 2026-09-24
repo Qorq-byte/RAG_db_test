@@ -52,7 +52,6 @@ class ExitCode(IntEnum):
     SUCCESS = 0
     DOCTOR_FAILED = 1
     USAGE_ERROR = 2
-    NOT_IMPLEMENTED = 3
     NOT_FOUND = 4
     CONFLICT = 5
     STORAGE_ERROR = 6
@@ -84,11 +83,6 @@ app.add_typer(chat_app, name="chat")
 chat_app.add_typer(chat_session_app, name="session")
 app.add_typer(generate_app, name="generate")
 app.add_typer(artifact_app, name="artifact")
-
-
-def _pending(feature: str) -> None:
-    typer.echo(f"{feature} 尚未实现，将在后续里程碑中提供。", err=True)
-    raise typer.Exit(code=ExitCode.NOT_IMPLEMENTED)
 
 
 def _collection_service(ctx: typer.Context) -> CollectionService:

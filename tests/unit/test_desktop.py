@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 from threading import Event
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
@@ -19,6 +20,7 @@ from ragdb.desktop.components import (
 )
 from ragdb.desktop.theme import ThemeManager, ThemeMode
 from ragdb.desktop.study_pages import AsyncPage
+from ragdb.config import AppSettings
 
 
 APPLICATION = QApplication.instance() or QApplication([])
@@ -119,7 +121,10 @@ class _EmptyStore:
 
 class _Runtime:
     def __init__(self):
+        self.settings = AppSettings()
+        self.config_path = Path("__missing_test_config__.toml")
         self.collection_api = _Collections()
+        self.collections = self.collection_api
         self.conversations = _EmptyStore()
         self.artifacts = _EmptyStore()
         self.tasks = _EmptyStore()
@@ -130,6 +135,9 @@ class _Runtime:
 
     def source_service(self):
         return _Sources()
+
+    def active_embedding_settings(self):
+        return self.settings.embedding
 
 
 def test_collection_selection_updates_global_context_and_overview() -> None:

@@ -3,7 +3,7 @@ from pathlib import Path
 import httpx
 import pytest
 
-from ragdb.application.model_settings import ModelSettingsService
+from ragdb.application.model_settings import ModelSettingsService, chat_credential_name
 from ragdb.config import ChatSettings, EmbeddingSettings
 from ragdb.infrastructure.database.repository import embedding_profile_fingerprint
 from ragdb.infrastructure.chat.ollama import list_ollama_models
@@ -36,7 +36,7 @@ def test_model_settings_save_preserves_toml_and_stores_key_separately(tmp_path: 
     assert "data_dir = 'custom'" in text
     assert "top-secret" not in text
     assert loaded.chat.cloud_api_key.get_secret_value() == "top-secret"
-    assert credentials.values == {"chat.cloud_api_key": "top-secret"}
+    assert credentials.values == {chat_credential_name(loaded.chat): "top-secret"}
 
 
 def test_embedding_test_validates_vector_without_index_mutation(monkeypatch) -> None:
@@ -96,3 +96,29 @@ def test_ollama_model_list_normalizes_connection_errors(monkeypatch) -> None:
     monkeypatch.setattr(httpx, "get", fail)
     with pytest.raises(RuntimeError, match="Ollama 模型列表"):
         list_ollama_models("http://localhost:11434")
+
+
+def test_chat_candidate_cannot_reuse_another_endpoint_key(tmp_path):
+    service = ModelSettingsService(tmp_path / "config.toml", tmp_path / ".env", MemoryCredentials())
+    first = ChatSettings(provider="cloud", cloud_base_url="https://first.example/v1")
+    second = first.model_copy(update={"cloud_base_url": "https://second.example/v1"})
+    service.save_chat(first, "first-key")
+    with pytest.raises(ValueError, match="API Key"):
+        service.prepare("chat", second)
+    service.save_chat(second, "second-key")
+    assert service.prepare("chat", first).cloud_api_key.get_secret_value() == "first-key"
+    assert service.prepare("chat", second).cloud_api_key.get_secret_value() == "second-key"
+
+
+def test_local_save_does_not_require_available_credential_backend(tmp_path):
+    class UnavailableCredentials:
+        def get(self, name):
+            raise RuntimeError("vault unavailable")
+    service = ModelSettingsService(tmp_path / "config.toml", tmp_path / ".env", UnavailableCredentials())
+    assert service.save_chat(ChatSettings(local_model="offline-chat")).chat.local_model == "offline-chat"
+
+
+@pytest.mark.parametrize("endpoint", ["https://user:password@example.com/v1", "https://example.com/v1?key=secret", "file:///private", "http://localhost:0"])
+def test_candidate_rejects_unsafe_service_urls(endpoint):
+    with pytest.raises(ValueError):
+        ModelSettingsService.validate_candidate(ChatSettings(local_base_url=endpoint))

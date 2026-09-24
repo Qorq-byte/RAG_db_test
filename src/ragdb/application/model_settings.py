@@ -7,6 +7,10 @@ from typing import Any, Protocol
 
 import os
 import tempfile
+import json
+import hashlib
+from urllib.parse import urlsplit
+from dotenv import dotenv_values
 import tomlkit
 from pydantic import SecretStr
 
@@ -24,6 +28,11 @@ class CredentialStore(Protocol):
     def delete(self, name: str) -> None: ...
 
 
+def chat_credential_name(settings: ChatSettings) -> str:
+    endpoint = settings.cloud_base_url.rstrip("/")
+    return "chat." + hashlib.sha256(endpoint.encode("utf-8")).hexdigest() + ".cloud_api_key"
+
+
 class ModelSettingsService:
     """Save non-secret TOML settings and test configured model endpoints."""
 
@@ -39,11 +48,12 @@ class ModelSettingsService:
 
     def load(self) -> AppSettings:
         settings = load_settings(self.config_path, self.env_file)
-        if settings.chat.cloud_api_key is None and not self._secret_overridden("chat"):
+        if settings.chat.provider == "cloud" and settings.chat.cloud_api_key is None and not self._secret_overridden("chat"):
             settings.chat = settings.chat.model_copy(update={
-                "cloud_api_key": _secret_from_store(self.credentials, "chat.cloud_api_key")
+                "cloud_api_key": _secret_from_store(self.credentials, chat_credential_name(settings.chat))
+                or _secret_from_store(self.credentials, "chat.cloud_api_key")
             })
-        if settings.embedding.cloud_api_key is None and not self._secret_overridden("embedding"):
+        if settings.embedding.provider == "cloud" and settings.embedding.cloud_api_key is None and not self._secret_overridden("embedding"):
             fingerprint = embedding_profile_fingerprint(settings.embedding)
             settings.embedding = settings.embedding.model_copy(update={
                 "cloud_api_key": _secret_from_store(
@@ -53,9 +63,74 @@ class ModelSettingsService:
         return settings
 
     def save_chat(self, settings: ChatSettings, api_key: str | None = None) -> AppSettings:
+        previous = load_settings(self.config_path, self.env_file).chat
+        legacy = self.credentials.get("chat.cloud_api_key") if settings.provider == "cloud" else None
+        if legacy:
+            self.credentials.set(chat_credential_name(previous), legacy)
+            self.credentials.delete("chat.cloud_api_key")
+        name = chat_credential_name(settings)
+        if api_key:
+            self.credentials.set(name, api_key)
+        elif api_key == "":
+            self.credentials.delete(name)
+            if name == chat_credential_name(previous):
+                self.credentials.delete("chat.cloud_api_key")
         self._save_section("chat", settings.model_dump(exclude={"cloud_api_key"}))
-        self._save_secret("chat", api_key)
         return self.load()
+
+    def prepare(self, section: str, settings, api_key: str | None = None):
+        """Resolve external overrides and credentials without saving candidate settings."""
+        effective = getattr(load_settings(self.config_path, self.env_file), section)
+        values = settings.model_dump(exclude={"cloud_api_key"})
+        sources = self.field_sources(section)
+        for field in sources:
+            if field != "cloud_api_key":
+                values[field] = getattr(effective, field)
+        candidate = type(settings).model_validate(values)
+        if candidate.provider == "cloud":
+            if "cloud_api_key" in sources:
+                secret = effective.cloud_api_key
+            elif api_key is not None:
+                secret = SecretStr(api_key) if api_key else None
+            elif section == "embedding":
+                secret = _secret_from_store(self.credentials, f"embedding.{embedding_profile_fingerprint(candidate)}.cloud_api_key")
+            else:
+                secret = _secret_from_store(self.credentials, chat_credential_name(candidate))
+                if secret is None and candidate.cloud_base_url.rstrip("/") == effective.cloud_base_url.rstrip("/"):
+                    secret = _secret_from_store(self.credentials, "chat.cloud_api_key")
+            candidate = candidate.model_copy(update={"cloud_api_key": secret})
+        self.validate_candidate(candidate)
+        return candidate
+
+    @staticmethod
+    def validate_candidate(settings, *, require_key: bool = True) -> None:
+        model = settings.local_model if settings.provider == "local" else settings.cloud_model
+        if not model.strip():
+            raise ValueError("请填写模型名称或本地模型路径。")
+        endpoint = settings.cloud_base_url if settings.provider == "cloud" else getattr(settings, "local_base_url", None)
+        if endpoint is not None:
+            try:
+                parsed = urlsplit(endpoint)
+                valid = parsed.scheme in {"http", "https"} and parsed.hostname and parsed.port != 0
+                valid = valid and not (parsed.username or parsed.password or parsed.query or parsed.fragment)
+            except ValueError:
+                valid = False
+            if not valid:
+                raise ValueError("服务地址须为 HTTP(S) 地址，不能包含密码、查询参数或片段。")
+        if require_key and settings.provider == "cloud" and not settings.cloud_api_key:
+            raise ValueError("请填写云端 API Key；更换服务地址时需重新提供密钥。")
+
+    def clear_credential(self, section: str, settings) -> None:
+        if "cloud_api_key" in self.field_sources(section):
+            raise ValueError("密钥由环境变量或 .env 管理，请修改对应配置来源。")
+        key = chat_credential_name(settings) if section == "chat" else f"embedding.{embedding_profile_fingerprint(settings)}.cloud_api_key"
+        self.credentials.delete(key)
+        if section == "chat":
+            previous = load_settings(self.config_path, self.env_file).chat
+            if chat_credential_name(previous) == key:
+                self.credentials.delete("chat.cloud_api_key")
+        else:
+            self.credentials.delete("embedding.cloud_api_key")
 
     def save_embedding(self, settings: EmbeddingSettings, api_key: str | None = None) -> AppSettings:
         self._save_section("embedding", settings.model_dump(exclude={"cloud_api_key"}))
@@ -96,35 +171,30 @@ class ModelSettingsService:
         return list_ollama_models(base_url, timeout_seconds)
 
     def environment_overrides(self, section: str) -> set[str]:
-        names = {
-            "chat": {"provider", "cloud_model", "cloud_base_url", "cloud_api_key", "cloud_timeout_seconds", "local_model", "local_base_url", "local_timeout_seconds"},
-            "embedding": {"provider", "local_model", "cloud_model", "cloud_base_url", "cloud_api_key", "cloud_timeout_seconds", "batch_size"},
-        }
-        prefix = f"RAGDB_{section.upper()}__"
-        env_names = {f"{prefix}{field.upper()}" for field in names[section]}
-        overridden = {name[len(prefix):].lower() for name in env_names if name in os.environ}
-        if self.env_file.exists():
-            for line in self.env_file.read_text(encoding="utf-8").splitlines():
-                name = line.partition("=")[0].strip().removeprefix("export ")
-                if name in env_names:
-                    overridden.add(name[len(prefix):].lower())
-        return overridden
+        return set(self.field_sources(section))
 
-    def _save_secret(self, section: str, secret: str | None) -> None:
-        key = f"{section}.cloud_api_key"
-        if secret:
-            self.credentials.set(key, secret)
-        elif secret == "":
-            self.credentials.delete(key)
+    def field_sources(self, section: str) -> dict[str, str]:
+        fields = (ChatSettings if section == "chat" else EmbeddingSettings).model_fields
+        prefix = f"ragdb_{section}"
+        result = {}
+        for label, raw in ((".env", dotenv_values(self.env_file)), ("环境变量", os.environ)):
+            values = {key.lower(): value for key, value in raw.items() if value is not None}
+            if prefix in values:
+                try:
+                    parent = json.loads(values[prefix])
+                except (ValueError, TypeError):
+                    parent = {}
+                if isinstance(parent, dict):
+                    for field in parent.keys() & fields.keys():
+                        result[field] = f"{label}：{prefix.upper()}"
+            for field in fields:
+                key = f"{prefix}__{field}"
+                if key in values:
+                    result[field] = f"{label}：{key.upper()}"
+        return result
 
     def _secret_overridden(self, section: str) -> bool:
-        name = f"RAGDB_{section.upper()}__CLOUD_API_KEY"
-        if name in os.environ:
-            return True
-        if not self.env_file.exists():
-            return False
-        return any(line.partition("=")[0].strip().removeprefix("export ") == name
-                   for line in self.env_file.read_text(encoding="utf-8").splitlines())
+        return "cloud_api_key" in self.field_sources(section)
 
     def _save_section(self, section: str, values: dict[str, Any]) -> None:
         document = tomlkit.document()

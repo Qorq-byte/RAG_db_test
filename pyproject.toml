@@ -10,6 +10,7 @@ dependencies = [
     "pydantic-settings",
     "pymupdf>=1.28.2",
     "python-docx>=1.2.0",
+    "python-dotenv>=1.0.0",
     "python-pptx>=1.0.2",
     "rich",
     "sentence-transformers>=3.0.0",

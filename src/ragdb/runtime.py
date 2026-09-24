@@ -8,7 +8,7 @@ from ragdb.application.chat import AnswerService
 from ragdb.application.collections import CollectionService
 from ragdb.application.generation import GenerationService
 from ragdb.application.embedding_rebuild import EmbeddingRebuildResult, EmbeddingRebuildService
-from ragdb.application.model_settings import ModelSettingsService
+from ragdb.application.model_settings import ModelSettingsService, chat_credential_name
 from ragdb.application.ingestion import LocalIngestionService
 from ragdb.application.search import SearchService
 from ragdb.application.sources import SourceService
@@ -33,6 +33,10 @@ class ApplicationRuntime:
         self.database = database
         self.config_path = config_path
         self.configuration_warning = None
+        if settings.chat.provider == "cloud" and settings.chat.cloud_api_key is None:
+            store = SystemCredentialStore()
+            secret = store.get(chat_credential_name(settings.chat)) or store.get("chat.cloud_api_key")
+            settings.chat = settings.chat.model_copy(update={"cloud_api_key": SecretStr(secret) if secret else None})
         self.embedding_gate = SQLiteEmbeddingOperationGate(database)
         profile = SQLiteEmbeddingProfileRepository(database).initialize(settings.embedding)
         active_settings, self.embedding_fingerprint, self.embedding_namespace = profile
@@ -65,6 +69,9 @@ class ApplicationRuntime:
         )
         gate = SQLiteEmbeddingOperationGate(self.database, (fingerprint, namespace))
         return active, store, gate
+
+    def active_embedding_settings(self):
+        return SQLiteEmbeddingProfileRepository(self.database).get()[0]
 
     @classmethod
     def from_config(cls, config_path: Path = Path("config.toml")) -> "ApplicationRuntime":

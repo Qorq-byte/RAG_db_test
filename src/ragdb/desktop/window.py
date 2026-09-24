@@ -17,12 +17,13 @@ from PySide6.QtWidgets import (
 from ragdb.desktop.pages import CollectionsPage, OverviewPage
 from ragdb.desktop.study_pages import ArtifactsPage, ChatPage, SearchPage
 from ragdb.desktop.operations_page import OperationsPage
+from ragdb.desktop.model_settings_page import ModelSettingsPage
 from ragdb.desktop.components import DetailPanel
 from ragdb.desktop.navigation import SidebarWidget, TopBar
 from ragdb.desktop.theme import ThemeManager
 
 
-PAGES = ("概览", "集合与资料", "检索", "问答", "学习产物", "任务与诊断")
+PAGES = ("概览", "集合与资料", "检索", "问答", "学习产物", "任务与诊断", "模型设置")
 
 
 class CollectionContext(QWidget):
@@ -86,6 +87,11 @@ class MainWindow(QMainWindow):
             if runtime is not None and index == 5:
                 page = OperationsPage(runtime)
                 self.collection_context.changed.connect(page.set_collection)
+                self.pages.addWidget(page)
+                continue
+            if runtime is not None and index == 6:
+                page = ModelSettingsPage(runtime)
+                self.model_settings_page = page
                 self.pages.addWidget(page)
                 continue
             page = QWidget()
@@ -204,5 +210,12 @@ class MainWindow(QMainWindow):
         self._apply_responsive_layout()
 
     def closeEvent(self, event) -> None:
+        settings_page = getattr(self, "model_settings_page", None)
+        if settings_page is not None and settings_page.busy:
+            if settings_page._action == "rebuild":
+                settings_page.cancel_rebuild()
+            self.statusBar().showMessage("模型操作尚未结束，请等待完成后关闭窗口。")
+            event.ignore()
+            return
         QThreadPool.globalInstance().waitForDone(5000)
         event.accept()

@@ -6,7 +6,7 @@
 
 ## GitHub 交付约定
 
-- 工作分支：`codex/desktop-model-settings`。
+- 阶段 1–3 工作分支：`codex/desktop-model-settings`（已合并 main）；阶段 4：`codex/desktop-model-settings-ui`。
 - 每个步骤独立验证、形成单独提交并推送到同名 GitHub 分支；不提交用户已有的测试修改或“前端设计”草稿。
 - 验证失败时先修复并重跑受影响检查，再提交该阶段。
 
@@ -41,6 +41,8 @@
 - 提交：`feat: rebuild embeddings safely across collections`；推送。
 
 ### 4. 桌面模型设置页面
+
+状态：已完成。全量回归 198 passed；Windows 原生渲染已复核中文显示。保留既有界面风格，区分当前生效与候选配置；真实模型服务联调留待最终验收环境。
 
 - 在“系统”导航下新增“模型设置”页面，分别呈现问答/生成与嵌入配置。
 - 加入 provider 切换、模型、Base URL、超时、批大小和掩码 API Key 控件；显示环境变量接管状态与覆盖来源。

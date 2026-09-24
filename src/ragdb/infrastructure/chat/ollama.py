@@ -32,3 +32,18 @@ class OllamaChatModel:
         if not isinstance(content, str) or not content.strip():
             raise RuntimeError("本地问答响应不包含有效文本")
         return ChatCompletion(content=content)
+
+
+def list_ollama_models(base_url: str, timeout_seconds: float = 10.0) -> list[str]:
+    """Return installed Ollama model names from its local tags endpoint."""
+    try:
+        response = httpx.get(f"{base_url.rstrip('/')}/api/tags", timeout=timeout_seconds)
+        response.raise_for_status()
+        payload = response.json()
+        models = payload["models"]
+        names = [model["name"] for model in models]
+        if not all(isinstance(name, str) and name for name in names):
+            raise ValueError("invalid model name")
+        return names
+    except (httpx.HTTPError, KeyError, TypeError, ValueError) as exc:
+        raise RuntimeError("无法读取 Ollama 模型列表，请确认服务已启动。") from exc

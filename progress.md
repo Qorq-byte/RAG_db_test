@@ -1,5 +1,14 @@
 # Progress Log: 桌面端实际体验与交互完善
 
+## 2026-09-24 模型设置阶段 1
+
+- 新增 `ModelSettingsService`：TOML 原位保留其他配置与注释，系统凭据库存放云端 API Key；环境变量和 `.env` 仍优先，密钥不可用时不回退到明文文件。
+- 新增 Chat/embedding 固定最小请求连接测试，以及 Ollama 已安装模型列表查询；模型测试不触碰知识库索引。
+- 声明并锁定 `keyring`、`tomlkit` 依赖。
+- 定向验证：`uv run pytest tests/unit/test_model_settings.py tests/unit/test_config.py tests/unit/chat/test_chat_models.py tests/unit/embeddings/test_openai_compatible.py`，18 passed；新增覆盖环境密钥优先和凭据删除。
+- `/browse` 打开 TOMLKit 官方页面时遇到状态目录 ACL 启动超时；未进行其他网页浏览。keyring Windows 凭据库资料此前已由 `/browse` 查阅。
+- 用户既有 `tests/integration/test_collection_cli.py` 修改与未跟踪 `前端设计/` 仍保持原样。
+
 ## 2026-09-24 桌面端模型设置
 
 - 用户批准模型设置设计，范围包括问答/生成模型、本地/云端嵌入模型、连接测试及所有集合的安全重建。

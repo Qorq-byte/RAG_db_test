@@ -1,5 +1,22 @@
 # Findings: 桌面端实际体验与交互完善
 
+## 模型设置实现基线（2026-09-24）
+
+- 用户已批准同时配置问答/学习生成模型与嵌入模型；UI 和安全索引切换要求记录于 `docs/superpowers/specs/2026-09-24-desktop-model-settings-design.md`。
+- Chat adapter 已支持 Ollama `/api/chat` 与 OpenAI 兼容 `/chat/completions`；嵌入支持 Sentence Transformers 与 OpenAI 兼容 `/embeddings`。
+- TOML 明文 API Key 当前被有意忽略；需要系统 keyring 凭据存储，并维持环境变量/`.env` 优先级。
+- Chroma 当前按知识集合创建固定向量集合；应按嵌入配置指纹隔离不同向量维数。
+- SQLite `chunks` 保存所有来源的当前切片文本；重建可覆盖网页、GitHub、手动文本，而不依赖源文件可访问。
+- 现有 `reindex` 仅重新处理 `file://` 来源；全局模型更换需要新服务，不能复用现命令作为完整实现。
+
+## 2026-09-24 进度核验
+
+- 主实施计划的八个里程碑均标记为完成；README 已覆盖 CLI、网页/仓库导入、监听、问答、学习产物和桌面工作台。
+- 当前 `main` HEAD 为 `83d5da1`，远端 `origin/main` 为 `2356b49`；本地收尾提交尚未推送。
+- 用户工作区已有 `tests/integration/test_collection_cli.py` 修改以及未跟踪 `前端设计/` 目录，均不属于本次健康检查的可修改范围。
+- `uv run pytest -q` 于 2026-09-24 通过：152 passed in 24.50s；桌面工作台的离屏 Qt 测试包含页面、响应式布局、异步防重复提交与可访问性快捷键。
+- `uv run ragdb --help` 能正常退出并列出所有命令组。当前 PowerShell 捕获将中文帮助显示为乱码，属于终端代码页呈现，未构成 CLI 失败。
+
 ## 2026-09-23 当前基线
 
 - 桌面端使用原生 PySide6，现有设计明确不引入 React、Tailwind 或 WebEngine。

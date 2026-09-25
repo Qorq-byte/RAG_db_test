@@ -1,5 +1,10 @@
 # Progress Log: 桌面端实际体验与交互完善
 
+## 2026-09-25 模型设置阶段 5.3：真实服务联调（部分）
+
+- 真实本地嵌入通过：隔离合成集合使用已缓存的 `BAAI/bge-small-zh-v1.5` 建索引，连接测试并重建切换至已缓存的 `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2`；切换前后均检索到 1 条结果，测试目录已删除。
+- Ollama 0.24.0 可运行，但只安装 `embeddinggemma:latest`，无聊天模型；云端服务、模型与测试凭据未配置。对应真实联调保持待验证，未发送云端请求或下载模型。状态矩阵见 [验收记录](docs/acceptance/2026-09-25-desktop-model-settings.md)。
+
 ## 2026-09-25 模型设置阶段 5.2：自动化验收
 
 - 全量回归 198 passed，桌面设置定向回归 14 passed；CLI 帮助退出码 0，隔离数据目录的受控桌面启动退出码 0，Windows 原生模型设置页渲染成功。

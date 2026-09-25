@@ -2,7 +2,7 @@
 
 ## 状态与依据
 
-**状态：规划中，尚未实施。** [进度总览](../../../task_plan.md)中的桌面模型设置阶段 1–5 已完成；最近产品代码验收为 216 passed、`ragdb doctor` 退出码 0，详见[验收记录](../../acceptance/2026-09-25-desktop-model-settings.md)。
+**状态：实施中；6.1 已完成，6.2–6.4 待完成。** 用户已授权执行本计划。[进度总览](../../../task_plan.md)中的桌面模型设置阶段 1–5 已完成；上阶段产品代码验收为 216 passed、`ragdb doctor` 退出码 0，详见[验收记录](../../acceptance/2026-09-25-desktop-model-settings.md)。本阶段边界见[维护设计](../specs/2026-09-25-vector-index-maintenance-design.md)。
 
 [模型设置设计](../specs/2026-09-24-desktop-model-settings-design.md)要求重建成功后保留旧 Chroma 命名空间，并将清理留给后续显式维护流程。当前 `ChromaVectorStore` 按 `ragdb_<集合 UUID>`（legacy）或 `ragdb_<集合 UUID>_<指纹前 24 位>` 命名集合；SQLite `active_embedding_profile.namespace_id` 是活动索引的权威来源。当前只有按已知集合与命名空间删除的方法，没有旧索引盘点或清理入口。
 

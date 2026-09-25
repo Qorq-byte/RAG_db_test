@@ -130,6 +130,13 @@ class ApplicationRuntime:
                 )
         return replace(result, configuration_warning=self._sync_embedding_config())
 
+    def index_maintenance_service(self):
+        from ragdb.application.index_maintenance import IndexMaintenanceService
+
+        return IndexMaintenanceService(
+            self.database, self.settings.storage.data_dir / self.settings.storage.chroma_directory
+        )
+
     def search_service(self) -> SearchService:
         settings = self.settings
         embedding, store, gate = self._embedding_context()

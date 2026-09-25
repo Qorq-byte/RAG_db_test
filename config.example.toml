@@ -7,8 +7,12 @@ chroma_directory = "chroma"
 
 [embedding]
 # 已有索引换嵌入模型时，请在桌面端“系统 → 模型设置”执行“重建并切换”。
+# 可选 provider = "ollama"，使用已安装的 Ollama 嵌入模型；旧索引仍须重建并切换。
 provider = "local"
 local_model = "BAAI/bge-small-zh-v1.5"
+ollama_model = "embeddinggemma:latest"
+ollama_base_url = "http://127.0.0.1:11434"
+ollama_timeout_seconds = 120.0
 cloud_model = "text-embedding-3-small"
 cloud_base_url = "https://api.openai.com/v1"
 # 云端嵌入密钥通过系统凭据库或 RAGDB_EMBEDDING__CLOUD_API_KEY 提供；不要写入本文件。

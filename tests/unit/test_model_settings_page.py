@@ -164,6 +164,21 @@ def test_ollama_list_retains_manual_selection(page, monkeypatch):
     assert page.chat.local_model.findText("installed-a") >= 0
 
 
+def test_ollama_embedding_form_refresh_and_candidate(page, monkeypatch):
+    form = page.embedding
+    form.provider.setCurrentIndex(form.provider.findData("ollama"))
+    assert form.ollama_panel.isVisible()
+    assert form.local_panel.isHidden() and form.cloud_panel.isHidden()
+    assert form.refresh_models.isVisible()
+    form.ollama_model.setCurrentText("embeddinggemma:latest")
+    assert form.draft().provider == "ollama"
+    assert form.draft().ollama_model == "embeddinggemma:latest"
+    monkeypatch.setattr(page.service, "ollama_models", lambda *args: ["embeddinggemma:latest"])
+    page.ollama_models(form)
+    finish(page)
+    assert form.ollama_model.currentText() == "embeddinggemma:latest"
+
+
 def test_busy_task_blocks_duplicates_and_cancellation_preserves_active_model(page, monkeypatch):
     started, release = Event(), Event()
     def rebuild(settings, on_progress, should_cancel):

@@ -25,6 +25,8 @@ def label(text):
 
 
 def model_caption(settings):
+    if settings.provider == "ollama":
+        return f"本地 Ollama · {settings.ollama_model}"
     name = settings.local_model if settings.provider == "local" else settings.cloud_model
     return f"{'本地' if settings.provider == 'local' else '云端'} · {name}"
 
@@ -51,6 +53,8 @@ class ModelForm(QFrame):
         self.fields = {}
         self.provider = QComboBox()
         self.provider.addItem("本地 Ollama" if section == "chat" else "本地 Sentence Transformers", "local")
+        if section == "embedding":
+            self.provider.addItem("本地 Ollama", "ollama")
         self.provider.addItem("云端 / OpenAI 兼容", "cloud")
         self.fields["provider"] = self.provider
         form = QFormLayout()
@@ -69,6 +73,16 @@ class ModelForm(QFrame):
             self._number(local, "local_timeout_seconds", "超时（秒）")
         else:
             local.addRow(label("可填写 Hugging Face 模型名或本地模型目录。首次测试可能下载模型。"))
+            self.ollama_panel = QWidget()
+            ollama = QFormLayout(self.ollama_panel)
+            ollama.setContentsMargins(0, 0, 0, 0)
+            self.ollama_model = QComboBox()
+            self.ollama_model.setEditable(True)
+            self.fields["ollama_model"] = self.ollama_model
+            ollama.addRow("Ollama 模型", self.ollama_model)
+            self._text(ollama, "ollama_base_url", "服务地址")
+            self._number(ollama, "ollama_timeout_seconds", "超时（秒）")
+            ollama.addRow(label("请先在 Ollama 安装嵌入模型；可刷新已安装模型列表。"))
         self._text(cloud, "cloud_model", "模型名称")
         self._text(cloud, "cloud_base_url", "服务地址（含 /v1）")
         self._number(cloud, "cloud_timeout_seconds", "超时（秒）")
@@ -81,6 +95,8 @@ class ModelForm(QFrame):
         cloud.addRow("", self.clear_key)
         cloud.addRow(label("密钥保存在系统凭据库，页面不回显。云端连接测试会发送固定短文本，可能计费。"))
         layout.addWidget(self.local_panel)
+        if section == "embedding":
+            layout.addWidget(self.ollama_panel)
         layout.addWidget(self.cloud_panel)
         if section == "embedding":
             batch_form = QFormLayout()
@@ -96,8 +112,7 @@ class ModelForm(QFrame):
         self.test = QPushButton("测试连接")
         self.apply = QPushButton("保存并应用" if section == "chat" else "重建并切换")
         self.apply.setProperty("primary", True)
-        if section == "chat":
-            actions.addWidget(self.refresh_models)
+        actions.addWidget(self.refresh_models)
         actions.addStretch()
         actions.addWidget(self.test)
         actions.addWidget(self.apply)
@@ -132,8 +147,8 @@ class ModelForm(QFrame):
                 widget.clear()
             elif name == "provider":
                 widget.setCurrentIndex(widget.findData(settings.provider))
-            elif name == "local_model":
-                widget.setCurrentText(settings.local_model)
+            elif name in {"local_model", "ollama_model"}:
+                widget.setCurrentText(getattr(settings, name))
             elif isinstance(widget, QLineEdit):
                 widget.setText(getattr(settings, name))
             else:
@@ -142,10 +157,16 @@ class ModelForm(QFrame):
         self.update_controls()
 
     def update_controls(self):
-        local = self.provider.currentData() == "local"
+        provider = self.provider.currentData()
+        local = provider == "local"
+        ollama = provider == "ollama"
         self.local_panel.setVisible(local)
-        self.cloud_panel.setVisible(not local)
-        self.refresh_models.setEnabled(local and "local_model" not in self.sources)
+        if self.section == "embedding":
+            self.ollama_panel.setVisible(ollama)
+        self.cloud_panel.setVisible(provider == "cloud")
+        self.refresh_models.setVisible((self.section == "chat" and local) or ollama)
+        model_field = "ollama_model" if ollama else "local_model"
+        self.refresh_models.setEnabled((ollama or self.section == "chat" and local) and model_field not in self.sources)
         for name, widget in self.fields.items():
             widget.setEnabled(name not in self.sources)
             widget.setToolTip(self.sources.get(name, ""))
@@ -164,7 +185,7 @@ class ModelForm(QFrame):
                 continue
             if name == "provider":
                 values[name] = widget.currentData()
-            elif name == "local_model":
+            elif name in {"local_model", "ollama_model"}:
                 values[name] = widget.currentText().strip()
             elif isinstance(widget, QLineEdit):
                 values[name] = widget.text().strip()
@@ -213,6 +234,7 @@ class ModelSettingsPage(PageShell):
         self.cancel.clicked.connect(self.cancel_rebuild)
         self.refresh.clicked.connect(self.reload)
         self.chat.refresh_models.clicked.connect(self.ollama_models)
+        self.embedding.refresh_models.clicked.connect(lambda: self.ollama_models(self.embedding))
         self.chat.apply.clicked.connect(self.save_chat)
         self.embedding.apply.clicked.connect(self.rebuild)
         self.embedding.changed.connect(self.update_summary)
@@ -316,19 +338,23 @@ class ModelSettingsPage(PageShell):
         self._run("test", test, lambda _: self.feedback.setText("连接测试成功，尚未更改生效配置。"),
                   "连接测试失败。请检查服务是否启动、地址、模型名称及 API Key；本地模型首次加载可能需要网络。")
 
-    def ollama_models(self):
-        snapshot = self.snapshot(self.chat)
+    def ollama_models(self, form=None):
+        form = form if isinstance(form, ModelForm) else self.chat
+        snapshot = self.snapshot(form)
         if snapshot is None:
             return
         draft, _ = snapshot
-        self._run("models", lambda: self.service.ollama_models(draft.local_base_url, draft.local_timeout_seconds),
-                  self._show_models, "无法读取 Ollama 模型列表。请检查服务地址，并确认 Ollama 已启动。")
+        base_url = draft.ollama_base_url if form.section == "embedding" else draft.local_base_url
+        timeout = draft.ollama_timeout_seconds if form.section == "embedding" else draft.local_timeout_seconds
+        self._run("models", lambda: self.service.ollama_models(base_url, timeout),
+                  lambda names: self._show_models(form, names), "无法读取 Ollama 模型列表。请检查服务地址，并确认 Ollama 已启动。")
 
-    def _show_models(self, names):
-        selected = self.chat.local_model.currentText()
-        self.chat.local_model.clear()
-        self.chat.local_model.addItems(names)
-        self.chat.local_model.setCurrentText(selected)
+    def _show_models(self, form, names):
+        widget = form.ollama_model if form.section == "embedding" else form.local_model
+        selected = widget.currentText()
+        widget.clear()
+        widget.addItems(names)
+        widget.setCurrentText(selected)
         self.feedback.setText(f"发现 {len(names)} 个已安装模型；也可手动输入模型名称。")
 
     def save_chat(self):
@@ -355,7 +381,7 @@ class ModelSettingsPage(PageShell):
         draft, key = snapshot
         count = len(self.runtime.collections.list_all())
         if not self.confirm("重建并切换嵌入模型", f"将重建 {count} 个集合，期间暂停导入和删除。完成后切换；失败或取消时继续使用旧索引。\n"
-                            + ("所有当前资料切片将发送给配置的云端嵌入服务，可能计费。" if draft.provider == "cloud" else "本地模型首次加载可能需要下载。") + "\n是否继续？"):
+                            + ("所有当前资料切片将发送给配置的云端嵌入服务，可能计费。" if draft.provider == "cloud" else "本地模型首次加载可能需要下载。" if draft.provider == "local" else "Ollama 服务须已启动，且嵌入模型须已安装。") + "\n是否继续？"):
             return
         def rebuild():
             candidate = self.service.prepare("embedding", draft, key)
@@ -381,8 +407,8 @@ class ModelSettingsPage(PageShell):
     @staticmethod
     def _check_confirmed_target(draft, candidate):
         # External overrides may change while the confirmation dialog is open.
-        fields = ("provider", "cloud_base_url", "cloud_model", "local_model")
-        if any(getattr(draft, field) != getattr(candidate, field) for field in fields):
+        fields = ("provider", "cloud_base_url", "cloud_model", "local_model", "ollama_model", "ollama_base_url")
+        if any(getattr(draft, field) != getattr(candidate, field) for field in fields if hasattr(draft, field)):
             raise ValueError("配置来源已变化，请重新加载并确认目标服务。")
 
     def cancel_rebuild(self):

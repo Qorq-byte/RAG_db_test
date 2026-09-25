@@ -6,6 +6,7 @@
 
 - 本机 Ollama `embeddinggemma:latest` 对固定合成文本的 `/api/embed` 请求成功，返回 1 个 768 维向量。
 - 隔离合成集合从 `BAAI/bge-small-zh-v1.5` 重建切换到 Ollama `embeddinggemma:latest`：1 个切片，切换前后各检索到 1 条结果；重启后活动提供商仍为 Ollama，检索仍成功。测试数据目录已清理。
+- 另一个隔离合成集合中，用未安装的模型触发真实 Ollama 服务错误；随后在真实向量生成后的进度回调请求取消，再重试成功。错误与取消后旧活动 profile 和检索结果均保持可用，重试后新 profile 生效；临时目录已清理。
 - 新代码全量回归：`.\.venv\Scripts\python.exe -m pytest -q`，**206 passed in 38.80s**。
 - `deepseek-flash` 的 OpenAI 兼容 Base URL 尚未提供，本机也未设置 `RAGDB_CHAT__CLOUD_API_KEY`。未发起云端请求；聊天与学习生成真实联调待地址及安全配置的测试凭据。用户已将云端嵌入改为本地 Ollama 嵌入，因此云端嵌入不再是本轮选定模型的验收项。
 
@@ -37,7 +38,7 @@
 | 云端问答 | 服务与模型未指定；无 `RAGDB_CHAT__CLOUD_API_KEY` 或 `.env` | **待验证**。未发送请求；需用户指定服务、模型、测试凭据和可能计费请求的授权。 |
 | 本地嵌入 | `BAAI/bge-small-zh-v1.5` → `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2` | **通过**。`HF_HUB_OFFLINE=1`、`TRANSFORMERS_OFFLINE=1`；隔离集合导入 1 条合成资料，初始检索 1 条命中；候选模型真实连接测试通过，全局重建 1 个切片并切换活动模型，切换后检索仍有 1 条命中。模型均已在本机缓存。 |
 | 云端嵌入 | 服务与模型未指定；无 `RAGDB_EMBEDDING__CLOUD_API_KEY` 或 `.env` | **待验证**。未发送请求；需用户指定兼容服务、模型、测试凭据和发送合成资料的授权。 |
-| 失败与取消 | 自动化故障注入 | **自动化通过，真实服务待验证**。见 5.2 回归；尚无获准真实模型服务的故障/取消联调。 |
+| 失败与取消 | 自动化故障注入；增量使用真实 Ollama | **通过**。见 5.2 回归及上方增量验收；Ollama 服务错误、取消和重试均在隔离合成集合中通过。 |
 | 密钥隔离 | 自动化凭据替身 | **自动化通过，真实系统凭据待验证**。见 5.2 回归；没有用于实际服务的测试凭据。 |
 
 首次 `ollama list` 在沙箱中因 Ollama 日志目录 ACL 无法启动；授权环境重试成功。Ollama 列表没有聊天模型，因此不以列表成功代替聊天接口联调。自动化替身的通过结果也不计作真实服务通过。

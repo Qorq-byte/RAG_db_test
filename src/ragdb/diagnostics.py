@@ -13,6 +13,9 @@ import sys
 import tempfile
 
 from ragdb.config import AppSettings, load_settings
+from ragdb.application.model_settings import chat_credential_name
+from ragdb.infrastructure.credentials import SystemCredentialStore
+from ragdb.infrastructure.database.repository import embedding_profile_fingerprint
 
 
 class DiagnosticStatus(str, Enum):
@@ -218,14 +221,16 @@ def _check_cloud_embedding_configuration(settings: AppSettings) -> DiagnosticRes
     if not settings.embedding.cloud_base_url.strip():
         missing.append("embedding.cloud_base_url")
     api_key = settings.embedding.cloud_api_key
-    if api_key is None or not api_key.get_secret_value().strip():
+    if (api_key is None or not api_key.get_secret_value().strip()) and not _stored_credential(
+        f"embedding.{embedding_profile_fingerprint(settings.embedding)}.cloud_api_key", "embedding.cloud_api_key"
+    ):
         missing.append("RAGDB_EMBEDDING__CLOUD_API_KEY")
     if missing:
         return DiagnosticResult(
             "云端嵌入配置",
             DiagnosticStatus.FAILURE,
             f"缺少 {', '.join(missing)}。",
-            "补齐云端模型、Base URL，并通过 .env 或环境变量设置 API Key。",
+            "补齐云端模型、Base URL，并通过系统凭据库、.env 或环境变量设置 API Key。",
         )
     return DiagnosticResult("云端嵌入配置", DiagnosticStatus.PASS, "云端嵌入配置完整；未发送 API 请求。")
 
@@ -240,11 +245,21 @@ def _check_chat_configuration(settings: AppSettings) -> DiagnosticResult:
         missing.append("chat.cloud_model")
     if not settings.chat.cloud_base_url.strip():
         missing.append("chat.cloud_base_url")
-    if settings.chat.cloud_api_key is None or not settings.chat.cloud_api_key.get_secret_value().strip():
+    if (settings.chat.cloud_api_key is None or not settings.chat.cloud_api_key.get_secret_value().strip()) and not _stored_credential(
+        chat_credential_name(settings.chat), "chat.cloud_api_key"
+    ):
         missing.append("RAGDB_CHAT__CLOUD_API_KEY")
     if missing:
-        return DiagnosticResult("云端问答配置", DiagnosticStatus.FAILURE, f"缺少 {', '.join(missing)}。", "通过 .env 或环境变量设置 API Key。")
+        return DiagnosticResult("云端问答配置", DiagnosticStatus.FAILURE, f"缺少 {', '.join(missing)}。", "通过系统凭据库、.env 或环境变量设置 API Key。")
     return DiagnosticResult("云端问答配置", DiagnosticStatus.PASS, "云端模型配置完整；未发送 API 请求。")
+
+
+def _stored_credential(*names: str) -> bool:
+    try:
+        store = SystemCredentialStore()
+        return any(bool(store.get(name)) for name in names)
+    except RuntimeError:
+        return False
 
 
 def _check_ocr(settings: AppSettings) -> DiagnosticResult:

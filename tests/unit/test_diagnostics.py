@@ -3,7 +3,8 @@ from pathlib import Path
 from typer.testing import CliRunner
 
 import ragdb.cli as cli
-from ragdb.diagnostics import DiagnosticResult, DiagnosticStatus, has_failures
+from ragdb.config import AppSettings, ChatSettings, EmbeddingSettings
+from ragdb.diagnostics import DiagnosticResult, DiagnosticStatus, has_failures, _check_chat_configuration, _check_cloud_embedding_configuration
 
 
 runner = CliRunner()
@@ -54,3 +55,28 @@ def test_doctor_receives_global_config_option(monkeypatch) -> None:
 
     assert result.exit_code == 0
     assert received == [Path("example.toml")]
+
+
+def test_doctor_accepts_system_credentials_without_echoing_them(monkeypatch) -> None:
+    class Credentials:
+        def get(self, name):
+            return "private-test-key" if name.endswith(".cloud_api_key") else None
+
+    monkeypatch.setattr("ragdb.diagnostics.SystemCredentialStore", Credentials)
+    settings = AppSettings(chat=ChatSettings(provider="cloud"), embedding=EmbeddingSettings(provider="cloud"))
+
+    chat = _check_chat_configuration(settings)
+    embedding = _check_cloud_embedding_configuration(settings)
+    assert chat.status is DiagnosticStatus.PASS
+    assert embedding.status is DiagnosticStatus.PASS
+    assert "private-test-key" not in chat.detail + embedding.detail
+
+
+def test_doctor_reports_missing_key_when_system_store_unavailable(monkeypatch) -> None:
+    class Unavailable:
+        def get(self, name):
+            raise RuntimeError("vault unavailable")
+
+    monkeypatch.setattr("ragdb.diagnostics.SystemCredentialStore", Unavailable)
+    result = _check_chat_configuration(AppSettings(chat=ChatSettings(provider="cloud")))
+    assert result.status is DiagnosticStatus.FAILURE

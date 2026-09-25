@@ -1,5 +1,11 @@
 # Progress Log: 桌面端实际体验与交互完善
 
+## 2026-09-25 系统凭据诊断修正
+
+- 真实 DeepSeek 凭据已在系统凭据库安全保存，固定短文本连接测试通过；隔离合成集合的 Ollama 检索、DeepSeek 问答与学习摘要均通过，重启后配置和凭据可恢复。
+- 实际执行 `ragdb doctor` 发现原诊断只检查环境变量，误报系统凭据缺失；现同时检查系统凭据库且不回显密钥。定向 20 passed，实际 doctor 退出码 0，最终全量回归 208 passed。
+- 密钥未写入 `config.toml`、Git 提交或验收记录；端到端测试的临时目录已清理。
+
 ## 2026-09-25 DeepSeek 地址核验与项目配置
 
 - 使用 gstack `/browse` 查阅 [DeepSeek 官方文档](https://api-docs.deepseek.com/)：`deepseek-flash` 为支持的模型名，OpenAI 兼容 Base URL 为 `https://api.deepseek.com`。

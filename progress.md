@@ -1,5 +1,10 @@
 # Progress Log: 桌面端实际体验与交互完善
 
+## 2026-09-25 下一阶段计划成稿
+
+- 已将[旧向量索引显式清理实施计划](docs/superpowers/plans/2026-09-25-vector-index-maintenance-implementation.md)拆为 6.1 安全盘点、6.2 预览入口、6.3 受保护清理、6.4 最终验收。明确活动索引、陌生对象和元数据不足的对象不能进入清理目标。
+- 下一阶段仍处于规划状态；本轮只更新文档，没有执行实际清理或新增产品测试。
+
 ## 2026-09-25 进度归档与后续方向
 
 - 项目一期八个里程碑、问答、学习产物、桌面工作台及模型设置均已交付到 GitHub `main`；最近一次产品代码验收为 216 passed、`ragdb doctor` 退出码 0，实际模型联调证据见[验收记录](docs/acceptance/2026-09-25-desktop-model-settings.md)。

@@ -10,7 +10,7 @@
 
 上述功能已进入 GitHub `main`；阶段 5 合并为 `5efca40`，交付文档截至 `9ff2813`。本轮只整理进度与下一阶段规划，下一阶段功能**尚未实施**。
 
-文档入口：[模型设置验收](docs/acceptance/2026-09-25-desktop-model-settings.md) · [上阶段实施计划](docs/superpowers/plans/2026-09-24-desktop-model-settings-implementation.md) · [交付记录](progress.md) · [技术发现](findings.md)。历史测试结果仅代表当时的验证范围。
+文档入口：[下一阶段详细计划](docs/superpowers/plans/2026-09-25-vector-index-maintenance-implementation.md) · [模型设置验收](docs/acceptance/2026-09-25-desktop-model-settings.md) · [上阶段实施计划](docs/superpowers/plans/2026-09-24-desktop-model-settings-implementation.md) · [交付记录](progress.md) · [技术发现](findings.md)。历史测试结果仅代表当时的验证范围。
 
 ## 已确定的技术边界
 
@@ -36,7 +36,12 @@
 
 模型设置设计要求在新索引发布后保留旧 Chroma 命名空间，并把旧索引清理留给后续显式维护流程。下一阶段计划为用户提供**只读盘点与预览、确认后清理、活动索引保护、故障后重试**。执行前须完成安全边界设计和详细实施计划；不会自动清理，也不会以真实资料库作试验。
 
-本阶段预期步骤：6.1 明确可识别与可删除的命名空间边界；6.2 实现只读盘点和预览；6.3 实现受保护的显式清理；6.4 完成隔离数据回归、桌面/CLI 操作说明与交付验收。后续文档将给出文件、测试和完成标准。
+本阶段按以下未完成步骤推进；每一步的交付和完成标准见[详细计划](docs/superpowers/plans/2026-09-25-vector-index-maintenance-implementation.md)。
+
+- [ ] 6.1 安全边界与只读盘点。
+- [ ] 6.2 CLI 与桌面的显式预览入口。
+- [ ] 6.3 受保护的清理执行、故障恢复与重试。
+- [ ] 6.4 隔离数据回归、使用说明与最终验收。
 
 ## 上一阶段完成清单
 

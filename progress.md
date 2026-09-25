@@ -1,5 +1,12 @@
 # Progress Log: 桌面端实际体验与交互完善
 
+## 2026-09-25 模型设置阶段 5.1：使用指南
+
+- 在 README 补充“系统 → 模型设置”的本地与云端配置步骤、连接测试、保存、全局嵌入重建、凭据与外部覆盖说明；纠正 `reindex` 只能处理集合本地文件的旧描述。
+- 为 `config.example.toml` 与 `.env.example` 增加安全示例和两类云端密钥字段，未写入真实密钥。
+- 验证：示例 TOML 可解析，`load_settings` 可加载；README 本地链接检查无缺失，`git diff --check` 通过。使用现有 `.venv` 运行检查；默认 uv 用户缓存受沙箱 ACL 限制。
+- 当前 `main` 和 `origin/main` 已包含阶段 4；本阶段工作分支为 `codex/desktop-model-settings-acceptance`。保留用户既有 CLI 测试修改与“前端设计”目录。
+
 ## 当前交付摘要（2026-09-24）
 
 - 模型设置阶段 1–4 完成；阶段 5“文档与最终验收”待执行。当前路线以 [task_plan.md](task_plan.md) 为入口。

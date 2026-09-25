@@ -6,10 +6,12 @@ sqlite_filename = "ragdb.sqlite3"
 chroma_directory = "chroma"
 
 [embedding]
+# 已有索引换嵌入模型时，请在桌面端“系统 → 模型设置”执行“重建并切换”。
 provider = "local"
 local_model = "BAAI/bge-small-zh-v1.5"
 cloud_model = "text-embedding-3-small"
 cloud_base_url = "https://api.openai.com/v1"
+# 云端嵌入密钥通过系统凭据库或 RAGDB_EMBEDDING__CLOUD_API_KEY 提供；不要写入本文件。
 cloud_timeout_seconds = 30.0
 batch_size = 16
 
@@ -43,12 +45,14 @@ languages = "chi_sim+eng"
 dpi = 200
 
 [chat]
+# 问答和学习生成模型；桌面端“保存并应用”后用于后续请求。
 provider = "local"
 local_model = "qwen2.5:7b"
 local_base_url = "http://127.0.0.1:11434"
 local_timeout_seconds = 120.0
 cloud_model = "gpt-4.1-mini"
 cloud_base_url = "https://api.openai.com/v1"
+# 云端问答密钥通过系统凭据库或 RAGDB_CHAT__CLOUD_API_KEY 提供。
 cloud_timeout_seconds = 60.0
 evidence_limit = 6
 evidence_character_budget = 12000

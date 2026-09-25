@@ -104,10 +104,13 @@ class ModelSettingsService:
 
     @staticmethod
     def validate_candidate(settings, *, require_key: bool = True) -> None:
-        model = settings.local_model if settings.provider == "local" else settings.cloud_model
+        model = (settings.local_model if settings.provider == "local" else
+                 settings.ollama_model if settings.provider == "ollama" else settings.cloud_model)
         if not model.strip():
             raise ValueError("请填写模型名称或本地模型路径。")
-        endpoint = settings.cloud_base_url if settings.provider == "cloud" else getattr(settings, "local_base_url", None)
+        endpoint = (settings.cloud_base_url if settings.provider == "cloud" else
+                    settings.ollama_base_url if settings.provider == "ollama" else
+                    getattr(settings, "local_base_url", None))
         if endpoint is not None:
             try:
                 parsed = urlsplit(endpoint)

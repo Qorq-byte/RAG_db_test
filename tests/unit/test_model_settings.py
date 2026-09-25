@@ -122,3 +122,10 @@ def test_local_save_does_not_require_available_credential_backend(tmp_path):
 def test_candidate_rejects_unsafe_service_urls(endpoint):
     with pytest.raises(ValueError):
         ModelSettingsService.validate_candidate(ChatSettings(local_base_url=endpoint))
+
+
+def test_ollama_embedding_candidate_requires_model_and_safe_endpoint():
+    with pytest.raises(ValueError, match="模型名称"):
+        ModelSettingsService.validate_candidate(EmbeddingSettings(provider="ollama", ollama_model=" "))
+    with pytest.raises(ValueError, match="服务地址"):
+        ModelSettingsService.validate_candidate(EmbeddingSettings(provider="ollama", ollama_base_url="http://user:pass@localhost:11434"))

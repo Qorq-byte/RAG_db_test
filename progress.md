@@ -1,6 +1,79 @@
 # Progress Log: 桌面端实际体验与交互完善
 
-## 当前交付摘要（2026-09-24）
+## 2026-09-25 合并前最终验收
+
+- 修正提交 `023496a` 已推送 GitHub。最终全量回归 **216 passed in 33.45s**，实际 `ragdb doctor` 退出码 0。
+- 已核对计划与验收记录，完成本阶段全部约定内容；用户已授权合并主线。当前 GitHub 主线是功能分支祖先，无需处理代码冲突。
+- 合并前确认用户已有文件内容未变、未纳入提交；本步骤更新进度总览、详细计划和验收证据后独立推送，再执行主线合并。
+
+## 2026-09-25 合并前复核修正
+
+- 用户已明确要求完成本阶段并合并主线；合并前既有全量回归 208 passed in 38.75s。
+- 修正 `doctor` 的密钥优先级：显式空密钥不再被系统凭据库中的旧密钥掩盖。新增 4 个回归用例先复现失败，修复后通过。
+- 增加旧版本地/云端活动 profile 的 SQLite 重开验证，覆盖 legacy 与指纹命名空间；修正 Ollama 无效响应测试，使非有限值和维度不一致实际到达对应校验分支。
+- 修正后定向回归 23 passed in 2.21s。独立审查代理因额度限制未完成，由主任务接手检查；完整回归与主线合并继续执行。
+
+## 最终交付摘要（2026-09-25）
+
+- 阶段 5 已完成：本地 Ollama `embeddinggemma:latest` 嵌入、DeepSeek `deepseek-flash` 问答与学习生成均通过真实服务联调；系统凭据在重启后可恢复。
+- 最终全量回归 216 passed，实际 `ragdb doctor` 退出码 0；隔离合成资料和临时目录已清理。所有完成步骤均独立提交并推送 `codex/desktop-model-settings-acceptance`。
+- 验收结果见 [最终记录](docs/acceptance/2026-09-25-desktop-model-settings.md)；旧版进度快照保留在下方作为历史记录。
+
+## 2026-09-25 系统凭据诊断修正
+
+- 真实 DeepSeek 凭据已在系统凭据库安全保存，固定短文本连接测试通过；隔离合成集合的 Ollama 检索、DeepSeek 问答与学习摘要均通过，重启后配置和凭据可恢复。
+- 实际执行 `ragdb doctor` 发现原诊断只检查环境变量，误报系统凭据缺失；现同时检查系统凭据库且不回显密钥。定向 20 passed，实际 doctor 退出码 0，最终全量回归 208 passed。
+- 密钥未写入 `config.toml`、Git 提交或验收记录；端到端测试的临时目录已清理。
+
+## 2026-09-25 DeepSeek 地址核验与项目配置
+
+- 使用 gstack `/browse` 查阅 [DeepSeek 官方文档](https://api-docs.deepseek.com/)：`deepseek-flash` 为支持的模型名，OpenAI 兼容 Base URL 为 `https://api.deepseek.com`。
+- 新增不含密钥的项目 `config.toml`，选择 Ollama `embeddinggemma:latest` 嵌入及 DeepSeek `deepseek-flash` 问答/学习生成；设置页服务地址提示不再误要求 `/v1`。
+- 配置解析与桌面定向回归通过（24 passed）。云端凭据尚未进入本机环境，未发起真实 DeepSeek 请求。
+
+## 2026-09-25 Ollama 嵌入扩展：步骤 3 真实验收
+
+- 隔离合成集合中真实连接并切换到 Ollama `embeddinggemma:latest`，1 个切片重建成功，切换前后与重启后检索正常；临时数据已清理。
+- 另一隔离合成集合中，未安装模型导致的真实服务错误、进度回调取消和随后重试均通过；旧索引在失败/取消后仍可检索，临时数据已清理。
+- 增量全量回归 206 passed。用户指定聊天与学习生成使用 `deepseek-flash`；其服务 Base URL 和本机安全配置的凭据尚未确定，未发起云端请求。
+- 结果与限制已写入 [验收记录](docs/acceptance/2026-09-25-desktop-model-settings.md)。
+
+## 2026-09-25 Ollama 嵌入扩展：步骤 2 桌面配置
+
+- 桌面嵌入表单新增“本地 Ollama”服务类型、模型名、服务地址、超时和已安装模型刷新；独立显示当前候选配置，继续经“重建并切换”发布。
+- README 与配置示例补充 Ollama 操作步骤。定向设置页与服务测试 29 passed；下一步在隔离合成集合做真实重建与全量回归。
+
+## 2026-09-25 Ollama 嵌入扩展：步骤 1 后端
+
+- 按用户指定新增 Ollama 本地嵌入配置与 `/api/embed` 适配器，批量向量及维度校验接入现有嵌入工厂；旧本地与云端 profile 指纹保持兼容。
+- 本机 `embeddinggemma:latest` 对固定合成文本的真实请求成功，返回 1 个 768 维向量；定向回归 37 passed。密钥未进入源码、日志或提交。
+- 下一步将提供桌面设置入口并在隔离集合完成真实全局重建。
+
+## 阶段 5 初期交付快照（2026-09-25）
+
+- 阶段 1–4 已进入 `main`；阶段 5 工作分支 `codex/desktop-model-settings-acceptance`。文档 `7cea17f`、自动化验收 `ac159b6`、真实本地嵌入记录 `b093d6c` 已分别推送。
+- 全量回归 198 passed；本地嵌入模型切换和检索真实通过。Ollama 无聊天模型，云端服务与测试凭据未配置，阶段 5 仍进行中。
+- 验收矩阵与环境限制见 [验收记录](docs/acceptance/2026-09-25-desktop-model-settings.md)。
+
+## 2026-09-25 模型设置阶段 5.3：真实服务联调（部分）
+
+- 真实本地嵌入通过：隔离合成集合使用已缓存的 `BAAI/bge-small-zh-v1.5` 建索引，连接测试并重建切换至已缓存的 `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2`；切换前后均检索到 1 条结果，测试目录已删除。
+- Ollama 0.24.0 可运行，但只安装 `embeddinggemma:latest`，无聊天模型；云端服务、模型与测试凭据未配置。对应真实联调保持待验证，未发送云端请求或下载模型。状态矩阵见 [验收记录](docs/acceptance/2026-09-25-desktop-model-settings.md)。
+
+## 2026-09-25 模型设置阶段 5.2：自动化验收
+
+- 全量回归 198 passed，桌面设置定向回归 14 passed；CLI 帮助退出码 0，隔离数据目录的受控桌面启动退出码 0，Windows 原生模型设置页渲染成功。
+- 修正 Qt 异步进度测试的等待时序，复核后未发现产品代码回归。完整命令、结果与环境限制见 [验收记录](docs/acceptance/2026-09-25-desktop-model-settings.md)。
+- `uv run` 因沙箱缓存 ACL 和离线构建依赖获取失败；使用现有 `.venv` 运行同一测试集完成验收。
+
+## 2026-09-25 模型设置阶段 5.1：使用指南
+
+- 在 README 补充“系统 → 模型设置”的本地与云端配置步骤、连接测试、保存、全局嵌入重建、凭据与外部覆盖说明；纠正 `reindex` 只能处理集合本地文件的旧描述。
+- 为 `config.example.toml` 与 `.env.example` 增加安全示例和两类云端密钥字段，未写入真实密钥。
+- 验证：示例 TOML 可解析，`load_settings` 可加载；README 本地链接检查无缺失，`git diff --check` 通过。使用现有 `.venv` 运行检查；默认 uv 用户缓存受沙箱 ACL 限制。
+- 当前 `main` 和 `origin/main` 已包含阶段 4；本阶段工作分支为 `codex/desktop-model-settings-acceptance`。保留用户既有 CLI 测试修改与“前端设计”目录。
+
+## 历史交付摘要（2026-09-24）
 
 - 模型设置阶段 1–4 完成；阶段 5“文档与最终验收”待执行。当前路线以 [task_plan.md](task_plan.md) 为入口。
 - 阶段 4 提交 `a8240ae` 已推送至 `origin/codex/desktop-model-settings-ui`；尚未合并 `main`。阶段 1–3 已合并至主线 `f021716`。

@@ -18,10 +18,10 @@ uv sync
 
 ## 配置
 
-从示例开始：
+仓库内 `config.toml` 已包含当前项目的非敏感模型选择。若在其他环境从零创建配置，可从示例开始：
 
 ```powershell
-Copy-Item config.example.toml config.toml
+if (-not (Test-Path config.toml)) { Copy-Item config.example.toml config.toml }
 ```
 
 `config.toml` 可配置以下区域：
@@ -46,7 +46,7 @@ cloud_model = "text-embedding-3-small"
 cloud_base_url = "https://api.openai.com/v1"
 ```
 
-将密钥放在 `.env`（不提交到仓库）或环境变量中，而不是 TOML 文件：
+将密钥放在系统环境变量或项目目录下的 `.env`（不提交到仓库），而不是 TOML 文件；也可以在桌面设置页录入，由系统凭据库保管：
 
 ```text
 RAGDB_EMBEDDING__CLOUD_API_KEY=your-secret-key
@@ -175,11 +175,7 @@ executable_path = "D:/Dinstall/Tesseract-OCR/tesseract.exe"
 languages = "chi_sim+eng"
 ```
 
-嵌入供应商或模型变更后，系统会拒绝混用已有索引并提示重建：
-
-```powershell
-uv run ragdb reindex --collection ai-notes
-```
+更换嵌入供应商或模型时，请使用桌面端“系统 → 模型设置 → 重建并切换”重建所有集合。`ragdb reindex` 只重新处理指定集合中可访问的本地文件，不能完成全局嵌入模型切换。
 
 可查看目录批量导入的历史任务和操作日志：
 
@@ -215,6 +211,23 @@ uv run --project <项目目录> ragdb-gui
 uv run python -m ragdb.desktop.app
 ```
 
-工作台采用可折叠的分组导航，并支持跟随系统、浅色和深色主题。它包含概览、集合与资料导入、可追溯检索、持久化问答、学习产物、任务日志和环境诊断；检索结果与回答引用可在右侧详情栏核验。耗时导入、检索及模型调用在后台执行；API Key 仍需通过 `.env` 或环境变量配置。
+工作台采用可折叠的分组导航，并支持跟随系统、浅色和深色主题。它包含概览、集合与资料导入、可追溯检索、持久化问答、学习产物、任务日志、环境诊断和模型设置；检索结果与回答引用可在右侧详情栏核验。耗时导入、检索及模型调用在后台执行。
 
 侧栏可拖拽调整宽度，宽度、折叠状态和详情栏开合状态会在下次启动时恢复。窗口较窄时会临时收起侧栏和详情栏，并在恢复宽度后回到你的偏好。常用快捷键：`Ctrl+1` 至 `Ctrl+6` 切换页面，`Ctrl+B` 折叠或展开侧栏，`Esc` 关闭详情栏。
+
+### 模型设置
+
+打开“系统 → 模型设置”。“问答/生成”用于检索增强问答和学习内容生成；“嵌入”用于将资料与查询转换成检索向量。两者可分别选择本地服务或 OpenAI 兼容云端服务。
+
+1. 问答/生成：选择“本地 Ollama”时，先启动 Ollama，在页面刷新已安装模型列表，填写模型名和服务地址（默认 `http://127.0.0.1:11434`）；选择“云端 / OpenAI 兼容”时，填写模型名、Base URL 和 API Key。按“测试连接”，确认成功后按“保存并应用”。保存后，后续问答与学习生成请求使用新设置；重启后仍会读取保存的设置。
+2. 嵌入：可选择“本地 Sentence Transformers”并填写模型名，也可先在 Ollama 安装嵌入模型（如 `ollama pull embeddinggemma`），选择“本地 Ollama”，填写模型名和服务地址（默认 `http://127.0.0.1:11434`），或选择“云端 / OpenAI 兼容”并填写模型名、Base URL 和 API Key。先“测试连接”，再按“重建并切换”。确认对话框会显示需重建的集合数。所有集合重建并验证成功后才启用新模型；单独修改 `config.toml` 不能替换已有索引的活动模型。
+
+本地嵌入模型首次加载可能需要下载；请预留磁盘空间和时间。重建会处理所有集合当前资料切片，期间导入和删除暂停。取消后会等待当前模型请求结束并清理暂存向量；失败或取消时继续使用旧索引，可修复原因后重试。旧向量命名空间会保留，因此重建完成后的磁盘占用可能增加。
+
+云端“测试连接”仅发送固定短文本；云端嵌入的“重建并切换”会向所选服务发送**所有集合的当前资料切片**，可能产生费用。执行前核对服务地址和数据使用范围。测试连接不会修改知识库索引。
+
+页面中的 API Key 输入框留空表示沿用该服务地址已保存的密钥；“清除已保存密钥”会从系统凭据库删除所选目标的密钥。更换云端服务地址时需要重新提供密钥。系统凭据库不可用时，无法安全保存或清除密钥；请修复系统凭据服务，或使用环境变量／`.env` 提供密钥，程序不会将其退回写入明文 TOML。
+
+环境变量和 `.env` 中的字段优先于 `config.toml` 与页面设置，页面会标明来源并锁定被接管的字段。例如 `RAGDB_CHAT__CLOUD_API_KEY` 和 `RAGDB_EMBEDDING__CLOUD_API_KEY` 分别设置两类云端密钥。修改这些外部值后重启应用；不要将 `.env`、密钥或实际知识库数据提交到 Git。
+
+本项目的 `config.toml` 已选择本机 Ollama `embeddinggemma:latest` 与 DeepSeek `deepseek-flash`。DeepSeek [官方文档](https://api-docs.deepseek.com/)给出的 OpenAI 兼容 Base URL 是 `https://api.deepseek.com`，无需附加 `/v1`；仍需在系统凭据库或 `RAGDB_CHAT__CLOUD_API_KEY` 中安全提供密钥。首次在已有资料库启用 Ollama 嵌入时，应在模型设置页执行“重建并切换”。

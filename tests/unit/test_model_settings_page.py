@@ -179,7 +179,10 @@ def test_busy_task_blocks_duplicates_and_cancellation_preserves_active_model(pag
     page.rebuild()
     try:
         assert started.wait(5)
-        APPLICATION.processEvents()
+        deadline = time.monotonic() + 5
+        while page.progress.value() != 1 and time.monotonic() < deadline:
+            APPLICATION.processEvents()
+            time.sleep(0.005)
         assert not page.chat.isEnabled() and not page.refresh.isEnabled()
         assert page.progress.value() == 1
         assert not page._run("duplicate", lambda: None, lambda _: None, "error")

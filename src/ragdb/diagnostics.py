@@ -49,6 +49,7 @@ def run_diagnostics(config_path: Path) -> list[DiagnosticResult]:
             _check_python_package("ChromaDB", "chromadb", required=True),
             _check_git(),
             _check_local_embedding_dependency(settings),
+            _check_ollama_embedding_configuration(settings),
             _check_cloud_embedding_configuration(settings),
             _check_chat_configuration(settings),
             _check_ocr(settings),
@@ -198,6 +199,14 @@ def _check_local_embedding_dependency(settings: AppSettings) -> DiagnosticResult
     if settings.embedding.provider == "cloud" and result.status is DiagnosticStatus.PASS:
         return DiagnosticResult(result.name, result.status, "sentence_transformers 可导入（当前未启用本地嵌入）。")
     return result
+
+
+def _check_ollama_embedding_configuration(settings: AppSettings) -> DiagnosticResult:
+    if settings.embedding.provider != "ollama":
+        return DiagnosticResult("Ollama 嵌入配置", DiagnosticStatus.PASS, "当前未启用 Ollama 嵌入。")
+    if not settings.embedding.ollama_model.strip() or not settings.embedding.ollama_base_url.strip():
+        return DiagnosticResult("Ollama 嵌入配置", DiagnosticStatus.FAILURE, "缺少模型名称或服务地址。", "设置 embedding.ollama_model 与 embedding.ollama_base_url。")
+    return DiagnosticResult("Ollama 嵌入配置", DiagnosticStatus.PASS, "本地 Ollama 嵌入配置完整；未发送 API 请求。")
 
 
 def _check_cloud_embedding_configuration(settings: AppSettings) -> DiagnosticResult:

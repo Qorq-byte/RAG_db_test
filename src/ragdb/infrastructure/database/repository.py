@@ -40,8 +40,12 @@ from ragdb.infrastructure.database.schema import initialize_schema
 
 def embedding_profile_fingerprint(settings: EmbeddingSettings) -> str:
     """Stable identity for embedding behavior, excluding all credentials."""
+    excluded = {"cloud_api_key"}
+    # Profiles created before Ollama support must retain their stored fingerprint.
+    if settings.provider != "ollama":
+        excluded.update({"ollama_model", "ollama_base_url", "ollama_timeout_seconds"})
     encoded = json.dumps(
-        settings.model_dump(exclude={"cloud_api_key"}),
+        settings.model_dump(exclude=excluded),
         ensure_ascii=False, sort_keys=True, separators=(",", ":"),
     ).encode("utf-8")
     return hashlib.sha256(encoded).hexdigest()
@@ -108,7 +112,7 @@ class SQLiteEmbeddingProfileRepository:
             connection.execute(
                 "UPDATE sources SET embedding_provider = ?, embedding_model = ? "
                 "WHERE current_generation > 0",
-                (settings.provider, settings.local_model if settings.provider == "local" else settings.cloud_model),
+                (settings.provider, settings.local_model if settings.provider == "local" else settings.ollama_model if settings.provider == "ollama" else settings.cloud_model),
             )
         return fingerprint
 

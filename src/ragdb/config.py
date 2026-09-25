@@ -25,8 +25,11 @@ class StorageSettings(ConfigSection):
 
 
 class EmbeddingSettings(ConfigSection):
-    provider: Literal["local", "cloud"] = "local"
+    provider: Literal["local", "ollama", "cloud"] = "local"
     local_model: str = "BAAI/bge-small-zh-v1.5"
+    ollama_model: str = "embeddinggemma:latest"
+    ollama_base_url: str = "http://127.0.0.1:11434"
+    ollama_timeout_seconds: float = Field(default=120.0, gt=0)
     cloud_model: str = "text-embedding-3-small"
     cloud_base_url: str = "https://api.openai.com/v1"
     cloud_api_key: SecretStr | None = None

@@ -6,7 +6,7 @@
 
 ## Current Phase
 
-第五阶段已完成：用户选定的 Ollama `embeddinggemma:latest` 嵌入和 DeepSeek `deepseek-flash` 问答/学习生成均通过隔离合成集合的真实联调；系统凭据及重启恢复通过，最终全量回归 208 passed，`ragdb doctor` 退出码 0。
+第五阶段已完成：用户选定的 Ollama `embeddinggemma:latest` 嵌入和 DeepSeek `deepseek-flash` 问答/学习生成均通过隔离合成集合的真实联调；系统凭据及重启恢复通过，合并前最终全量回归 216 passed，`ragdb doctor` 退出码 0。
 
 截至 2026-09-25，阶段 4 已进入 `main`。阶段 5 在 `codex/desktop-model-settings-acceptance` 分支逐步交付；详见 [验收记录](docs/acceptance/2026-09-25-desktop-model-settings.md)。
 
@@ -30,14 +30,14 @@
 | 2. 活动嵌入索引及命名空间 | complete | schema v4、SQLite 活动 profile、legacy 命名空间兼容与版本隔离接入 runtime；全量 163 项测试通过。 |
 | 3. 全集合安全重建 | complete | 当前代次跨来源重建、原子发布、取消/故障回滚、跨进程门禁及重启恢复；全量 178 项测试通过。 |
 | 4. 桌面设置页面 | complete | 本地/云端配置、凭据保护、外部覆盖提示、后台测试、重建取消和失败重试；198 项测试通过。 |
-| 5. 文档与最终验收 | complete | 使用指南、208 项最终回归、Ollama 与 DeepSeek 真实联调和系统凭据恢复通过。 |
+| 5. 文档与最终验收 | complete | 使用指南、216 项最终回归、Ollama 与 DeepSeek 真实联调和系统凭据恢复通过。 |
 
 ## 下一阶段执行清单
 
 - [x] 5.1 使用文档：README 和配置示例已更新；提交 `7cea17f` 已推送。
 - [x] 5.2 自动化验收：198 passed，CLI 帮助、受控桌面启动和 Windows 原生渲染完成；提交 `ac159b6` 已推送。
 - [x] 5.3 真实服务联调：Sentence Transformers 与 Ollama 嵌入切换、检索通过；`deepseek-flash` 问答/学习生成、系统凭据与重启恢复通过。云端嵌入不属于用户最终选定模型。
-- [x] 5.4 最终完成判定：已整理证据；208 项回归与 `ragdb doctor` 通过。合并主线另按用户指令执行。
+- [x] 5.4 最终完成判定：已整理证据；216 项回归与 `ragdb doctor` 通过。用户已授权合并主线，合并前修正 `023496a` 已推送。
 
 详细步骤和完成标准见实施计划第 5 节，实际结果见[验收记录](docs/acceptance/2026-09-25-desktop-model-settings.md)。
 

@@ -1,5 +1,11 @@
 # Progress Log: 桌面端实际体验与交互完善
 
+## 2026-09-25 合并前最终验收
+
+- 修正提交 `023496a` 已推送 GitHub。最终全量回归 **216 passed in 33.45s**，实际 `ragdb doctor` 退出码 0。
+- 已核对计划与验收记录，完成本阶段全部约定内容；用户已授权合并主线。当前 GitHub 主线是功能分支祖先，无需处理代码冲突。
+- 合并前确认用户已有文件内容未变、未纳入提交；本步骤更新进度总览、详细计划和验收证据后独立推送，再执行主线合并。
+
 ## 2026-09-25 合并前复核修正
 
 - 用户已明确要求完成本阶段并合并主线；合并前既有全量回归 208 passed in 38.75s。
@@ -10,7 +16,7 @@
 ## 最终交付摘要（2026-09-25）
 
 - 阶段 5 已完成：本地 Ollama `embeddinggemma:latest` 嵌入、DeepSeek `deepseek-flash` 问答与学习生成均通过真实服务联调；系统凭据在重启后可恢复。
-- 最终全量回归 208 passed，实际 `ragdb doctor` 退出码 0；隔离合成资料和临时目录已清理。所有完成步骤均独立提交并推送 `codex/desktop-model-settings-acceptance`。
+- 最终全量回归 216 passed，实际 `ragdb doctor` 退出码 0；隔离合成资料和临时目录已清理。所有完成步骤均独立提交并推送 `codex/desktop-model-settings-acceptance`。
 - 验收结果见 [最终记录](docs/acceptance/2026-09-25-desktop-model-settings.md)；旧版进度快照保留在下方作为历史记录。
 
 ## 2026-09-25 系统凭据诊断修正

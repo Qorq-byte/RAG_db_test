@@ -1,27 +1,27 @@
-# Task Plan: 桌面端模型设置
+# 项目进度总览与下一阶段
 
-## Goal
+## 项目目标
 
-实现桌面端问答/生成模型和嵌入模型可视化配置，并为所有集合提供安全的嵌入向量重建与切换。
+提供可导入本地文件、网页和公开 GitHub 仓库的个人知识库，支持检索、问答、学习内容生成及桌面管理；模型设置和向量重建须保护现有索引。
 
-## Current Phase
+## 当前进度（2026-09-25）
 
-第五阶段已完成：用户选定的 Ollama `embeddinggemma:latest` 嵌入和 DeepSeek `deepseek-flash` 问答/学习生成均通过隔离合成集合的真实联调；系统凭据及重启恢复通过，合并前最终全量回归 216 passed，`ragdb doctor` 退出码 0。
+第一期知识库的八个里程碑及后续问答、学习产物、桌面工作台、模型设置均已完成。最近交付是桌面模型设置阶段 1–5：本地 Ollama `embeddinggemma:latest` 嵌入与 DeepSeek `deepseek-flash` 问答/学习生成在隔离合成集合中通过真实联调；系统凭据和重启恢复通过。合并前完整回归 **216 passed**，`ragdb doctor` 退出码 0。
 
-截至 2026-09-25，阶段 1–5 均已进入 GitHub `main`。阶段 5 在 `codex/desktop-model-settings-acceptance` 分支逐步交付，并以 `5efca40` 合并推送；详见 [验收记录](docs/acceptance/2026-09-25-desktop-model-settings.md)。
+上述功能已进入 GitHub `main`；阶段 5 合并为 `5efca40`，交付文档截至 `9ff2813`。本轮只整理进度与下一阶段规划，下一阶段功能**尚未实施**。
 
-文档入口：[详细实施计划](docs/superpowers/plans/2026-09-24-desktop-model-settings-implementation.md) · [交付记录](progress.md) · [技术发现](findings.md)。历史测试结果仅代表当时的验证范围。
+文档入口：[模型设置验收](docs/acceptance/2026-09-25-desktop-model-settings.md) · [上阶段实施计划](docs/superpowers/plans/2026-09-24-desktop-model-settings-implementation.md) · [交付记录](progress.md) · [技术发现](findings.md)。历史测试结果仅代表当时的验证范围。
 
-## Current Decisions
+## 已确定的技术边界
 
 | Decision | Rationale |
 | --- | --- |
 | 独立设置页 | 问答/生成与嵌入模型是不同用途，分区展示便于用户理解。 |
 | 指纹隔离向量命名空间 | Chroma 单集合向量维度固定，重建阶段必须隔离新旧维度。 |
 | SQLite 活动 profile 为准 | 索引切换与配置文件写入无法跨存储事务化；活动状态必须有单一权威源。 |
-| 每阶段推送 | 用户明确要求每完成一步就上传 GitHub；阶段 5 工作分支为 `codex/desktop-model-settings-acceptance`。 |
+| 每步推送并合并 | 已完成步骤分别提交推送，阶段完成后合并 GitHub `main`；不纳入用户已有的工作区改动。 |
 
-## Phases
+## 已完成阶段
 
 | Phase | Status | Outcome |
 | --- | --- | --- |
@@ -32,7 +32,13 @@
 | 4. 桌面设置页面 | complete | 本地/云端配置、凭据保护、外部覆盖提示、后台测试、重建取消和失败重试；198 项测试通过。 |
 | 5. 文档与最终验收 | complete | 使用指南、216 项最终回归、Ollama 与 DeepSeek 真实联调和系统凭据恢复通过。 |
 
-## 下一阶段执行清单
+## 下一阶段：旧向量索引显式清理（规划中）
+
+模型设置设计要求在新索引发布后保留旧 Chroma 命名空间，并把旧索引清理留给后续显式维护流程。下一阶段计划为用户提供**只读盘点与预览、确认后清理、活动索引保护、故障后重试**。执行前须完成安全边界设计和详细实施计划；不会自动清理，也不会以真实资料库作试验。
+
+本阶段预期步骤：6.1 明确可识别与可删除的命名空间边界；6.2 实现只读盘点和预览；6.3 实现受保护的显式清理；6.4 完成隔离数据回归、桌面/CLI 操作说明与交付验收。后续文档将给出文件、测试和完成标准。
+
+## 上一阶段完成清单
 
 - [x] 5.1 使用文档：README 和配置示例已更新；提交 `7cea17f` 已推送。
 - [x] 5.2 自动化验收：198 passed，CLI 帮助、受控桌面启动和 Windows 原生渲染完成；提交 `ac159b6` 已推送。

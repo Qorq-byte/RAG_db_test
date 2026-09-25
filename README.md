@@ -35,7 +35,7 @@ if (-not (Test-Path config.toml)) { Copy-Item config.example.toml config.toml }
 - `ocr`：可选本机 Tesseract OCR 的开关、路径、语言与渲染 DPI。
 - `chat`：本地 Ollama 或 OpenAI 兼容云端问答模型及其上下文预算。
 
-默认使用本地嵌入模型 `BAAI/bge-small-zh-v1.5`。首次实际导入或检索时，底层库可能下载该模型；`ragdb doctor` 不会下载模型。
+程序的内置默认嵌入模型是 `BAAI/bge-small-zh-v1.5`；本仓库当前 `config.toml` 已选择本机 Ollama `embeddinggemma:latest`，以配置文件和数据库活动 profile 为准。选择 Sentence Transformers 模型后，首次实际导入或检索时可能下载该模型；`ragdb doctor` 不会下载模型。
 
 如使用 OpenAI 兼容的云端嵌入，在 `config.toml` 中设置：
 

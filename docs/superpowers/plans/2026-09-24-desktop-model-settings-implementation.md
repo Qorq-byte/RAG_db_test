@@ -6,13 +6,13 @@
 
 ## GitHub 交付约定
 
-- 阶段 1–3 工作分支：`codex/desktop-model-settings`（已合并 main）；阶段 4：`codex/desktop-model-settings-ui`。
+- 阶段 1–3 工作分支：`codex/desktop-model-settings`；阶段 4：`codex/desktop-model-settings-ui`。截至 2026-09-25，阶段 1–4 均已进入 `main`；阶段 5 分支为 `codex/desktop-model-settings-acceptance`。
 - 每个步骤独立验证、形成单独提交并推送到同名 GitHub 分支；不提交用户已有的测试修改或“前端设计”草稿。
 - 验证失败时先修复并重跑受影响检查，再提交该阶段。
 
 ## 阶段
 
-当前状态（2026-09-24）：阶段 1–4 已完成，阶段 5 待执行。阶段 4 提交 `a8240ae` 已推送功能分支，尚未合并主线；完整交付记录见 [progress.md](../../../progress.md)。
+当前状态（2026-09-25）：阶段 1–4 已完成并进入主线；阶段 5 进行中。5.1 文档和 5.2 自动化验收已完成；5.3 真实本地嵌入通过，真实聊天及云端项目仍待验证。交付记录见 [progress.md](../../../progress.md) 与 [验收记录](../../acceptance/2026-09-25-desktop-model-settings.md)。
 
 ### 1. 模型设置服务与凭据
 
@@ -56,7 +56,7 @@
 
 ### 5. 文档与最终验收
 
-状态：待执行。以下为下一阶段工作计划，不是已完成的验收结果。
+状态：进行中。5.1、5.2 已完成；5.3 部分完成；最终完成判定仍待剩余真实联调或用户明确接受限制。实际证据见[验收记录](../../acceptance/2026-09-25-desktop-model-settings.md)。
 
 #### 5.1 使用指南与配置示例
 

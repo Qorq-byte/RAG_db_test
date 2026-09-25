@@ -1,5 +1,11 @@
 # Progress Log: 桌面端实际体验与交互完善
 
+## 当前交付摘要（2026-09-25）
+
+- 阶段 1–4 已进入 `main`；阶段 5 工作分支 `codex/desktop-model-settings-acceptance`。文档 `7cea17f`、自动化验收 `ac159b6`、真实本地嵌入记录 `b093d6c` 已分别推送。
+- 全量回归 198 passed；本地嵌入模型切换和检索真实通过。Ollama 无聊天模型，云端服务与测试凭据未配置，阶段 5 仍进行中。
+- 验收矩阵与环境限制见 [验收记录](docs/acceptance/2026-09-25-desktop-model-settings.md)。
+
 ## 2026-09-25 模型设置阶段 5.3：真实服务联调（部分）
 
 - 真实本地嵌入通过：隔离合成集合使用已缓存的 `BAAI/bge-small-zh-v1.5` 建索引，连接测试并重建切换至已缓存的 `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2`；切换前后均检索到 1 条结果，测试目录已删除。
@@ -18,7 +24,7 @@
 - 验证：示例 TOML 可解析，`load_settings` 可加载；README 本地链接检查无缺失，`git diff --check` 通过。使用现有 `.venv` 运行检查；默认 uv 用户缓存受沙箱 ACL 限制。
 - 当前 `main` 和 `origin/main` 已包含阶段 4；本阶段工作分支为 `codex/desktop-model-settings-acceptance`。保留用户既有 CLI 测试修改与“前端设计”目录。
 
-## 当前交付摘要（2026-09-24）
+## 历史交付摘要（2026-09-24）
 
 - 模型设置阶段 1–4 完成；阶段 5“文档与最终验收”待执行。当前路线以 [task_plan.md](task_plan.md) 为入口。
 - 阶段 4 提交 `a8240ae` 已推送至 `origin/codex/desktop-model-settings-ui`；尚未合并 `main`。阶段 1–3 已合并至主线 `f021716`。

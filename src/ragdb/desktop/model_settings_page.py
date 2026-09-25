@@ -84,7 +84,7 @@ class ModelForm(QFrame):
             self._number(ollama, "ollama_timeout_seconds", "超时（秒）")
             ollama.addRow(label("请先在 Ollama 安装嵌入模型；可刷新已安装模型列表。"))
         self._text(cloud, "cloud_model", "模型名称")
-        self._text(cloud, "cloud_base_url", "服务地址（含 /v1）")
+        self._text(cloud, "cloud_base_url", "服务地址（按服务商文档）")
         self._number(cloud, "cloud_timeout_seconds", "超时（秒）")
         self.key = QLineEdit()
         self.key.setEchoMode(QLineEdit.EchoMode.Password)

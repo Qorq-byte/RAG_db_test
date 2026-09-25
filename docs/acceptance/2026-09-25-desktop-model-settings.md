@@ -8,7 +8,7 @@
 - 隔离合成集合从 `BAAI/bge-small-zh-v1.5` 重建切换到 Ollama `embeddinggemma:latest`：1 个切片，切换前后各检索到 1 条结果；重启后活动提供商仍为 Ollama，检索仍成功。测试数据目录已清理。
 - 另一个隔离合成集合中，用未安装的模型触发真实 Ollama 服务错误；随后在真实向量生成后的进度回调请求取消，再重试成功。错误与取消后旧活动 profile 和检索结果均保持可用，重试后新 profile 生效；临时目录已清理。
 - 新代码全量回归：`.\.venv\Scripts\python.exe -m pytest -q`，**206 passed in 38.80s**。
-- `deepseek-flash` 的 OpenAI 兼容 Base URL 尚未提供，本机也未设置 `RAGDB_CHAT__CLOUD_API_KEY`。未发起云端请求；聊天与学习生成真实联调待地址及安全配置的测试凭据。用户已将云端嵌入改为本地 Ollama 嵌入，因此云端嵌入不再是本轮选定模型的验收项。
+- 已由 [DeepSeek 官方文档](https://api-docs.deepseek.com/)核实 `deepseek-flash` 的 OpenAI 兼容 Base URL 为 `https://api.deepseek.com`；仓库的非敏感 `config.toml` 已配置该地址与模型。本机尚未设置 `RAGDB_CHAT__CLOUD_API_KEY`，因此未发起云端请求；聊天与学习生成真实联调仍待安全配置的测试凭据。用户已将云端嵌入改为本地 Ollama 嵌入，因此云端嵌入不再是本轮选定模型的验收项。
 
 ## 5.2 自动化与兼容性验收
 

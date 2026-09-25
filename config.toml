@@ -1,0 +1,10 @@
+# 本项目选择的非敏感模型配置。云端密钥通过系统凭据库或环境变量提供。
+[embedding]
+provider = "ollama"
+ollama_model = "embeddinggemma:latest"
+ollama_base_url = "http://127.0.0.1:11434"
+
+[chat]
+provider = "cloud"
+cloud_model = "deepseek-flash"
+cloud_base_url = "https://api.deepseek.com"

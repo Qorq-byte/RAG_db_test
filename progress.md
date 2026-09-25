@@ -1,5 +1,11 @@
 # Progress Log: 桌面端实际体验与交互完善
 
+## 2026-09-25 DeepSeek 地址核验与项目配置
+
+- 使用 gstack `/browse` 查阅 [DeepSeek 官方文档](https://api-docs.deepseek.com/)：`deepseek-flash` 为支持的模型名，OpenAI 兼容 Base URL 为 `https://api.deepseek.com`。
+- 新增不含密钥的项目 `config.toml`，选择 Ollama `embeddinggemma:latest` 嵌入及 DeepSeek `deepseek-flash` 问答/学习生成；设置页服务地址提示不再误要求 `/v1`。
+- 配置解析与桌面定向回归通过（24 passed）。云端凭据尚未进入本机环境，未发起真实 DeepSeek 请求。
+
 ## 2026-09-25 Ollama 嵌入扩展：步骤 3 真实验收
 
 - 隔离合成集合中真实连接并切换到 Ollama `embeddinggemma:latest`，1 个切片重建成功，切换前后与重启后检索正常；临时数据已清理。

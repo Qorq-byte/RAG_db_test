@@ -18,10 +18,10 @@ uv sync
 
 ## 配置
 
-从示例开始：
+仓库内 `config.toml` 已包含当前项目的非敏感模型选择。若在其他环境从零创建配置，可从示例开始：
 
 ```powershell
-Copy-Item config.example.toml config.toml
+if (-not (Test-Path config.toml)) { Copy-Item config.example.toml config.toml }
 ```
 
 `config.toml` 可配置以下区域：
@@ -229,3 +229,5 @@ uv run python -m ragdb.desktop.app
 页面中的 API Key 输入框留空表示沿用该服务地址已保存的密钥；“清除已保存密钥”会从系统凭据库删除所选目标的密钥。更换云端服务地址时需要重新提供密钥。系统凭据库不可用时，无法安全保存或清除密钥；请修复系统凭据服务，或使用环境变量／`.env` 提供密钥，程序不会将其退回写入明文 TOML。
 
 环境变量和 `.env` 中的字段优先于 `config.toml` 与页面设置，页面会标明来源并锁定被接管的字段。例如 `RAGDB_CHAT__CLOUD_API_KEY` 和 `RAGDB_EMBEDDING__CLOUD_API_KEY` 分别设置两类云端密钥。修改这些外部值后重启应用；不要将 `.env`、密钥或实际知识库数据提交到 Git。
+
+本项目的 `config.toml` 已选择本机 Ollama `embeddinggemma:latest` 与 DeepSeek `deepseek-flash`。DeepSeek [官方文档](https://api-docs.deepseek.com/)给出的 OpenAI 兼容 Base URL 是 `https://api.deepseek.com`，无需附加 `/v1`；仍需在系统凭据库或 `RAGDB_CHAT__CLOUD_API_KEY` 中安全提供密钥。首次在已有资料库启用 Ollama 嵌入时，应在模型设置页执行“重建并切换”。

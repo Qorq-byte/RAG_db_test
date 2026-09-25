@@ -28,17 +28,20 @@ def test_ollama_embedding_uses_batch_api_and_reports_dimension():
     assert len(requests) == 1
 
 
-@pytest.mark.parametrize("payload", [
-    {"embeddings": []},
-    {"embeddings": [[1.0], [2.0]]},
-    {"embeddings": [[float("nan")]]},
-    {"embeddings": [[1.0, 2.0], [3.0]]},
+@pytest.mark.parametrize("texts,payload,message", [
+    (["one"], {"embeddings": []}, "数量不匹配"),
+    (["one"], {"embeddings": [[1.0], [2.0]]}, "数量不匹配"),
+    (["one"], {"embeddings": [[float("nan")]]}, "不包含有效向量"),
+    (["one", "two"], {"embeddings": [[1.0, 2.0], [3.0]]}, "维度不一致"),
 ])
-def test_ollama_embedding_rejects_invalid_vectors(payload):
-    client = httpx.Client(transport=httpx.MockTransport(lambda _: httpx.Response(200, json=payload)))
+def test_ollama_embedding_rejects_invalid_vectors(texts, payload, message):
+    # Send raw JSON so NaN reaches the adapter instead of failing in httpx's encoder.
+    client = httpx.Client(transport=httpx.MockTransport(
+        lambda _: httpx.Response(200, content=json.dumps(payload))
+    ))
     provider = OllamaEmbeddingProvider("embeddinggemma:latest", "http://localhost:11434", client=client)
-    with pytest.raises(RuntimeError, match="Ollama 嵌入"):
-        provider.embed_texts(["one"])
+    with pytest.raises(RuntimeError, match=message):
+        provider.embed_texts(texts)
 
 
 def test_ollama_embedding_factory_and_legacy_fingerprint():

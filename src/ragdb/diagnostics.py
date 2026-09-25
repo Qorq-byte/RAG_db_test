@@ -12,6 +12,8 @@ import subprocess
 import sys
 import tempfile
 
+from pydantic import SecretStr
+
 from ragdb.config import AppSettings, load_settings
 from ragdb.application.model_settings import chat_credential_name
 from ragdb.infrastructure.credentials import SystemCredentialStore
@@ -221,7 +223,8 @@ def _check_cloud_embedding_configuration(settings: AppSettings) -> DiagnosticRes
     if not settings.embedding.cloud_base_url.strip():
         missing.append("embedding.cloud_base_url")
     api_key = settings.embedding.cloud_api_key
-    if (api_key is None or not api_key.get_secret_value().strip()) and not _stored_credential(
+    if not _has_credential(
+        api_key,
         f"embedding.{embedding_profile_fingerprint(settings.embedding)}.cloud_api_key", "embedding.cloud_api_key"
     ):
         missing.append("RAGDB_EMBEDDING__CLOUD_API_KEY")
@@ -245,8 +248,8 @@ def _check_chat_configuration(settings: AppSettings) -> DiagnosticResult:
         missing.append("chat.cloud_model")
     if not settings.chat.cloud_base_url.strip():
         missing.append("chat.cloud_base_url")
-    if (settings.chat.cloud_api_key is None or not settings.chat.cloud_api_key.get_secret_value().strip()) and not _stored_credential(
-        chat_credential_name(settings.chat), "chat.cloud_api_key"
+    if not _has_credential(
+        settings.chat.cloud_api_key, chat_credential_name(settings.chat), "chat.cloud_api_key"
     ):
         missing.append("RAGDB_CHAT__CLOUD_API_KEY")
     if missing:
@@ -254,10 +257,14 @@ def _check_chat_configuration(settings: AppSettings) -> DiagnosticResult:
     return DiagnosticResult("云端问答配置", DiagnosticStatus.PASS, "云端模型配置完整；未发送 API 请求。")
 
 
-def _stored_credential(*names: str) -> bool:
+def _has_credential(api_key: SecretStr | None, *names: str) -> bool:
+    # An explicitly configured key takes precedence over the system store,
+    # including an empty value that would fail at request time.
+    if api_key is not None:
+        return bool(api_key.get_secret_value().strip())
     try:
         store = SystemCredentialStore()
-        return any(bool(store.get(name)) for name in names)
+        return any(bool((store.get(name) or "").strip()) for name in names)
     except RuntimeError:
         return False
 

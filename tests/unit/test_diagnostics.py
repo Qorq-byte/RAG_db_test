@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import pytest
 from typer.testing import CliRunner
 
 import ragdb.cli as cli
@@ -80,3 +81,20 @@ def test_doctor_reports_missing_key_when_system_store_unavailable(monkeypatch) -
     monkeypatch.setattr("ragdb.diagnostics.SystemCredentialStore", Unavailable)
     result = _check_chat_configuration(AppSettings(chat=ChatSettings(provider="cloud")))
     assert result.status is DiagnosticStatus.FAILURE
+
+
+@pytest.mark.parametrize("secret", ["", "   "])
+@pytest.mark.parametrize("section", ["chat", "embedding"])
+def test_doctor_does_not_mask_explicit_empty_key_with_stored_key(monkeypatch, section, secret) -> None:
+    class Credentials:
+        def get(self, name):
+            return "stored-test-key"
+
+    monkeypatch.setattr("ragdb.diagnostics.SystemCredentialStore", Credentials)
+    settings = AppSettings.model_validate({section: {"provider": "cloud", "cloud_api_key": secret}})
+    check = _check_chat_configuration if section == "chat" else _check_cloud_embedding_configuration
+
+    result = check(settings)
+
+    assert result.status is DiagnosticStatus.FAILURE
+    assert f"RAGDB_{section.upper()}__CLOUD_API_KEY" in result.detail

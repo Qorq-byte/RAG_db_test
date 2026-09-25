@@ -1,5 +1,11 @@
 # Progress Log: 桌面端实际体验与交互完善
 
+## 最终交付摘要（2026-09-25）
+
+- 阶段 5 已完成：本地 Ollama `embeddinggemma:latest` 嵌入、DeepSeek `deepseek-flash` 问答与学习生成均通过真实服务联调；系统凭据在重启后可恢复。
+- 最终全量回归 208 passed，实际 `ragdb doctor` 退出码 0；隔离合成资料和临时目录已清理。所有完成步骤均独立提交并推送 `codex/desktop-model-settings-acceptance`。
+- 验收结果见 [最终记录](docs/acceptance/2026-09-25-desktop-model-settings.md)；旧版进度快照保留在下方作为历史记录。
+
 ## 2026-09-25 系统凭据诊断修正
 
 - 真实 DeepSeek 凭据已在系统凭据库安全保存，固定短文本连接测试通过；隔离合成集合的 Ollama 检索、DeepSeek 问答与学习摘要均通过，重启后配置和凭据可恢复。
@@ -30,7 +36,7 @@
 - 本机 `embeddinggemma:latest` 对固定合成文本的真实请求成功，返回 1 个 768 维向量；定向回归 37 passed。密钥未进入源码、日志或提交。
 - 下一步将提供桌面设置入口并在隔离集合完成真实全局重建。
 
-## 当前交付摘要（2026-09-25）
+## 阶段 5 初期交付快照（2026-09-25）
 
 - 阶段 1–4 已进入 `main`；阶段 5 工作分支 `codex/desktop-model-settings-acceptance`。文档 `7cea17f`、自动化验收 `ac159b6`、真实本地嵌入记录 `b093d6c` 已分别推送。
 - 全量回归 198 passed；本地嵌入模型切换和检索真实通过。Ollama 无聊天模型，云端服务与测试凭据未配置，阶段 5 仍进行中。

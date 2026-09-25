@@ -7,8 +7,10 @@
 - 本机 Ollama `embeddinggemma:latest` 对固定合成文本的 `/api/embed` 请求成功，返回 1 个 768 维向量。
 - 隔离合成集合从 `BAAI/bge-small-zh-v1.5` 重建切换到 Ollama `embeddinggemma:latest`：1 个切片，切换前后各检索到 1 条结果；重启后活动提供商仍为 Ollama，检索仍成功。测试数据目录已清理。
 - 另一个隔离合成集合中，用未安装的模型触发真实 Ollama 服务错误；随后在真实向量生成后的进度回调请求取消，再重试成功。错误与取消后旧活动 profile 和检索结果均保持可用，重试后新 profile 生效；临时目录已清理。
-- 新代码全量回归：`.\.venv\Scripts\python.exe -m pytest -q`，**206 passed in 38.80s**。
-- 已由 [DeepSeek 官方文档](https://api-docs.deepseek.com/)核实 `deepseek-flash` 的 OpenAI 兼容 Base URL 为 `https://api.deepseek.com`；仓库的非敏感 `config.toml` 已配置该地址与模型。本机尚未设置 `RAGDB_CHAT__CLOUD_API_KEY`，因此未发起云端请求；聊天与学习生成真实联调仍待安全配置的测试凭据。用户已将云端嵌入改为本地 Ollama 嵌入，因此云端嵌入不再是本轮选定模型的验收项。
+- 最终全量回归：`.\.venv\Scripts\python.exe -m pytest -q`，**208 passed in 30.50s**。
+- 已由 [DeepSeek 官方文档](https://api-docs.deepseek.com/)核实 `deepseek-flash` 的 OpenAI 兼容 Base URL 为 `https://api.deepseek.com`；仓库的非敏感 `config.toml` 已配置该地址与模型。密钥通过系统凭据库存储，固定短文本真实连接测试通过。
+- 隔离合成集合的 Ollama 检索、DeepSeek 真实问答（回答 57 字符、1 条引用）和学习摘要（131 字符）均通过；重启后活动嵌入、聊天模型及系统凭据恢复成功。合成测试数据已清理。项目当前数据目录有 0 个集合，活动嵌入已初始化为 Ollama。
+- `ragdb doctor` 最初因忽略系统凭据而误报缺少密钥；修复后实际运行退出码 0。凭据未写入仓库、TOML 或验收日志。用户已将云端嵌入改为本地 Ollama 嵌入，因此云端嵌入不再是本轮选定模型的验收项。
 
 ## 5.2 自动化与兼容性验收
 
@@ -30,7 +32,7 @@
 
 ## 5.3 真实服务联调
 
-执行时间：2026-09-25 10:07–10:09（Asia/Shanghai）。所有已执行的索引操作均使用新建隔离数据目录和一条合成资料；测试后已删除该目录。未调用云端服务，未下载模型。
+以下表格记录用户指定最终模型前的初始矩阵（2026-09-25 10:07–10:09，Asia/Shanghai）；后续选定模型的真实结果以上方“用户指定模型后的增量验收”为准。所有索引操作均使用新建隔离数据目录和合成资料，测试后已删除目录。
 
 | 验收项 | 服务与模型 | 状态与证据 |
 | --- | --- | --- |
@@ -47,4 +49,4 @@
 
 已推送步骤：5.1 `7cea17f`（使用指南）、5.2 `ac159b6`（自动化与兼容性验收）、5.3 的真实本地嵌入部分 `b093d6c`。本报告与状态同步作为下一项独立提交推送到 `codex/desktop-model-settings-acceptance`。
 
-阶段 5 **仍在进行中**。用户现在选择 Ollama 嵌入与 `deepseek-flash` 问答/学习生成；Ollama 嵌入已通过真实联调，云端问答与真实系统凭据链路仍待服务地址和本机安全配置的测试凭据。只有选定模型的真实链路通过，或用户明确接受并记录未验证限制，才可标为完成。当前分支不自动合并主线。
+阶段 5 **已完成**。用户最终选择的 Ollama 嵌入、`deepseek-flash` 问答/学习生成及系统凭据恢复均通过真实联调；失败、取消和重试路径也在隔离合成集合中验证。最终自动化回归 208 passed，实际 `ragdb doctor` 退出码 0。当前分支不自动合并主线。

@@ -8,7 +8,7 @@
 
 第五阶段已完成：用户选定的 Ollama `embeddinggemma:latest` 嵌入和 DeepSeek `deepseek-flash` 问答/学习生成均通过隔离合成集合的真实联调；系统凭据及重启恢复通过，合并前最终全量回归 216 passed，`ragdb doctor` 退出码 0。
 
-截至 2026-09-25，阶段 4 已进入 `main`。阶段 5 在 `codex/desktop-model-settings-acceptance` 分支逐步交付；详见 [验收记录](docs/acceptance/2026-09-25-desktop-model-settings.md)。
+截至 2026-09-25，阶段 1–5 均已进入 GitHub `main`。阶段 5 在 `codex/desktop-model-settings-acceptance` 分支逐步交付，并以 `5efca40` 合并推送；详见 [验收记录](docs/acceptance/2026-09-25-desktop-model-settings.md)。
 
 文档入口：[详细实施计划](docs/superpowers/plans/2026-09-24-desktop-model-settings-implementation.md) · [交付记录](progress.md) · [技术发现](findings.md)。历史测试结果仅代表当时的验证范围。
 
@@ -37,7 +37,7 @@
 - [x] 5.1 使用文档：README 和配置示例已更新；提交 `7cea17f` 已推送。
 - [x] 5.2 自动化验收：198 passed，CLI 帮助、受控桌面启动和 Windows 原生渲染完成；提交 `ac159b6` 已推送。
 - [x] 5.3 真实服务联调：Sentence Transformers 与 Ollama 嵌入切换、检索通过；`deepseek-flash` 问答/学习生成、系统凭据与重启恢复通过。云端嵌入不属于用户最终选定模型。
-- [x] 5.4 最终完成判定：已整理证据；216 项回归与 `ragdb doctor` 通过。用户已授权合并主线，合并前修正 `023496a` 已推送。
+- [x] 5.4 最终完成判定：已整理证据；216 项回归与 `ragdb doctor` 通过。合并前修正 `023496a` 与最终验收 `cd7e169` 分别推送后，已按用户指令合并主线并推送（`5efca40`）。
 
 详细步骤和完成标准见实施计划第 5 节，实际结果见[验收记录](docs/acceptance/2026-09-25-desktop-model-settings.md)。
 

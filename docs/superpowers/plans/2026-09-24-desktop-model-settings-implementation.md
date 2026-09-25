@@ -6,13 +6,13 @@
 
 ## GitHub 交付约定
 
-- 阶段 1–3 工作分支：`codex/desktop-model-settings`；阶段 4：`codex/desktop-model-settings-ui`。截至 2026-09-25，阶段 1–4 均已进入 `main`；阶段 5 分支为 `codex/desktop-model-settings-acceptance`。
+- 阶段 1–3 工作分支：`codex/desktop-model-settings`；阶段 4：`codex/desktop-model-settings-ui`；阶段 5：`codex/desktop-model-settings-acceptance`。截至 2026-09-25，阶段 1–5 均已进入 GitHub `main`，阶段 5 合并提交为 `5efca40`。
 - 每个步骤独立验证、形成单独提交并推送到同名 GitHub 分支；不提交用户已有的测试修改或“前端设计”草稿。
 - 验证失败时先修复并重跑受影响检查，再提交该阶段。
 
 ## 阶段
 
-当前状态（2026-09-25）：阶段 1–4 已完成并进入主线；阶段 5 按用户最终选定的 Ollama 嵌入与 DeepSeek `deepseek-flash` 问答/生成完成。真实联调、系统凭据恢复、216 项最终回归及 `ragdb doctor` 均通过；用户已授权合并主线。交付记录见 [progress.md](../../../progress.md) 与 [验收记录](../../acceptance/2026-09-25-desktop-model-settings.md)。
+当前状态（2026-09-25）：阶段 1–5 已完成并进入 GitHub 主线。阶段 5 按用户最终选定的 Ollama 嵌入与 DeepSeek `deepseek-flash` 问答/生成完成；真实联调、系统凭据恢复、216 项最终回归及 `ragdb doctor` 均通过，已按用户指令合并推送（`5efca40`）。交付记录见 [progress.md](../../../progress.md) 与 [验收记录](../../acceptance/2026-09-25-desktop-model-settings.md)。
 
 ### 1. 模型设置服务与凭据
 

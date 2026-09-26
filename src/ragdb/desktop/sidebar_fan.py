@@ -79,6 +79,8 @@ class FanCanvas(QWidget):
         self.entered = False
         self.active_slot = None
         self.transitions = {}
+        self._velocities = {}
+        self._initial_velocities = {}
         self.animation = QVariantAnimation(self)
         self.animation.valueChanged.connect(self._frame)
         self.animation.finished.connect(self._finished)
@@ -120,18 +122,32 @@ class FanCanvas(QWidget):
     def _frame(self, elapsed):
         for index, (start, target, delay, duration, kind) in self.transitions.items():
             t = max(0, min(1, (float(elapsed) - delay) / duration))
-            curve = QEasingCurve(kind)
-            if kind == QEasingCurve.Type.OutElastic:
-                curve.setAmplitude(1.05)
-                curve.setPeriod(.78)
-            amount = curve.valueForProgress(t)
-            values = [a + (b - a) * amount for a, b in zip(
-                (start.x, start.y, start.rotation, start.scale, start.opacity),
-                (target.x, target.y, target.rotation, target.scale, target.opacity))]
+            start_values = (start.x, start.y, start.rotation, start.scale, start.opacity)
+            end_values = (target.x, target.y, target.rotation, target.scale, target.opacity)
+            if kind is None:
+                # Hermite continuation preserves both position and velocity when
+                # another wheel event changes the target during a transition.
+                seconds = duration / 1000
+                velocity = self._initial_velocities.get(index, (0,) * 5)
+                values = [a + (b - a) * (3 * t*t - 2 * t*t*t)
+                          + v * seconds * (t*t*t - 2 * t*t + t)
+                          for a, b, v in zip(start_values, end_values, velocity)]
+                self._velocities[index] = tuple(
+                    (b - a) * (6 * t - 6 * t*t) / seconds + v * (3 * t*t - 4 * t + 1)
+                    for a, b, v in zip(start_values, end_values, velocity))
+            else:
+                curve = QEasingCurve(kind)
+                if kind == QEasingCurve.Type.OutElastic:
+                    curve.setAmplitude(1.05)
+                    curve.setPeriod(.78)
+                amount = curve.valueForProgress(t)
+                values = [a + (b - a) * amount for a, b in zip(start_values, end_values)]
+                self._velocities[index] = (0,) * 5
             self.poses[index] = FanPose(*values, target.layer)
         self.update()
 
     def _finished(self):
+        self._velocities.clear()
         for index, (_, target, *_rest) in self.transitions.items():
             self.poses[index] = target
         self.update()
@@ -139,24 +155,28 @@ class FanCanvas(QWidget):
         self._set_busy(False)
 
     def cycle(self, direction):
-        if self.busy or self.count <= 7:
+        if not self.entered or self.count <= 7:
             return
         self.leave_timer.stop()
         self.active_slot = None
-        old = self.visible_map()
         self.center = (self.center + direction) % self.count
+        direction = 1 if direction > 0 else -1
         new = self.visible_map()
         transitions = {}
-        for i in old.keys() | new.keys():
-            start = self.poses[i]
+        velocities = {}
+        for i, start in enumerate(self.poses):
+            velocity = self._velocities.get(i, (0,) * 5)
             if i in new:
                 target = fan_pose(new[i], min(7, self.count))
-                if i not in old:
-                    start = FanPose(direction * 640, target.y, direction * 30, .5, 0)
-                transitions[i] = (start, target, 0, 600 if i not in old else 500, QEasingCurve.Type.OutCubic)
+                if start.opacity <= .001 and not any(velocity):
+                    start = FanPose(direction * 200, target.y, direction * 30, .5, 0)
             else:
-                target = FanPose(-direction * 640, start.y, -direction * 30, .5, 0)
-                transitions[i] = (start, target, 0, 400, QEasingCurve.Type.InCubic)
+                if start.opacity <= .001 and not any(velocity):
+                    continue
+                target = FanPose(-direction * 200, start.y, -direction * 30, .5, 0)
+            velocities[i] = velocity
+            transitions[i] = (start, target, 0, 260, None)
+        self._initial_velocities = velocities
         self.center_changed.emit(self.center)
         self._animate(transitions, busy=True)
 
@@ -189,7 +209,7 @@ class FanCanvas(QWidget):
 
     def wheelEvent(self, event):
         event.accept()
-        if self.busy or self.count <= 7:
+        if not self.entered or self.count <= 7:
             self._wheel_amount = 0
             return
         pixels = not event.pixelDelta().isNull()
@@ -203,9 +223,9 @@ class FanCanvas(QWidget):
         self._wheel_amount += delta
         threshold = 40 if pixels else 120
         if abs(self._wheel_amount) >= threshold:
-            direction = 1 if self._wheel_amount > 0 else -1
-            self._wheel_amount = 0
-            self.cycle(direction)
+            steps = int(self._wheel_amount / threshold)
+            self._wheel_amount -= steps * threshold
+            self.cycle(steps)
         if event.phase() == Qt.ScrollPhase.ScrollEnd:
             self._wheel_amount = 0
 
@@ -231,6 +251,8 @@ class FanCanvas(QWidget):
 
     def hideEvent(self, event):
         self._wheel_amount = 0
+        self._velocities.clear()
+        self._initial_velocities.clear()
         self.animation.stop()
         self.leave_timer.stop()
         self.active_slot = None

@@ -36,7 +36,7 @@ def fan():
     APP.processEvents()
 
 
-def test_staggered_entry_and_pagination_lock(fan):
+def test_staggered_entry_and_continuous_pagination(fan):
     canvas = fan.canvas
     assert canvas.busy
     wheel(fan.canvas, -120)
@@ -50,11 +50,11 @@ def test_staggered_entry_and_pagination_lock(fan):
     wheel(fan.canvas, -120)
     assert canvas.center == 4 and canvas.busy
     wheel(fan.canvas, -120)
-    assert canvas.center == 4
+    assert canvas.center == 5
     wait_for(lambda: not canvas.busy)
-    assert set(canvas.visible_map()) == set(range(1, 8))
+    assert set(canvas.visible_map()) == set(range(2, 9))
     assert canvas.poses[0].opacity == 0
-    assert canvas.poses[7].opacity == 1
+    assert canvas.poses[8].opacity == 1
 
 
 def test_hover_lifts_card_pushes_neighbors_and_restores_on_leave(fan):
@@ -197,10 +197,11 @@ def test_wheel_direction_precision_and_no_extra_queued_pages(fan):
     wait_for(lambda: not c.busy)
     wheel(c, -120)
     assert c.center == 4
-    for _ in range(10):
+    for index in range(10):
         wheel(c, -120)
+        assert c.center == (5 + index) % 10  # every event updates immediately
     wait_for(lambda: not c.busy)
-    assert c.center == 4  # input during transition must not queue delayed flips
+    assert c.center == 4  # one full wrap, no pending queue
     wheel(c, 120)
     wait_for(lambda: not c.busy)
     assert c.center == 3
@@ -225,3 +226,41 @@ def test_partial_wheel_gesture_does_not_leak_across_hide(fan):
     APP.processEvents()
     wheel(c, pixel=-10)
     assert c.center == 3
+
+
+def test_continuous_scroll_preserves_pose_and_velocity_then_reverses(fan):
+    c = fan.canvas
+    wait_for(lambda: not c.busy)
+    wheel(c, -120)
+    c.animation.setCurrentTime(100)
+    before = list(c.poses)
+    velocities = dict(c._velocities)
+    wheel(c, -120)
+    assert c.center == 5 and c.busy
+    for i, pose in enumerate(before):
+        if pose.opacity > .01:
+            current = c.poses[i]
+            assert (current.x, current.y, current.rotation, current.scale, current.opacity) == pytest.approx(
+                (pose.x, pose.y, pose.rotation, pose.scale, pose.opacity))
+            assert c._velocities[i] == pytest.approx(velocities[i])
+    c.animation.setCurrentTime(70)
+    before_reverse = list(c.poses)
+    wheel(c, 120)
+    assert c.center == 4
+    for i, pose in enumerate(before_reverse):
+        if pose.opacity > .01:
+            assert c.poses[i].x == pytest.approx(pose.x)
+    wait_for(lambda: not c.busy)
+    assert sum(p.opacity == 1 for p in c.poses) == 7
+    assert all(c.poses[i] == fan_pose(slot, 7) for i, slot in c.visible_map().items())
+
+
+def test_large_wheel_delta_and_direction_change_do_not_wait_for_previous_animation(fan):
+    c = fan.canvas
+    wait_for(lambda: not c.busy)
+    wheel(c, -360)
+    assert c.center == 6
+    wheel(c, 120)
+    assert c.center == 5
+    wait_for(lambda: not c.busy)
+    assert c.center == 5

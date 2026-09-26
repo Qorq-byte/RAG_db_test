@@ -6,11 +6,23 @@
 
 ## 当前进度（2026-09-26）
 
-第一期知识库的八个里程碑及后续问答、学习产物、桌面工作台、模型设置均已完成。最近交付是桌面模型设置阶段 1–5：本地 Ollama `embeddinggemma:latest` 嵌入与 DeepSeek `deepseek-flash` 问答/学习生成在隔离合成集合中通过真实联调；系统凭据和重启恢复通过。合并前完整回归 **216 passed**，`ragdb doctor` 退出码 0。
+第一期知识库的八个里程碑，以及问答、学习产物、桌面工作台、模型设置和旧向量索引维护均已交付。最近完成的是**阶段 6：旧向量索引显式清理**，6.1–6.4 全部完成，已通过 `15d16e7` 合并 GitHub `main`；交付状态归档提交为 `3cbdc9b`。
 
-上述功能已进入 GitHub `main`；阶段 5 合并为 `5efca40`。阶段 6 开发与验收已完成：最终全量回归 **249 passed**，实际 CLI、Windows 桌面流程与 `ragdb doctor` 通过。各步骤已独立推送，并以 `15d16e7` 合并 GitHub `main`；Chroma 间歇性读取限制见[阶段 6 验收](docs/acceptance/2026-09-26-vector-index-maintenance.md)。
+- 最近产品验收：**249 passed in 66.63s**；实际 CLI、Windows 原生桌面维护流程与 `ragdb doctor` 通过。
+- 当前模型：Ollama `embeddinggemma:latest` 本地嵌入，DeepSeek `deepseek-flash` 问答/学习生成。真实模型联调证据来自阶段 5。
+- 已知限制：Chroma 曾出现间歇性 `Nothing found on disk`，根因尚未完全确定；活动索引不可读时维护服务会拒绝清理。
+- 下一阶段：**阶段 7 索引重建与读取可靠性，规划完成、尚未实施**。本轮为文档整理，未产生新的产品测试结果。
 
-文档入口：[阶段 6 详细计划](docs/superpowers/plans/2026-09-25-vector-index-maintenance-implementation.md) · [模型设置验收](docs/acceptance/2026-09-25-desktop-model-settings.md) · [上阶段实施计划](docs/superpowers/plans/2026-09-24-desktop-model-settings-implementation.md) · [交付记录](progress.md) · [技术发现](findings.md)。历史测试结果仅代表当时的验证范围。
+## 文档导航
+
+| 文档 | 用途 |
+| --- | --- |
+| [下一阶段详细计划](docs/superpowers/plans/2026-09-26-index-reliability-implementation.md) | 阶段 7 范围、分步任务、验收标准和首次实施入口 |
+| [阶段 6 验收记录](docs/acceptance/2026-09-26-vector-index-maintenance.md) | 最新测试结果、实际流程、已知限制和交付提交 |
+| [阶段 6 实施计划](docs/superpowers/plans/2026-09-25-vector-index-maintenance-implementation.md) | 已完成的索引维护步骤 |
+| [阶段 5 验收记录](docs/acceptance/2026-09-25-desktop-model-settings.md) | 模型设置、真实联调与凭据恢复 |
+| [交付记录](progress.md) / [技术发现](findings.md) | 时间线与后续实施依据；旧条目为历史快照 |
+| [使用说明](README.md) | CLI、桌面、模型设置及索引维护入口 |
 
 ## 已确定的技术边界
 
@@ -30,7 +42,8 @@
 | 2. 活动嵌入索引及命名空间 | complete | schema v4、SQLite 活动 profile、legacy 命名空间兼容与版本隔离接入 runtime；全量 163 项测试通过。 |
 | 3. 全集合安全重建 | complete | 当前代次跨来源重建、原子发布、取消/故障回滚、跨进程门禁及重启恢复；全量 178 项测试通过。 |
 | 4. 桌面设置页面 | complete | 本地/云端配置、凭据保护、外部覆盖提示、后台测试、重建取消和失败重试；198 项测试通过。 |
-| 5. 文档与最终验收 | complete | 使用指南、216 项最终回归、Ollama 与 DeepSeek 真实联调和系统凭据恢复通过。 |
+| 5. 模型设置最终验收 | complete | 216 项最终回归、Ollama 与 DeepSeek 真实联调和系统凭据恢复通过。 |
+| 6. 旧向量索引显式清理 | complete | 249 项最终回归，CLI 与桌面确认清理、活动保护和故障重试；`15d16e7` 已合并主线。 |
 
 ## 已完成：旧向量索引显式清理（阶段 6）
 
@@ -43,7 +56,18 @@
 - [x] 6.3 受保护的清理执行、故障恢复与重试：47 项定向测试通过。
 - [x] 6.4 隔离数据回归、使用说明与最终验收：249 项全量测试通过，CLI 与原生桌面流程通过，README 和验收记录已整理。
 
-## 上一阶段完成清单
+## 下一阶段：索引重建与读取可靠性（阶段 7）
+
+推荐优先处理阶段 6 留下的读取异常与新索引发布校验缺口。以下为计划事项，均未实施；完整范围与完成标准见[阶段 7 计划](docs/superpowers/plans/2026-09-26-index-reliability-implementation.md)。
+
+- [ ] 7.1 复现与归因：隔离重现微型索引读写、重开与资源累积，形成证据。
+- [ ] 7.2 客户端生命周期与针对性修复：明确所有权、异常释放和共享使用边界。
+- [ ] 7.3 发布前验证：全部非空目标集合可查询后才发布，失败或取消保留旧活动索引。
+- [ ] 7.4 联合验收与交付：重建、重开、检索和旧索引清理完整流程，更新文档后合并。
+
+实施从 7.1 开始，不预先把读取异常归因于持久化或资源泄漏。备份恢复和检索质量评估作为后续候选，暂不列入阶段 7。
+
+## 历史记录：阶段 5 完成清单
 
 - [x] 5.1 使用文档：README 和配置示例已更新；提交 `7cea17f` 已推送。
 - [x] 5.2 自动化验收：198 passed，CLI 帮助、受控桌面启动和 Windows 原生渲染完成；提交 `ac159b6` 已推送。

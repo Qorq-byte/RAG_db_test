@@ -2,6 +2,13 @@
 
 面向个人学习资料的本地 RAG 知识库命令行工具。它可将本地文件、网页和公开 GitHub 仓库导入知识集合，并通过语义检索与关键词检索返回带出处的结果。
 
+## 项目进度与计划
+
+- [当前进度总览](task_plan.md)：阶段 6 已完成并合并，最新产品回归 249 项通过。
+- [最新验收记录](docs/acceptance/2026-09-26-vector-index-maintenance.md)：索引维护的验证证据与已知限制。
+- [下一阶段规划](docs/superpowers/plans/2026-09-26-index-reliability-implementation.md)：阶段 7 索引重建与读取可靠性，尚未实施。
+- [交付记录](progress.md)与[技术发现](findings.md)：历史变化和实施依据。
+
 ## 要求与安装
 
 - Python 3.11（项目不支持 3.12+）

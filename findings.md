@@ -1,4 +1,13 @@
-# Findings: 桌面端实际体验与交互完善
+# 项目技术发现
+
+## 最新事实与下一阶段依据（2026-09-26）
+
+- 阶段 6 已合并并验收，最终全量 249 项通过；先前失败及修正过程见[验收记录](docs/acceptance/2026-09-26-vector-index-maintenance.md)。下方按日期保留历史快照，不应将旧 HEAD、测试数或模型支持范围当作现状。
+- 曾在新写入的微型 Chroma 索引中观察到 `Nothing found on disk`，发生于旧索引删除之前；后续独立与全量测试通过。触发条件和根因尚未确定，持久化时机与资源累积均属于待验证假设。
+- `EmbeddingRebuildService` 发布前使用 `has_chunks()` 核验 ID；该方法通过 `get(..., include=[])` 查询，不能据此证明所有目标集合均能执行向量检索。
+- `ChromaIndexCatalog` 已在操作结束时关闭自身客户端，并在清理前抽样查询活动索引；此保护不等同于重建发布前校验或逐向量一致性审计。
+- `ChromaVectorStore` 无显式关闭接口；runtime 的 `_embedding_context()` 每次创建新适配器。需要测量生命周期与所有权，不能直接推断其导致读取错误。
+- 阶段 7 推荐路线见[详细计划](docs/superpowers/plans/2026-09-26-index-reliability-implementation.md)，目前没有对应产品实现或新验收结果。
 
 ## 桌面设置交付（2026-09-24）
 

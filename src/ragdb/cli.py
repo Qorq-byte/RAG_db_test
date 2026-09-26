@@ -87,6 +87,8 @@ app.add_typer(artifact_app, name="artifact")
 app.add_typer(index_app, name="index")
 from ragdb.backup_cli import app as backup_app
 app.add_typer(backup_app, name="backup")
+from ragdb.evaluation_cli import app as evaluation_app
+app.add_typer(evaluation_app, name="evaluate")
 
 
 def _index_maintenance_service(ctx: typer.Context):

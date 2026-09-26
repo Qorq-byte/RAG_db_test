@@ -1,0 +1,288 @@
+{
+  "dataset": "ragdb-learning-v1",
+  "dataset_sha256": "17eadffbdcf6318a6f59a138d1e8c08fdc6b2a95295ae8c251d2ee6bcbf5354e",
+  "unit": "source (deduplicated in returned candidate order)",
+  "k": 3,
+  "query_count": 16,
+  "metrics": {
+    "recall": 0.9375,
+    "mrr": 0.96875,
+    "ndcg": 0.936877024538354
+  },
+  "latency_ms": {
+    "mean": 68.64675,
+    "p95": 98.655
+  },
+  "thresholds": {
+    "recall": 0.8,
+    "mrr": 0.75
+  },
+  "passed": true,
+  "queries": [
+    {
+      "id": "q01",
+      "query": "RAG 怎样减少回答幻觉并提供可核验依据？",
+      "ranked_sources": [
+        "rag",
+        "rebuild",
+        "rrf"
+      ],
+      "relevant": {
+        "rag": 1.0
+      },
+      "latency_ms": 59.724,
+      "recall": 1.0,
+      "mrr": 1.0,
+      "ndcg": 1.0
+    },
+    {
+      "id": "q02",
+      "query": "语义相近的文本如何转换成向量？",
+      "ranked_sources": [
+        "embedding",
+        "mrr",
+        "fts"
+      ],
+      "relevant": {
+        "embedding": 1.0
+      },
+      "latency_ms": 63.036,
+      "recall": 1.0,
+      "mrr": 1.0,
+      "ndcg": 1.0
+    },
+    {
+      "id": "q03",
+      "query": "检索精确错误码应该利用哪种索引？",
+      "ranked_sources": [
+        "rag",
+        "fts",
+        "rebuild"
+      ],
+      "relevant": {
+        "fts": 1.0
+      },
+      "latency_ms": 59.7,
+      "recall": 1.0,
+      "mrr": 0.5,
+      "ndcg": 0.6309297535714575
+    },
+    {
+      "id": "q04",
+      "query": "RRF 怎样融合不同列表中的排名？",
+      "ranked_sources": [
+        "rrf",
+        "backup",
+        "embedding"
+      ],
+      "relevant": {
+        "rrf": 1.0
+      },
+      "latency_ms": 78.863,
+      "recall": 1.0,
+      "mrr": 1.0,
+      "ndcg": 1.0
+    },
+    {
+      "id": "q05",
+      "query": "长文切片设置重叠区域有什么作用？",
+      "ranked_sources": [
+        "chunking",
+        "precision",
+        "rebuild"
+      ],
+      "relevant": {
+        "chunking": 1.0
+      },
+      "latency_ms": 98.655,
+      "recall": 1.0,
+      "mrr": 1.0,
+      "ndcg": 1.0
+    },
+    {
+      "id": "q06",
+      "query": "恢复备份前如何确认完整性并避免覆盖旧库？",
+      "ranked_sources": [
+        "backup",
+        "keyring",
+        "mrr"
+      ],
+      "relevant": {
+        "backup": 1.0
+      },
+      "latency_ms": 54.708,
+      "recall": 1.0,
+      "mrr": 1.0,
+      "ndcg": 1.0
+    },
+    {
+      "id": "q07",
+      "query": "API Key 应该存放在哪里？",
+      "ranked_sources": [
+        "keyring",
+        "fts",
+        "rebuild"
+      ],
+      "relevant": {
+        "keyring": 1.0
+      },
+      "latency_ms": 53.196,
+      "recall": 1.0,
+      "mrr": 1.0,
+      "ndcg": 1.0
+    },
+    {
+      "id": "q08",
+      "query": "重建向量失败时怎样保护旧的活动索引？",
+      "ranked_sources": [
+        "rebuild",
+        "precision",
+        "watch"
+      ],
+      "relevant": {
+        "rebuild": 1.0
+      },
+      "latency_ms": 46.465,
+      "recall": 1.0,
+      "mrr": 1.0,
+      "ndcg": 1.0
+    },
+    {
+      "id": "q09",
+      "query": "Precision 和 Recall 的分母有什么不同？",
+      "ranked_sources": [
+        "precision",
+        "watch",
+        "rrf"
+      ],
+      "relevant": {
+        "precision": 1.0
+      },
+      "latency_ms": 77.143,
+      "recall": 1.0,
+      "mrr": 1.0,
+      "ndcg": 1.0
+    },
+    {
+      "id": "q10",
+      "query": "首个相关结果排在第二位时 MRR 怎么计分？",
+      "ranked_sources": [
+        "mrr",
+        "embedding",
+        "ndcg"
+      ],
+      "relevant": {
+        "mrr": 1.0
+      },
+      "latency_ms": 51.987,
+      "recall": 1.0,
+      "mrr": 1.0,
+      "ndcg": 1.0
+    },
+    {
+      "id": "q11",
+      "query": "哪种指标同时考虑多级相关性和排名位置？",
+      "ranked_sources": [
+        "ndcg",
+        "rrf",
+        "rebuild"
+      ],
+      "relevant": {
+        "ndcg": 1.0
+      },
+      "latency_ms": 56.847,
+      "recall": 1.0,
+      "mrr": 1.0,
+      "ndcg": 1.0
+    },
+    {
+      "id": "q12",
+      "query": "监听目录时如何合并短时间重复文件事件？",
+      "ranked_sources": [
+        "watch",
+        "mrr",
+        "rrf"
+      ],
+      "relevant": {
+        "watch": 1.0
+      },
+      "latency_ms": 84.523,
+      "recall": 1.0,
+      "mrr": 1.0,
+      "ndcg": 1.0
+    },
+    {
+      "id": "q13",
+      "query": "更换嵌入模型时如何重建并安全切换？",
+      "ranked_sources": [
+        "rebuild",
+        "embedding",
+        "rag"
+      ],
+      "relevant": {
+        "embedding": 1.0,
+        "rebuild": 2.0
+      },
+      "latency_ms": 73.314,
+      "recall": 1.0,
+      "mrr": 1.0,
+      "ndcg": 1.0
+    },
+    {
+      "id": "q14",
+      "query": "关键词全文检索与语义向量检索有什么区别？",
+      "ranked_sources": [
+        "fts",
+        "rebuild",
+        "ndcg"
+      ],
+      "relevant": {
+        "fts": 2.0,
+        "embedding": 1.0
+      },
+      "latency_ms": 55.154,
+      "recall": 0.5,
+      "mrr": 1.0,
+      "ndcg": 0.8262346571285599
+    },
+    {
+      "id": "q15",
+      "query": "知识库怎样通过备份与原子切换保护已有数据？",
+      "ranked_sources": [
+        "rebuild",
+        "watch",
+        "backup"
+      ],
+      "relevant": {
+        "backup": 1.0,
+        "rebuild": 1.0
+      },
+      "latency_ms": 96.831,
+      "recall": 1.0,
+      "mrr": 1.0,
+      "ndcg": 0.9197207891481876
+    },
+    {
+      "id": "q16",
+      "query": "对检索结果进行评估时，召回率和平均倒数排名分别衡量什么？",
+      "ranked_sources": [
+        "mrr",
+        "ndcg",
+        "rrf"
+      ],
+      "relevant": {
+        "precision": 1.0,
+        "mrr": 1.0
+      },
+      "latency_ms": 88.202,
+      "recall": 0.5,
+      "mrr": 1.0,
+      "ndcg": 0.6131471927654584
+    }
+  ],
+  "embedding": {
+    "provider": "local",
+    "model": "offline-bigram-256"
+  },
+  "scope": "offline pipeline smoke test"
+}

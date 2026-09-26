@@ -288,3 +288,16 @@ uv run ragdb-gui --config D:/restored-library/config.toml
 ```
 
 备份包含所有已入库正文、向量及旧命名空间、对话、学习产物、业务日志和不含密钥的配置。库外原文件与模型缓存不复制，原始路径/URL仍作为来源引用；换机器后需重新配置密钥和模型服务。创建时暂停资料写入；恢复时逐文件校验SHA256与SQLite完整性，失败不发布新目录。备份文件含资料正文，请保存在你信任的位置。
+
+### 检索质量评估
+
+```powershell
+# 临时合成库，使用当前配置的真实嵌入模型
+uv run ragdb evaluate run report.json
+# 无需模型服务的离线管线冒烟
+uv run ragdb evaluate run offline-report.json --offline
+# 对已有集合使用自己的标注
+uv run ragdb evaluate run my-report.json --dataset labels.json --collection 我的集合 --k 5
+```
+
+自定义标注格式：`{"name":"my-eval","queries":[{"id":"q1","query":"问题","relevant":{"完整资料URI":1}}]}`。每条查询须至少一个正数相关性标注，可附加 `filters`。输出来源级 Recall@K、MRR@K、nDCG@K、延迟及逐题排名。默认 Recall≥0.8、MRR≥0.75；未达标退出码1并保留报告，可用 `--min-recall`、`--min-mrr` 调整。已有报告不覆盖。默认基准只使用内置合成资料；使用云端嵌入时，这些资料和查询会发送给所选服务。内置16题通过不代表全部用户资料质量。

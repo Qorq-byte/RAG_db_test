@@ -117,6 +117,35 @@ def index_list_stale(ctx: typer.Context) -> None:
         typer.echo("没有可清理的旧索引。")
 
 
+@index_app.command("clean-stale")
+def index_clean_stale(
+    ctx: typer.Context,
+    preview_id: Annotated[str, typer.Option("--preview-id", help="list-stale 输出的预览标识。")],
+    confirm: Annotated[bool, typer.Option("--confirm", help="确认永久清理该预览中的旧索引，旧模型需重建才能再次使用。")] = False,
+) -> None:
+    """清理已确认的精确旧索引清单；当前活动索引始终保护。"""
+    if not confirm:
+        typer.echo("请先查看 index list-stale 的目标；清理后旧模型需重建。确认后提供 --confirm。", err=True)
+        raise typer.Exit(ExitCode.USAGE_ERROR)
+    try:
+        result = _index_maintenance_service(ctx).clean(preview_id)
+    except RagdbError as error:
+        _exit_for_error(error)
+    except Exception:
+        _exit_for_error(StorageError("清理操作失败，请重新预览核对结果后重试。"))
+    typer.echo(f"已清理 {len(result.deleted)} 项；未清理 {len(result.remaining)} 项。")
+    for name in result.deleted:
+        typer.echo(f"已清理：{name}")
+    for name in result.remaining:
+        typer.echo(f"未清理：{name}")
+    if result.audit_warning:
+        typer.echo(result.audit_warning, err=True)
+    if result.error:
+        typer.echo(result.error, err=True)
+    if result.error or result.audit_warning:
+        raise typer.Exit(ExitCode.STORAGE_ERROR)
+
+
 def _collection_service(ctx: typer.Context) -> CollectionService:
     settings, database = _runtime(ctx)
     return ApplicationRuntime(settings, database).collection_service()

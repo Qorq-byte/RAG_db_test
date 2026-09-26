@@ -104,3 +104,25 @@ def test_main_window_hosts_maintenance_without_collection_and_protects_busy_clos
         release.set()
         finish(page)
         window.close()
+
+
+def test_cleanup_requires_confirmation_and_invalidates_preview(widget, monkeypatch):
+    from ragdb.application.index_maintenance import IndexCleanupResult
+    page, service = widget
+    item = IndexInventoryItem("old-index", uuid4(), "资料", "legacy", 1, "stale", "可清理")
+    service.preview = lambda: IndexInventory("a" * 64, "b" * 64, "b" * 64, (item,))
+    calls = []
+    service.clean = lambda token: calls.append(token) or IndexCleanupResult(("old-index",), ())
+    page.refresh_preview()
+    finish(page)
+    assert page.clean_button.isEnabled()
+    monkeypatch.setattr(page, "confirm_cleanup", lambda _: False)
+    page.clean_preview()
+    assert not calls and page.inventory is not None
+    monkeypatch.setattr(page, "confirm_cleanup", lambda _: True)
+    page.clean_preview()
+    page.clean_preview()
+    finish(page)
+    assert calls == ["a" * 64]
+    assert page.inventory is None and not page.clean_button.isEnabled()
+    assert "已清理：old-index" in page.view.toPlainText()

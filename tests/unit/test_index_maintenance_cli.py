@@ -52,3 +52,23 @@ def test_cli_preview_does_not_initialize_missing_database(tmp_path):
     output = runner.invoke(cli.app, ["--config", str(config), "index", "list-stale"])
     assert output.exit_code == cli.ExitCode.STORAGE_ERROR
     assert not missing.exists()
+
+
+def test_cli_clean_requires_explicit_confirmation(monkeypatch):
+    monkeypatch.setattr(cli, "_index_maintenance_service", lambda _: (_ for _ in ()).throw(AssertionError("no service access")))
+    output = runner.invoke(cli.app, ["index", "clean-stale", "--preview-id", "a" * 64])
+    assert output.exit_code == cli.ExitCode.USAGE_ERROR
+    assert "--confirm" in output.output
+
+
+def test_cli_clean_reports_partial_result(monkeypatch):
+    from ragdb.application.index_maintenance import IndexCleanupResult
+    calls = []
+    def clean(token):
+        calls.append(token)
+        return IndexCleanupResult(("deleted-index",), ("remaining-index",), "请重新预览")
+    monkeypatch.setattr(cli, "_index_maintenance_service", lambda _: SimpleNamespace(clean=clean))
+    output = runner.invoke(cli.app, ["index", "clean-stale", "--preview-id", "a" * 64, "--confirm"])
+    assert output.exit_code == cli.ExitCode.STORAGE_ERROR
+    assert calls == ["a" * 64]
+    assert "deleted-index" in output.stdout and "remaining-index" in output.stdout

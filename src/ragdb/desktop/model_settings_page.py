@@ -394,14 +394,16 @@ class ModelSettingsPage(PageShell):
             self.progress.setRange(0, 100)
             self.progress.setValue(100)
             self.feedback.setText(result.configuration_warning or f"已切换嵌入模型，完成 {result.chunk_count} 个切片。")
-        self._run("rebuild", rebuild, completed, "重建未完成。请检查模型服务和存储权限，重新加载当前状态后重试。")
+        self._run("rebuild", rebuild, completed, "重建或新索引查询校验未完成，旧索引仍保持活动。请检查模型服务和存储权限，重新加载当前状态后重试。")
 
     @Slot(object)
     def show_progress(self, progress):
         self.progress.setRange(0, max(1, progress.total_chunks))
         self.progress.setValue(progress.completed_chunks)
         self.progress.setFormat(f"{progress.completed_chunks} / {progress.total_chunks} 个切片")
-        if progress.source_id is not None:
+        if progress.phase == "verifying":
+            self.feedback.setText(f"正在验证集合 {progress.collection_id} 的新索引可查询性；通过后才切换模型。")
+        elif progress.source_id is not None:
             self.feedback.setText(f"正在重建集合 {progress.collection_id} / 资料 {progress.source_id}；导入和删除暂时暂停。")
 
     @staticmethod

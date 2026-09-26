@@ -86,6 +86,67 @@ def test_form_provider_visibility_password_and_rebuild_difference(page):
     assert page.runtime.settings.embedding.local_model != "replacement"
 
 
+def test_query_validation_progress_explains_publication_gate(page):
+    from uuid import uuid4
+
+    page.show_progress(EmbeddingRebuildProgress(8, 8, uuid4(), phase="verifying"))
+    assert "可查询性" in page.feedback.text()
+    assert "通过后才切换" in page.feedback.text()
+
+
+@pytest.mark.parametrize("outcome", ["query_failure", "cancel"])
+def test_real_query_validation_failure_or_cancel_can_retry(page, monkeypatch, outcome):
+    from ragdb.application.embedding_rebuild import EmbeddingRebuildService
+    from ragdb.domain.enums import SourceStatus, SourceType
+    from ragdb.domain.errors import StorageError
+    from ragdb.domain.models import Chunk, Collection, Source
+    from ragdb.infrastructure.database import SQLiteSourceRepository, SQLiteChunkRepository, SQLiteKeywordIndex
+    from ragdb.infrastructure.vectorstore import ChromaVectorStore
+
+    database = page.runtime.database
+    collection = page.runtime.collections.create(Collection(name="synthetic"))
+    source = SQLiteSourceRepository(database).create(Source(
+        collection_id=collection.id, source_type=SourceType.MANUAL_TEXT,
+        title="synthetic", uri="manual://synthetic", content_hash="a" * 64,
+        status=SourceStatus.READY, current_generation=1,
+        embedding_provider="local", embedding_model=page.active_embedding.local_model,
+    ))
+    chunk = Chunk(id="synthetic", collection_id=collection.id, source_id=source.id,
+                  source_content_hash="a" * 64, generation=1, ordinal=0,
+                  text="synthetic", normalized_text="synthetic")
+    SQLiteChunkRepository(database).add_many([chunk])
+    SQLiteKeywordIndex(database).index([chunk])
+    directory = page.runtime.settings.storage.data_dir / "chroma"
+    with ChromaVectorStore(directory) as old:
+        old.upsert([chunk], [[0.1, 0.2]])
+    provider = SimpleNamespace(embed_texts=lambda texts: [[0.1, 0.2, 0.3] for _ in texts])
+    monkeypatch.setattr("ragdb.application.embedding_rebuild.create_embedding_provider", lambda _: provider)
+    monkeypatch.setattr(page, "confirm", lambda *args: True)
+    page.embedding.local_model.setCurrentText("replacement")
+    original_verify = EmbeddingRebuildService._verify_query
+
+    def verify(service, *args):
+        if outcome == "query_failure":
+            raise StorageError("synthetic validation failure")
+        original_verify(service, *args)
+        page._cancel.set()
+
+    with monkeypatch.context() as patcher:
+        patcher.setattr(EmbeddingRebuildService, "_verify_query", verify)
+        page.rebuild()
+        finish(page)
+    assert page.active_embedding.local_model != "replacement"
+    assert ("查询校验未完成" if outcome == "query_failure" else "已取消") in page.feedback.text()
+    assert page.embedding.apply.isEnabled() and page.refresh.isEnabled()
+    with ChromaVectorStore(directory) as old:
+        assert old.search(collection.id, [0.1, 0.2], 1)
+    page.rebuild()
+    finish(page)
+    assert page.active_embedding.local_model == "replacement"
+    assert "已切换" in page.feedback.text()
+    assert not page.embedding.apply.isEnabled()
+
+
 def test_chat_save_is_immediate_and_restores_after_restart(page):
     page.chat.local_model.setCurrentText("local-chat-new")
     page.save_chat()

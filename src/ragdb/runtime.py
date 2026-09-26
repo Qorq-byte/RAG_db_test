@@ -66,6 +66,7 @@ class ApplicationRuntime:
         store = ChromaVectorStore(
             self.settings.storage.data_dir / self.settings.storage.chroma_directory,
             namespace_id=namespace,
+            operation_scoped=True,
         )
         gate = SQLiteEmbeddingOperationGate(self.database, (fingerprint, namespace))
         return active, store, gate

@@ -21,8 +21,9 @@
 
 | 验证 | 结果 | 适用范围 |
 | --- | --- | --- |
+| 当前主线全量复验 | **342 passed in 314.90s** | 2026-09-27，`main` 的 `31347c5` 当前工作区全套测试；退出码0，无失败或跳过。 |
 | 最终合并回归 | **69 passed in 99.72s** | 合并后的桌面、主题、模型设置、液滴、侧边栏轮播；不是全项目测试。 |
-| 最近一次全项目运行 | **335 passed、1 failed in 360.52s** | 液体按钮初版阶段；发生在后续参考还原和动效范围调整之前。 |
+| 历史全项目运行 | **335 passed、1 failed in 360.52s** | 液体按钮初版阶段；发生在后续参考还原和动效范围调整之前。 |
 | 全量失败用例单独复测 | **1 passed in 2.38s** | Chroma 微型索引读取用例；不代表根因已解决，也不将上一行改算为全量通过。 |
 | 更早的全量通过基线 | **325 passed in 202.96s** | 主题背景修复阶段；不是当前版本全量结果。 |
 
@@ -32,7 +33,15 @@
 python -m pytest tests/unit/test_desktop.py tests/unit/test_desktop_theme.py tests/unit/test_model_settings_page.py tests/unit/test_wet_paint.py tests/unit/test_sidebar_fan.py -q
 ```
 
-欢迎页原生滚动与启动验收、轮播连续滚动、按钮原生分帧等证据见下方专项记录。合并时没有重新运行全项目测试；本次文档整理不增加代码测试结果。
+欢迎页原生滚动与启动验收、轮播连续滚动、按钮原生分帧等证据见下方专项记录。合并时没有重新运行全项目测试；随后在当前主线完成上述342项全量复验。
+
+当前全量命令：
+
+```powershell
+.venv/Scripts/python.exe -m pytest -q --basetemp .data/verification-full-20260927-b -p no:cacheprovider --junitxml .data/verification-full-20260927-b.xml
+```
+
+初始沙箱执行因临时目录权限失败，未进入相关业务逻辑；经自动审批在沙箱外使用隔离目录完成验证。复跑请使用新的独立临时目录。本轮未修改产品代码、依赖或用户原有文件，未新增真实模型服务验收；Chroma 间歇异常本轮未复现，不能据此判定根因已解决。
 
 ## 已知限制与后续候选
 

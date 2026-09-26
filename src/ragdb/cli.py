@@ -72,6 +72,7 @@ chat_app = typer.Typer(help="基于集合资料进行多轮问答。", no_args_i
 chat_session_app = typer.Typer(help="管理持久化问答会话。", no_args_is_help=True)
 generate_app = typer.Typer(help="生成有来源依据的学习内容。", no_args_is_help=True)
 artifact_app = typer.Typer(help="管理已生成的学习产物。", no_args_is_help=True)
+index_app = typer.Typer(help="盘点和维护旧向量索引。", no_args_is_help=True)
 
 app.add_typer(collection_app, name="collection")
 app.add_typer(ingest_app, name="ingest")
@@ -83,6 +84,66 @@ app.add_typer(chat_app, name="chat")
 chat_app.add_typer(chat_session_app, name="session")
 app.add_typer(generate_app, name="generate")
 app.add_typer(artifact_app, name="artifact")
+app.add_typer(index_app, name="index")
+
+
+def _index_maintenance_service(ctx: typer.Context):
+    from ragdb.application.index_maintenance import IndexMaintenanceService
+
+    # Maintenance preview must not initialize storage, credentials or model clients.
+    settings = load_settings(config_path=ctx.find_root().obj.get("config_path", Path("config.toml")))
+    database = SQLiteDatabase(settings.storage.data_dir / settings.storage.sqlite_filename)
+    return IndexMaintenanceService(database, settings.storage.data_dir / settings.storage.chroma_directory)
+
+
+@index_app.command("list-stale")
+def index_list_stale(ctx: typer.Context) -> None:
+    """只读预览旧索引及需人工核查的对象，不执行清理。"""
+    try:
+        inventory = _index_maintenance_service(ctx).preview()
+    except RagdbError as error:
+        _exit_for_error(error)
+    except Exception:
+        _exit_for_error(StorageError("读取索引清单失败，请检查配置和存储目录。"))
+    typer.echo(f"活动命名空间：{inventory.active_namespace}")
+    typer.echo(f"预览标识：{inventory.preview_id}")
+    typer.echo("向量条数不是可释放的磁盘字节数。")
+    states = {"active": "活动索引（保护）", "stale": "可清理旧索引", "unknown": "需人工核查（保护）"}
+    for item in inventory.items:
+        typer.echo(f"[{states[item.state]}] {item.name}")
+        typer.echo(f"  集合：{item.collection_name or '-'}；命名空间：{item.namespace or '-'}；向量：{item.vector_count}")
+        typer.echo(f"  {item.reason}")
+    if not inventory.candidates:
+        typer.echo("没有可清理的旧索引。")
+
+
+@index_app.command("clean-stale")
+def index_clean_stale(
+    ctx: typer.Context,
+    preview_id: Annotated[str, typer.Option("--preview-id", help="list-stale 输出的预览标识。")],
+    confirm: Annotated[bool, typer.Option("--confirm", help="确认永久清理该预览中的旧索引，旧模型需重建才能再次使用。")] = False,
+) -> None:
+    """清理已确认的精确旧索引清单；当前活动索引始终保护。"""
+    if not confirm:
+        typer.echo("请先查看 index list-stale 的目标；清理后旧模型需重建。确认后提供 --confirm。", err=True)
+        raise typer.Exit(ExitCode.USAGE_ERROR)
+    try:
+        result = _index_maintenance_service(ctx).clean(preview_id)
+    except RagdbError as error:
+        _exit_for_error(error)
+    except Exception:
+        _exit_for_error(StorageError("清理操作失败，请重新预览核对结果后重试。"))
+    typer.echo(f"已清理 {len(result.deleted)} 项；未清理 {len(result.remaining)} 项。")
+    for name in result.deleted:
+        typer.echo(f"已清理：{name}")
+    for name in result.remaining:
+        typer.echo(f"未清理：{name}")
+    if result.audit_warning:
+        typer.echo(result.audit_warning, err=True)
+    if result.error:
+        typer.echo(result.error, err=True)
+    if result.error or result.audit_warning:
+        raise typer.Exit(ExitCode.STORAGE_ERROR)
 
 
 def _collection_service(ctx: typer.Context) -> CollectionService:

@@ -200,7 +200,7 @@ class SQLiteEmbeddingOperationGate:
                 "SELECT rebuild_active FROM embedding_operation_gate WHERE singleton_id = 1"
             ).fetchone()
             if row is None or row["rebuild_active"]:
-                raise StorageError("嵌入索引正在全局重建，暂时不能导入或删除资料。")
+                raise StorageError("嵌入索引正在维护或全局重建，暂时不能导入或删除资料。")
             self.ensure_current(connection)
             connection.execute(
                 "INSERT INTO embedding_ingestion_leases (lease_id, owner_pid, started_at) VALUES (?, ?, ?)",
@@ -226,7 +226,7 @@ class SQLiteEmbeddingOperationGate:
                 "SELECT COUNT(*) FROM embedding_ingestion_leases"
             ).fetchone()[0]
             if row is None or row["rebuild_active"] or ingestions:
-                raise StorageError("有资料正在导入或另一项嵌入重建正在运行，请稍后重试。")
+                raise StorageError("有资料正在导入或另一项索引维护/嵌入重建正在运行，请稍后重试。")
             connection.execute(
                 "UPDATE embedding_operation_gate SET rebuild_active = 1, rebuild_owner_pid = ? WHERE singleton_id = 1",
                 (os.getpid(),),

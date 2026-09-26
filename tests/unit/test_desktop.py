@@ -337,5 +337,7 @@ def test_runtime_pages_use_new_information_architecture() -> None:
 
     assert window.collections_page.sources.columnCount() == 3
     assert window.pages.widget(2).result_caption.text().startswith("结果")
-    assert window.pages.widget(5).states.currentWidget().count() == 3
+    tabs = window.pages.widget(5).states.currentWidget()
+    assert tabs.count() == 4
+    assert tabs.tabText(3) == "索引维护"
     window.close()

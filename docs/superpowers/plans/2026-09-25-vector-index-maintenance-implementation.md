@@ -2,9 +2,9 @@
 
 ## 状态与依据
 
-**状态：规划中，尚未实施。** [进度总览](../../../task_plan.md)中的桌面模型设置阶段 1–5 已完成；最近产品代码验收为 216 passed、`ragdb doctor` 退出码 0，详见[验收记录](../../acceptance/2026-09-25-desktop-model-settings.md)。
+**状态：6.1–6.4 开发与验收已完成（2026-09-26），文档推送后合并主线。** 最终全量回归 249 passed，CLI、Windows 原生桌面与 `ragdb doctor` 通过；结果与底层 Chroma 间歇性读取限制见[阶段 6 验收](../../acceptance/2026-09-26-vector-index-maintenance.md)。用户已授权执行本计划；本阶段边界见[维护设计](../specs/2026-09-25-vector-index-maintenance-design.md)。
 
-[模型设置设计](../specs/2026-09-24-desktop-model-settings-design.md)要求重建成功后保留旧 Chroma 命名空间，并将清理留给后续显式维护流程。当前 `ChromaVectorStore` 按 `ragdb_<集合 UUID>`（legacy）或 `ragdb_<集合 UUID>_<指纹前 24 位>` 命名集合；SQLite `active_embedding_profile.namespace_id` 是活动索引的权威来源。当前只有按已知集合与命名空间删除的方法，没有旧索引盘点或清理入口。
+[模型设置设计](../specs/2026-09-24-desktop-model-settings-design.md)要求重建成功后保留旧 Chroma 命名空间，并将清理留给后续显式维护流程。`ChromaVectorStore` 按 `ragdb_<集合 UUID>`（legacy）或 `ragdb_<集合 UUID>_<指纹前 24 位>` 命名集合；SQLite `active_embedding_profile.namespace_id` 是活动索引的权威来源。本阶段实施前只有按已知集合与命名空间删除的方法；现已补齐盘点和确认清理入口。
 
 ## 目标与边界
 
@@ -49,8 +49,8 @@
 - 成功清理后当前模型检索仍可用；失败、重复执行及进程重启后可以重新盘点并安全重试。
 - CLI、桌面定向测试与全量回归通过；每一步有独立提交和推送，最终验收与主线合并记录可追溯。
 
-## 实施前需核实的细节
+## 实施前核实项（已完成）
 
-- 当前 Chroma 版本的集合枚举结果与元数据读取形式；若旧版本创建的集合没有归属元数据，按“需人工核查”处理。
-- 现有 SQLite 门禁是否足以覆盖清理和模型重建的互斥；如需扩展，保持旧导入/重建行为兼容。
-- 桌面视图的确认文案和任务生命周期应遵循既有后台任务模式；不在本计划阶段假定界面已实现。
+- 已核实 Chroma 枚举、身份与元数据读取；缺失归属元数据按“需人工核查”处理。
+- 已复用并验证 SQLite 门禁覆盖维护、导入和重建互斥，包含死进程恢复。
+- 桌面已沿用后台任务模式，确认框默认取消，运行期间防重复执行与窗口提前关闭。

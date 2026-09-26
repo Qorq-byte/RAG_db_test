@@ -231,3 +231,22 @@ uv run python -m ragdb.desktop.app
 环境变量和 `.env` 中的字段优先于 `config.toml` 与页面设置，页面会标明来源并锁定被接管的字段。例如 `RAGDB_CHAT__CLOUD_API_KEY` 和 `RAGDB_EMBEDDING__CLOUD_API_KEY` 分别设置两类云端密钥。修改这些外部值后重启应用；不要将 `.env`、密钥或实际知识库数据提交到 Git。
 
 本项目的 `config.toml` 已选择本机 Ollama `embeddinggemma:latest` 与 DeepSeek `deepseek-flash`。DeepSeek [官方文档](https://api-docs.deepseek.com/)给出的 OpenAI 兼容 Base URL 是 `https://api.deepseek.com`，无需附加 `/v1`；仍需在系统凭据库或 `RAGDB_CHAT__CLOUD_API_KEY` 中安全提供密钥。首次在已有资料库启用 Ollama 嵌入时，应在模型设置页执行“重建并切换”。
+
+### 旧向量索引维护
+
+模型重建后，可以在“任务与诊断 → 索引维护”点击“预览旧索引”。页面会列出活动索引、可清理的旧索引和需人工核查的对象；预览本身不删除数据，向量条数也不等于可以释放的磁盘字节数。
+
+确认清单后点击“清理预览中的旧索引”，在确认框中核对目标。清理只作用于已确认归属且已停用的索引；当前活动索引始终保护。清理后的旧模型需要重新生成向量才能再次使用。
+
+CLI 支持相同流程：
+
+```powershell
+uv run ragdb index list-stale
+uv run ragdb index clean-stale --preview-id "<上一步输出的预览标识>" --confirm
+```
+
+执行前会重新核对预览、活动模型和集合身份。期间发生索引或集合变化时，旧预览失效，需要重新预览并确认。已有导入或重建任务时清理会被拒绝；清理执行期间导入、删除和重建暂时互斥，当前索引继续用于检索。
+
+如果当前资料的活动索引缺失、向量条数不足或暂时无法检索，程序会保留旧索引并拒绝清理。归属元数据缺失、名称不符合规则或所属知识集合已经删除的对象仅提示人工核查，不支持强制清理。清理不会调用嵌入或聊天服务，也不需要云端 API Key。
+
+部分清理失败时，界面和 CLI 会显示已清理与未清理的目标；修复问题后重新预览即可重试。操作日志可通过 `ragdb log list` 查看；日志保存开始/结束清单，不包含资料正文或密钥。Chroma 何时实际回收磁盘空间取决于其存储机制。

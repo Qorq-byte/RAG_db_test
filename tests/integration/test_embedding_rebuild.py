@@ -46,7 +46,7 @@ def make_chunk(collection_id, source_id, text, ordinal=0):
     )
 
 
-def setup_database(path: Path):
+def setup_database(path: Path, chunks_per_source: int = 2):
     database = SQLiteDatabase(path / "ragdb.sqlite3")
     database.initialize()
     collection_repo = SQLiteCollectionRepository(database)
@@ -76,7 +76,7 @@ def setup_database(path: Path):
         )
         source_repo.create(source)
         sources.append(source)
-        chunks.extend([make_chunk(collection.id, source.id, f"文本 {len(sources)}-{n}", n) for n in range(2)])
+        chunks.extend([make_chunk(collection.id, source.id, f"文本 {len(sources)}-{n}", n) for n in range(chunks_per_source)])
     chunk_repo.add_many(chunks)
     SQLiteKeywordIndex(database).index(chunks)
     old_vectors = [[0.1, 0.2] for _ in chunks]
@@ -479,6 +479,64 @@ def test_reader_reopen_never_resets_another_live_owner(tmp_path, monkeypatch):
         assert live.search(collections[0].id, [0.1, 0.2], 1)
         assert SQLiteEmbeddingProfileRepository(database).get()[0] == old_settings
     old_store.close()
+
+
+def test_rebuild_process_reopen_cli_cleanup_and_search_keeps_sqlite(tmp_path, monkeypatch):
+    import os
+    from ragdb.application.index_maintenance import IndexMaintenanceService
+
+    # Exercise successful cleanup on durable indexes above Chroma's default
+    # sync threshold. Tiny-index failure/refusal is covered separately; do not
+    # retry cleanup until it happens to pass or lower production thresholds.
+    database, collections, _, _, old_store, _ = setup_database(tmp_path, chunks_per_source=1001)
+    monkeypatch.setattr("ragdb.application.embedding_rebuild.create_embedding_provider", lambda _: FakeEmbeddingProvider())
+    with database.connect() as connection:
+        before_chunks = list(map(tuple, connection.execute("SELECT * FROM chunks ORDER BY id")))
+        before_fts = list(map(tuple, connection.execute("SELECT * FROM chunks_fts")))
+    candidate = EmbeddingSettings(local_model="replacement")
+    try:
+        assert EmbeddingRebuildService(database, tmp_path / "chroma").rebuild(candidate).changed
+    finally:
+        old_store.close()
+    config = tmp_path / "config.toml"
+    config.write_text(f"[storage]\ndata_dir = '{tmp_path.as_posix()}'\n", encoding="utf-8")
+    environment = dict(os.environ, PYTHONIOENCODING="utf-8")
+
+    def cli(*args):
+        return subprocess.run([sys.executable, "-m", "ragdb", "--config", str(config), *args],
+                              capture_output=True, text=True, encoding="utf-8", env=environment, timeout=30)
+
+    def search_in_fresh_process():
+        code = """
+import sys
+from pathlib import Path
+from ragdb.infrastructure.database import SQLiteDatabase, SQLiteEmbeddingProfileRepository, SQLiteCollectionRepository
+from ragdb.infrastructure.vectorstore import ChromaVectorStore
+root = Path(sys.argv[1])
+db = SQLiteDatabase(root / 'ragdb.sqlite3')
+namespace = SQLiteEmbeddingProfileRepository(db).get()[2]
+with ChromaVectorStore(root / 'chroma', namespace) as store:
+    for collection in SQLiteCollectionRepository(db).list_all():
+        assert len(store.search(collection.id, [0.1, 0.2, 0.3], 10)) == 10
+"""
+        child = subprocess.run([sys.executable, "-c", code, str(tmp_path)], capture_output=True, timeout=30)
+        assert child.returncode == 0, child.stderr
+
+    search_in_fresh_process()
+    preview = cli("index", "list-stale")
+    assert preview.returncode == 0, preview.stderr
+    preview_id = next(line.split("：", 1)[1] for line in preview.stdout.splitlines() if line.startswith("预览标识："))
+    refused = cli("index", "clean-stale", "--preview-id", preview_id)
+    assert refused.returncode == 2
+    service = IndexMaintenanceService(database, tmp_path / "chroma")
+    assert len(service.preview().candidates) == len(collections)
+    cleaned = cli("index", "clean-stale", "--preview-id", preview_id, "--confirm")
+    assert cleaned.returncode == 0, cleaned.stderr
+    assert not service.preview().candidates
+    search_in_fresh_process()
+    with database.connect() as connection:
+        assert list(map(tuple, connection.execute("SELECT * FROM chunks ORDER BY id"))) == before_chunks
+        assert list(map(tuple, connection.execute("SELECT * FROM chunks_fts"))) == before_fts
 
 
 @pytest.mark.parametrize("outcome", ["success", "failure", "cancel"])

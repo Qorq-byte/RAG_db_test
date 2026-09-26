@@ -42,3 +42,15 @@
 - 固定对照命令 `.venv/Scripts/python.exe scripts/probe_index_reads.py 48 --reopen-writer`：48 轮、192 次首次查询、0 次失败，30.50s。这是当前配置下的改善证据，不代表底层 Chroma 缺陷已被消除。未调整持久化阈值或依赖。
 
 - 修改后的定向验收：68 passed in 40.60s；补充共享存活者不被重置用例 1 passed in 2.26s。涵盖 ID 存在但查询失败、空结果、错误集合/代次/ID/来源/哈希、多集合第二项失败、查询前后取消、失败后重试、空集合、无新增模型请求和发布后独立进程读取。
+
+## 7.4 联合验收
+
+- 新增 CLI 子进程完整流程与桌面真实服务的失败/取消后重试：首次定向 3 passed in 14.63s。
+- Windows 原生 Qt：`$env:QT_QPA_PLATFORM = 'windows'; .venv/Scripts/python.exe -m pytest tests/unit/test_model_settings_page.py tests/unit/test_index_maintenance_widget.py -q`，22 passed in 9.80s。覆盖查询校验反馈、成功、失败、取消重试、控件恢复及维护确认；没有调用真实模型服务。
+- `.venv/Scripts/python.exe -m ragdb doctor` 退出码 0，11 项全部通过；这是本机环境与配置诊断，不是新增云端/模型 API 联调证据。
+- 首次全量 1 failed、284 passed in 95.97s：微型索引完整流程中，发布后新进程检索成功，但另一个清理进程的活动索引预检出现不可读并拒绝清理。只读复核保留 4 个活动索引、4 个旧索引、8 个 SQLite 切片和 8 个 FTS 条目，门禁已释放。此结果说明写入者释放边界无法覆盖所有微型索引读取场景，不能宣称根因已解决。
+- 成功清理验收改用每集合 1,001 条、共 4,004 条合成切片（高于默认 HNSW sync threshold 1,000）；不改变产品阈值。执行“重建 → 校验发布 → 独立进程检索 → CLI 预览 → 缺少确认时拒绝 → 确认清理 → 独立进程再次检索”，核对 SQLite 切片及 FTS 完全不变；1 passed in 17.93s。
+- 微型索引矩阵、固定诊断脚本、故障注入和活动不可读拒绝清理测试继续保留。成功流程与拒绝流程分别验证，不对失败测试反复运行直到偶然通过。
+
+- 最终全量：`.venv/Scripts/python.exe -m pytest -q`，**285 passed in 104.43s**。`git diff --check` 通过；用户原有 CLI 测试和两份前端草稿 SHA256 与起始值一致，锁文件未修改。
+- 交付提交：7.1 `fe037b9`、7.2 `69cde2b`、7.3 `3111aeb` 已逐步推送；7.4 记录与验收将独立提交推送，再合并主线。

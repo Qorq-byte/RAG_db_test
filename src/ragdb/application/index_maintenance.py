@@ -63,8 +63,8 @@ class IndexMaintenanceService:
             raise ConflictError("无效的预览标识，请先预览旧索引。")
         if not self.database.path.is_file():
             raise StorageError("知识库数据库不存在，未执行清理。")
-        with SQLiteEmbeddingOperationGate(self.database).rebuild():
-            inventory = self.preview()
+        with self.catalog.session(), SQLiteEmbeddingOperationGate(self.database).rebuild():
+            inventory = self._preview()
             if inventory.preview_id != preview_id:
                 raise ConflictError("索引或集合已变化，旧预览失效，请重新预览并确认。")
             candidates = inventory.candidates
@@ -115,6 +115,10 @@ class IndexMaintenanceService:
             return IndexCleanupResult(tuple(deleted), remaining, error, warning)
 
     def preview(self) -> IndexInventory:
+        with self.catalog.session():
+            return self._preview()
+
+    def _preview(self) -> IndexInventory:
         if not self.database.path.is_file():
             raise StorageError("尚未初始化知识库，请先打开工作台或创建知识集合。")
         active = self.profiles.get()

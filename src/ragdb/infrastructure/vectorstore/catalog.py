@@ -1,6 +1,7 @@
 """Enumerate existing Chroma collections without creating an empty database."""
 
 from dataclasses import dataclass
+from contextlib import contextmanager
 from pathlib import Path
 
 import chromadb
@@ -22,6 +23,15 @@ class ChromaIndexCatalog:
     def __init__(self, directory: Path) -> None:
         self.directory = directory
         self._opened_client = None
+
+    @contextmanager
+    def session(self):
+        try:
+            yield self
+        finally:
+            client, self._opened_client = self._opened_client, None
+            if client is not None:
+                client.close()
 
     def _client(self):
         if not (self.directory / "chroma.sqlite3").is_file():

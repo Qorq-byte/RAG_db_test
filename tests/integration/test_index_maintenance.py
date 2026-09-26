@@ -11,6 +11,18 @@ from ragdb.infrastructure.database.repository import embedding_profile_fingerpri
 from ragdb.infrastructure.vectorstore import ChromaVectorStore
 
 
+@pytest.fixture(autouse=True)
+def release_test_chroma_systems():
+    # The legacy vector store has no close API. Release only systems created by
+    # this test so many isolated HNSW databases do not exhaust Windows handles.
+    from chromadb.api.shared_system_client import SharedSystemClient
+    existing = set(SharedSystemClient._identifier_to_system)
+    yield
+    for key in set(SharedSystemClient._identifier_to_system) - existing:
+        SharedSystemClient._identifier_to_system.pop(key).stop()
+        SharedSystemClient._identifier_to_refcount.pop(key, None)
+
+
 @pytest.fixture
 def indexed(tmp_path):
     database = SQLiteDatabase(tmp_path / "ragdb.sqlite3")
@@ -26,10 +38,12 @@ def indexed(tmp_path):
             stored = client.create_collection(
                 name=ChromaVectorStore.collection_name(collection.id, namespace),
                 metadata={"ragdb_collection_id": str(collection.id)}, embedding_function=None,
+                configuration={"hnsw": {"batch_size": 3, "sync_threshold": 3}},
             )
-            stored.add(ids=["one"], embeddings=[[0.1, 0.2]], documents=["synthetic"])
-            # Establish a readable baseline before testing maintenance. Chroma's
-            # newly written HNSW segments can still be materializing after add.
+            # Keep these tiny historical-index fixtures durably materialized.
+            stored.add(ids=["one", "other-a", "other-b"],
+                       embeddings=[[0.1, 0.2], [0.8, 0.1], [0.9, 0.2]],
+                       documents=["synthetic", "second", "third"])
             import time
             from chromadb.errors import InternalError
             deadline = time.monotonic() + 5
@@ -96,6 +110,16 @@ def test_preview_requires_known_active_profile(tmp_path):
     with pytest.raises(StorageError, match="尚未初始化"):
         IndexMaintenanceService(database, tmp_path / "chroma").preview()
     assert not (tmp_path / "chroma").exists()
+
+
+def test_repeated_maintenance_releases_its_client_references(indexed):
+    from chromadb.api.shared_system_client import SharedSystemClient
+    service, _, _, _ = indexed
+    before = dict(SharedSystemClient._identifier_to_refcount)
+    for _ in range(3):
+        service.preview()
+    service.clean(service.preview().preview_id)
+    assert dict(SharedSystemClient._identifier_to_refcount) == before
 
 
 def test_clean_preserves_active_queries_unknown_objects_and_sqlite(indexed):

@@ -87,6 +87,10 @@ class ThemeManager(QObject):
     def set_reduce_motion(self, enabled: bool) -> None:
         self.reduce_motion = enabled
         self.settings.setValue("appearance/reduce_motion", enabled)
+        app = QApplication.instance()
+        if app and getattr(app, "_ragdb_theme_owner", lambda: None)() is self:
+            from ragdb.desktop.wet_paint import install_wet_paint
+            install_wet_paint(app, enabled)
         self.changed.emit(self.resolved_mode().value, enabled)
 
     def sidebar_width(self) -> int:
@@ -140,6 +144,8 @@ class ThemeManager(QObject):
                 palette.setColor(role, QColor(colors[token]))
             app.setPalette(palette)
             app.setStyleSheet(build_stylesheet(colors))
+            from ragdb.desktop.wet_paint import install_wet_paint
+            install_wet_paint(app, self.reduce_motion)
         self.changed.emit(resolved.value, self.reduce_motion)
 
 
@@ -161,11 +167,17 @@ def build_stylesheet(tokens: dict[str, str]) -> str:
     QLabel[status="success"] {{ color: {tokens["success"]}; background: {tokens["raised"]}; padding: 3px 8px; border-radius: 8px; }}
     QLabel[status="warning"] {{ color: {tokens["warning"]}; background: {tokens["raised"]}; padding: 3px 8px; border-radius: 8px; }}
     QLabel[status="failure"] {{ color: {tokens["danger"]}; background: {tokens["raised"]}; padding: 3px 8px; border-radius: 8px; }}
-    QPushButton {{ background: {tokens["raised"]}; border: 1px solid {tokens["border"]}; border-radius: 7px; padding: 7px 12px; }}
-    QPushButton:hover {{ border-color: {tokens["accent"]}; }}
-    QPushButton:focus, QToolButton:focus, QComboBox:focus, QListWidget:focus, QTableWidget:focus {{ outline: none; border: 2px solid {tokens["accent"]}; }}
-    QPushButton[primary="true"] {{ background: {tokens["accent"]}; color: #071216; border-color: {tokens["accent"]}; font-weight: 600; }}
-    QPushButton[danger="true"] {{ color: {tokens["danger"]}; }}
+    QPushButton, QToolButton {{ background: #6366f1; color: white; border: 2px solid transparent; border-radius: 4px; padding: 8px 14px; font-weight: 600; }}
+    QPushButton:hover, QToolButton:hover, QPushButton[wetNear="true"], QToolButton[wetNear="true"] {{ background: #4f46e5; color: white; }}
+    QPushButton:focus, QToolButton:focus {{ border-color: #a5b4fc; outline: none; }}
+    QComboBox:focus, QListWidget:focus, QTableWidget:focus {{ outline: none; border: 2px solid {tokens["accent"]}; }}
+    QPushButton[danger="true"] {{ background: #e11d48; color: white; }}
+    QPushButton[danger="true"]:hover, QPushButton[danger="true"][wetNear="true"] {{ background: #be123c; }}
+    QPushButton[navItem="true"][wetNear="true"], QPushButton[navItem="true"]:hover {{ background: #4f46e5; color: white; }}
+    QToolButton[themeIcon="true"] {{ padding: 0; background: transparent; }}
+    QToolButton[themeIcon="true"]:checked {{ background: #6366f1; }}
+    QToolButton[themeIcon="true"][wetNear="true"] {{ background: #4f46e5; }}
+    QPushButton:disabled, QToolButton:disabled {{ background: {tokens["border"]}; color: {tokens["muted"]}; }}
     QLineEdit, QComboBox, QTextEdit, QTextBrowser, QListWidget, QTableWidget, QTabWidget::pane {{ background: {tokens["panel"]}; border: 1px solid {tokens["border"]}; border-radius: 8px; padding: 7px; selection-background-color: {tokens["accent_soft"]}; }}
     QTabBar::tab {{ padding: 8px 16px; color: {tokens["muted"]}; border-bottom: 2px solid transparent; }}
     QTabBar::tab:selected {{ color: {tokens["text"]}; border-bottom-color: {tokens["accent"]}; font-weight: 650; }}

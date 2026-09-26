@@ -109,9 +109,9 @@ class WelcomePage(QWidget):
         self.setStyleSheet("""
             QWidget#welcomePage, QGraphicsView#welcomeScene { background: #fafafa; border: none; }
             QLabel { background: transparent; border: none; color: #1f2937; font-family: 'Segoe UI'; }
-            QPushButton#welcomeEnter { background: #111827; color: white; border: 2px solid #111827;
-                border-radius: 12px; font: 600 16px 'Microsoft YaHei UI'; }
-            QPushButton#welcomeEnter:hover { background: #374151; }
+            QPushButton#welcomeEnter { background: #6366f1; color: white; border: 2px solid transparent;
+                border-radius: 4px; font: 600 16px 'Microsoft YaHei UI'; }
+            QPushButton#welcomeEnter:hover, QPushButton#welcomeEnter[wetNear="true"] { background: #4f46e5; }
             QPushButton#welcomeEnter:focus { border-color: #60a5fa; }
             QPushButton#welcomeEnter:disabled { background: #6b7280; border-color: #6b7280; }
         """)

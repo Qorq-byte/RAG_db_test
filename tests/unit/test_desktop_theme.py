@@ -35,12 +35,12 @@ def background(window):
     return image.pixelColor(int(point.x() * ratio), int(point.y() * ratio)).name()
 
 
-def test_actual_combobox_switch_changes_rendered_background_and_persists(ui):
+def test_actual_icon_switch_changes_rendered_background_and_persists(ui):
     window, manager = ui
     for mode, colors in ((ThemeMode.LIGHT, LIGHT), (ThemeMode.DARK, DARK), (ThemeMode.LIGHT, LIGHT)):
-        window.top_bar.theme.setCurrentIndex(window.top_bar.theme.findData(mode))
+        window.top_bar.theme.buttons[mode].click()
         APP.processEvents()
-        assert manager.mode is mode  # Qt itemData is str, must be normalized
+        assert manager.mode is mode
         assert manager.settings.value("appearance/theme") == mode.value
         assert background(window) == colors["window"]
         assert APP.palette().color(QPalette.ColorRole.Base).name() == colors["panel"]

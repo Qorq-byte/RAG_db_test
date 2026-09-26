@@ -5,7 +5,6 @@ from random import choice
 from PySide6.QtCore import QEasingCurve, Property, QPropertyAnimation, QRect, Qt, Signal
 from PySide6.QtGui import QColor, QEnterEvent, QKeyEvent, QMouseEvent, QPainter, QPen
 from PySide6.QtWidgets import (
-    QComboBox,
     QFrame,
     QHBoxLayout,
     QLabel,
@@ -99,6 +98,7 @@ class SidebarResizeHandle(QToolButton):
 
     def __init__(self) -> None:
         super().__init__()
+        self.setProperty("wetPaintDisabled", True)
         self.setCursor(QtCursor.horizontal_resize())
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.setToolTip("拖拽或使用左右方向键调整导航栏宽度")
@@ -320,7 +320,7 @@ class SidebarWidget(QWidget):
         colors = DARK if _mode == ThemeMode.DARK.value else LIGHT
         self.footer_toggle.setStyleSheet(f"""
             QToolButton {{ background: transparent; color: {colors['muted']}; border: 1px solid transparent; border-radius: 6px; padding: 3px 6px; font-size: 12px; }}
-            QToolButton:hover {{ background: {colors['raised']}; color: {colors['text']}; }}
+            QToolButton:hover, QToolButton[wetNear="true"] {{ background: #4f46e5; color: white; }}
             QToolButton:focus {{ border-color: {colors['accent']}; }}
         """)
         if reduce_motion:
@@ -397,14 +397,8 @@ class TopBar(QWidget):
         self.collection.setProperty("muted", True)
         self.task_status = QLabel("后台空闲")
         self.task_status.setProperty("muted", True)
-        self.theme = QComboBox()
-        self.theme.addItem("跟随系统", ThemeMode.SYSTEM)
-        self.theme.addItem("浅色", ThemeMode.LIGHT)
-        self.theme.addItem("深色", ThemeMode.DARK)
-        self.theme.setCurrentIndex(max(0, self.theme.findData(theme_manager.mode)))
-        self.theme.currentIndexChanged.connect(
-            lambda _index: theme_manager.set_mode(self.theme.currentData())
-        )
+        from ragdb.desktop.theme_switcher import ThemeSwitcher
+        self.theme = ThemeSwitcher(theme_manager)
         self.detail_button = QToolButton()
         self.detail_button.setText("详情")
         self.detail_button.setToolTip("显示或隐藏详情面板")

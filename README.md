@@ -4,9 +4,9 @@
 
 ## 项目进度与计划
 
-- [当前进度总览](task_plan.md)：阶段 7 已完成，最新产品回归 285 项通过。
+- [当前进度总览](task_plan.md)：阶段 7 开发与验收完成，最新产品回归 285 项通过，主线合并待授权。
 - [最新验收记录](docs/acceptance/2026-09-26-index-reliability.md)：索引可靠性的验证证据、失败历史与剩余限制。
-- [阶段 7 实施计划](docs/superpowers/plans/2026-09-26-index-reliability-implementation.md)：索引重建与读取可靠性，7.1–7.4 已完成。
+- [阶段 7 实施计划](docs/superpowers/plans/2026-09-26-index-reliability-implementation.md)：索引重建与读取可靠性，开发与验收已完成，合并待授权。
 - [交付记录](progress.md)与[技术发现](findings.md)：历史变化和实施依据。
 
 ## 要求与安装

@@ -2,7 +2,7 @@
 
 ## 状态与依据
 
-**状态：7.1–7.4 已完成，最终全量 285 项通过；待本步骤推送后合并主线。** 本文是基于当前交付证据整理的推荐执行路线，具体底层修复以 7.1 的调查结果为准。调查结果见 [阶段 7 验收记录](../../acceptance/2026-09-26-index-reliability.md)。
+**状态：7.1–7.3 完成，7.4 验收和分步推送完成，主线合并待用户明确授权。最终全量 285 项通过。** 本文是基于当前交付证据整理的推荐执行路线，具体底层修复以 7.1 的调查结果为准。调查结果见 [阶段 7 验收记录](../../acceptance/2026-09-26-index-reliability.md)。
 
 基线为 GitHub `main` 的 `3cbdc9b`：阶段 6 已通过 `15d16e7` 合并，最终回归 249 passed，CLI、Windows 原生桌面与 `ragdb doctor` 通过，详见[验收记录](../../acceptance/2026-09-26-vector-index-maintenance.md)。当前模型组合继续使用本地 Ollama `embeddinggemma:latest` 嵌入和 DeepSeek `deepseek-flash` 问答/学习生成。
 

@@ -8,6 +8,7 @@ from chromadb.errors import ChromaError
 
 from ragdb.domain.errors import ConflictError, StorageError
 from ragdb.infrastructure.vectorstore.clients import open_client, close_client
+from ragdb.infrastructure.vectorstore.query import query_collection, read_collection
 
 
 @dataclass(frozen=True)
@@ -83,11 +84,13 @@ class ChromaIndexCatalog:
                 raise ConflictError("活动索引身份已变化，请重新预览。")
             if collection.count() == 0:
                 return
-            sample = collection.get(limit=1, include=["embeddings"])
+            sample = read_collection(collection, self.directory, "get",
+                                     {"limit": 1, "include": ["embeddings"]})
             embeddings = sample.get("embeddings")
             if embeddings is None or len(embeddings) != 1:
                 raise StorageError("活动索引缺少可验证的向量，未执行清理。")
-            result = collection.query(query_embeddings=[embeddings[0]], n_results=1, include=[])
+            result = query_collection(collection, directory=self.directory,
+                                      query_embeddings=[embeddings[0]], n_results=1, include=[])
             if not result["ids"] or not result["ids"][0]:
                 raise StorageError("活动索引无法返回查询结果，未执行清理。")
         except (ChromaError, ValueError, OSError) as exc:

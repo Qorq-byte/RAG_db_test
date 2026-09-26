@@ -4,6 +4,8 @@
 
 ## 2026-09-27 当前主线全量复验
 
+后续收尾：用户授权完成所有剩余项并逐步上传。验收记录已通过9c2499b推送，实施设计通过687bac3推送。索引读取恢复证据见[专项验收](docs/acceptance/2026-09-27-index-reader-recovery.md)：最终86项定向通过，384次真实合成查询全部成功，6次通过独立读取进程恢复。应用修正不等于上游缺陷根因修复。
+
 基于 `main` 的 `31347c5`，执行 `.venv/Scripts/python.exe -m pytest -q --basetemp .data/verification-full-20260927-b -p no:cacheprovider --junitxml .data/verification-full-20260927-b.xml`，结果 **342 passed in 314.90s (0:05:14)**，退出码0，无失败或跳过。测试报告保存在本地忽略目录 `.data/`。
 
 初始沙箱运行在 pytest 临时目录准备阶段遇到 `PermissionError: [WinError 5]`；改用工作区临时目录仍有同类权限阻塞，停止无效运行后，经自动审批在沙箱外使用隔离目录完成全量。环境阻塞不计为产品回归。本轮未修改产品代码、依赖或用户原有测试与设计文件，未新增真实模型服务验收；未复现 Chroma 微型索引异常，但仍保留其根因调查待办。

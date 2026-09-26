@@ -20,6 +20,7 @@ from ragdb.domain.errors import StorageError
 from ragdb.domain.models import Chunk, RetrievedChunk, SourcePosition
 from ragdb.application.metadata import tag_index_key
 from ragdb.infrastructure.vectorstore.clients import open_client, close_client
+from ragdb.infrastructure.vectorstore.query import query_collection
 
 
 ChromaScalar: TypeAlias = str | int | float | bool
@@ -328,7 +329,8 @@ class ChromaVectorStore:
             count = collection.count()
             if count == 0:
                 return []
-            result = collection.query(
+            result = query_collection(collection,
+                directory=self.directory,
                 query_embeddings=[list(query_embedding)],
                 n_results=min(limit, count),
                 where=_build_where(filters),

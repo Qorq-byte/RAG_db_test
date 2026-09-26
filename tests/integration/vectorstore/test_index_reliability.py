@@ -2,7 +2,7 @@
 
 import subprocess
 import sys
-from uuid import UUID, uuid4
+from uuid import uuid4
 
 import pytest
 from chromadb.api.shared_system_client import SharedSystemClient
@@ -30,13 +30,13 @@ def test_tiny_indexes_query_after_close_and_process_reopen(tmp_path, count, indi
                 store.upsert(batch, [[0.1, 0.2] for _ in batch])
             assert len(store.search(collection_id, [0.1, 0.2], count)) == count
     finally:
-        store._client.close()
+        store.close()
     reopened = ChromaVectorStore(directory)
     try:
         for collection_id in collections:
             assert len(reopened.search(collection_id, [0.1, 0.2], count)) == count
     finally:
-        reopened._client.close()
+        reopened.close()
     code = """
 import sys
 from pathlib import Path
@@ -47,7 +47,7 @@ try:
     for value in sys.argv[3:]:
         assert len(store.search(UUID(value), [0.1, 0.2], int(sys.argv[2]))) == int(sys.argv[2])
 finally:
-    store._client.close()
+    store.close()
 """
     result = subprocess.run(
         [sys.executable, "-c", code, str(directory), str(count), *map(str, collections)],
@@ -66,5 +66,76 @@ def test_unclosed_adapters_accumulate_client_references(tmp_path):
         assert SharedSystemClient._identifier_to_refcount[identifier] == 24
     finally:
         for store in stores:
-            store._client.close()
+            store.close()
     assert SharedSystemClient._identifier_to_refcount == baseline
+
+
+def test_close_is_idempotent_and_does_not_close_other_owner(tmp_path):
+    from ragdb.domain.errors import StorageError
+
+    baseline = dict(SharedSystemClient._identifier_to_refcount)
+    first = ChromaVectorStore(tmp_path / "chroma")
+    with ChromaVectorStore(tmp_path / "chroma") as second:
+        first.close()
+        first.close()
+        assert second.search(uuid4(), [0.1, 0.2], 1) == []
+        with pytest.raises(StorageError, match="已关闭"):
+            first.search(uuid4(), [0.1, 0.2], 1)
+    assert SharedSystemClient._identifier_to_refcount == baseline
+
+
+def test_operation_scoped_clients_release_on_success_and_failure(tmp_path):
+    from ragdb.domain.errors import StorageError
+
+    baseline = dict(SharedSystemClient._identifier_to_refcount)
+    store = ChromaVectorStore(tmp_path / "chroma", operation_scoped=True)
+    assert not (tmp_path / "chroma").exists()
+    for _ in range(12):
+        assert store.search(uuid4(), [0.1, 0.2], 1) == []
+        assert SharedSystemClient._identifier_to_refcount == baseline
+        with pytest.raises(ValueError):
+            store.search(uuid4(), [], 1)
+        assert SharedSystemClient._identifier_to_refcount == baseline
+    store.close()
+    with pytest.raises(StorageError, match="已关闭"):
+        store.search(uuid4(), [0.1, 0.2], 1)
+
+
+def test_parallel_owners_release_without_interrupting_queries(tmp_path):
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Barrier
+
+    baseline = dict(SharedSystemClient._identifier_to_refcount)
+    barrier = Barrier(2)
+
+    def run():
+        with ChromaVectorStore(tmp_path / "chroma") as store:
+            barrier.wait(timeout=10)
+            for _ in range(6):
+                assert store.search(uuid4(), [0.1, 0.2], 1) == []
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        futures = [executor.submit(run) for _ in range(2)]
+        for future in futures:
+            future.result(timeout=20)
+    assert SharedSystemClient._identifier_to_refcount == baseline
+
+
+def test_runtime_services_do_not_retain_vector_clients(tmp_path, monkeypatch):
+    from ragdb.config import AppSettings, StorageSettings
+    from ragdb.infrastructure.database import SQLiteDatabase
+    from ragdb.runtime import ApplicationRuntime
+
+    class Provider:
+        def embed_texts(self, texts):
+            return [[0.1, 0.2] for _ in texts]
+
+    monkeypatch.setattr("ragdb.runtime.create_embedding_provider", lambda _: Provider())
+    database = SQLiteDatabase(tmp_path / "ragdb.sqlite3")
+    database.initialize()
+    runtime = ApplicationRuntime(AppSettings(storage=StorageSettings(data_dir=tmp_path)), database)
+    baseline = dict(SharedSystemClient._identifier_to_refcount)
+    for _ in range(12):
+        assert runtime.collection_service().list_all() == []
+        assert runtime.search_service().search(uuid4(), "synthetic") == []
+        assert SharedSystemClient._identifier_to_refcount == baseline

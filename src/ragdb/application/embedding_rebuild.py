@@ -135,6 +135,8 @@ class EmbeddingRebuildService:
                     except Exception:
                         exc.add_note("部分暂存向量清理失败；旧索引仍然活动，重试时会重新清理暂存空间。")
                 raise
+            finally:
+                target.close()
 
     @staticmethod
     def _check_cancel(should_cancel: Callable[[], bool] | None) -> None:

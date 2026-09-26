@@ -18,3 +18,13 @@
 下一步保持现有服务接口：显式创建的适配器提供幂等 `close()` 和上下文管理；runtime 服务使用按向量操作打开/关闭的适配器，纯 SQLite 查询不打开 Chroma，CLI 和桌面任务异常退出也不遗留客户端。重建持有独立适配器直到完成或回滚。共享系统仅通过 Chroma 公共 `close()` 释放自己的引用，不直接停止其他使用者的系统。
 
 发布验证使用本轮已生成向量，对所有非空目标集合查询并核对当前切片身份；查询失败或取消沿用暂存回滚。每个集合一次抽样验证不等于全索引质量或持久损坏审计。
+
+## 7.2 客户端所有权
+
+- `ChromaVectorStore.close()` 幂等；上下文退出释放；关闭后拒绝操作。默认显式创建的适配器由调用者持有和关闭。
+- runtime 创建 `operation_scoped=True` 适配器，不在构造服务时打开 Chroma；每次向量操作在 `finally` 关闭，适配器可以供后续操作继续使用。适用于 CLI、目录监听、桌面导入、问答和生成的检索；服务创建失败、模型调用失败和纯 SQLite 操作均不持有客户端。
+- 重建服务持有一个独立客户端，成功、取消、异常回滚后统一释放；维护服务保持每次 session 释放。
+- 适配器内部锁防止同一实例操作中被关闭；所有生产 Chroma 客户端共用创建/释放锁，避免 Chroma 系统注册表创建与最后一个引用退出并发。锁不覆盖不同实例的向量查询，不直接操作 Chroma 私有注册表。
+- 权衡：runtime 的每次向量操作可能重开本地系统，优先确保确定性释放；本阶段不引入连接池。私有引用计数只用于测试证据，不作为生产逻辑。
+
+- 定向命令：`.venv/Scripts/python.exe -m pytest tests/integration/vectorstore tests/integration/test_embedding_rebuild.py tests/integration/test_index_maintenance.py tests/unit/test_model_settings_page.py -q`；85 passed in 46.36s。覆盖重复释放、异常释放、并发存活者、runtime 12 次服务调用引用恢复、重建三类退出及独立进程重开。

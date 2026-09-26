@@ -4,11 +4,10 @@ from dataclasses import dataclass
 from contextlib import contextmanager
 from pathlib import Path
 
-import chromadb
-from chromadb.config import Settings
 from chromadb.errors import ChromaError
 
 from ragdb.domain.errors import ConflictError, StorageError
+from ragdb.infrastructure.vectorstore.clients import open_client, close_client
 
 
 @dataclass(frozen=True)
@@ -31,15 +30,13 @@ class ChromaIndexCatalog:
         finally:
             client, self._opened_client = self._opened_client, None
             if client is not None:
-                client.close()
+                close_client(client)
 
     def _client(self):
         if not (self.directory / "chroma.sqlite3").is_file():
             raise StorageError("向量数据库已不存在，请重新预览并核对存储目录。")
         if self._opened_client is None:
-            self._opened_client = chromadb.PersistentClient(
-                path=str(self.directory), settings=Settings(anonymized_telemetry=False)
-            )
+            self._opened_client = open_client(self.directory)
         return self._opened_client
 
     def snapshot(self) -> tuple[VectorCollectionSnapshot, ...]:

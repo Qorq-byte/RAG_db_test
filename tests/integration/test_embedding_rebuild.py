@@ -331,3 +331,30 @@ def test_rebuild_gate_blocks_another_process(tmp_path):
     assert result.returncode != 0
     assert b"StorageError" in result.stderr
     assert b"unexpected ingestion" not in result.stdout
+
+
+@pytest.mark.parametrize("outcome", ["success", "failure", "cancel"])
+def test_rebuild_releases_its_client_on_every_exit(tmp_path, monkeypatch, outcome):
+    from chromadb.api.shared_system_client import SharedSystemClient
+
+    database, collections, _, _, old_store, _ = setup_database(tmp_path)
+    baseline = dict(SharedSystemClient._identifier_to_refcount)
+    provider = FakeEmbeddingProvider(fail_on_call=3 if outcome == "failure" else None)
+    monkeypatch.setattr("ragdb.application.embedding_rebuild.create_embedding_provider", lambda _: provider)
+    service = EmbeddingRebuildService(database, tmp_path / "chroma", batch_size=1)
+    progress = []
+    def rebuild():
+        return service.rebuild(
+            EmbeddingSettings(local_model="replacement"), on_progress=progress.append,
+            should_cancel=lambda: outcome == "cancel" and bool(progress and progress[-1].completed_chunks),
+        )
+    try:
+        if outcome == "success":
+            assert rebuild().changed
+        else:
+            with pytest.raises(RuntimeError):
+                rebuild()
+        assert SharedSystemClient._identifier_to_refcount == baseline
+        assert old_store.search(collections[0].id, [0.1, 0.2], 1)
+    finally:
+        old_store.close()

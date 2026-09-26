@@ -3,14 +3,15 @@
 import json
 from collections import defaultdict
 from collections.abc import Mapping, Sequence
+from contextlib import contextmanager
+from functools import wraps
 from pathlib import Path
 import re
+from threading import RLock
 from typing import TypeAlias
 from uuid import UUID
 
-import chromadb
 from chromadb.api.models.Collection import Collection as ChromaCollection
-from chromadb.config import Settings
 from chromadb.errors import ChromaError, NotFoundError
 from pydantic import JsonValue
 
@@ -18,6 +19,7 @@ from ragdb.domain.enums import RetrievalRoute
 from ragdb.domain.errors import StorageError
 from ragdb.domain.models import Chunk, RetrievedChunk, SourcePosition
 from ragdb.application.metadata import tag_index_key
+from ragdb.infrastructure.vectorstore.clients import open_client, close_client
 
 
 ChromaScalar: TypeAlias = str | int | float | bool
@@ -181,22 +183,68 @@ def _build_where(filters: Mapping[str, JsonValue] | None) -> ChromaWhere | None:
     return {"$and": clauses}
 
 
+def _client_operation(method):
+    @wraps(method)
+    def wrapped(self, *args, **kwargs):
+        with self._operation():
+            return method(self, *args, **kwargs)
+    return wrapped
+
+
 class ChromaVectorStore:
     """Store externally generated embeddings in a persistent Chroma database."""
 
-    def __init__(self, directory: Path, namespace_id: str = "legacy") -> None:
+    def __init__(self, directory: Path, namespace_id: str = "legacy", *, operation_scoped: bool = False) -> None:
         self.directory = directory
         if namespace_id != "legacy" and not re.fullmatch(r"[a-f0-9]{12,64}", namespace_id):
             raise ValueError("无效的嵌入命名空间 ID")
         self.namespace_id = namespace_id
+        self._operation_scoped = operation_scoped
+        self._lock = RLock()
+        self._closed = False
+        self._client = None
+        if not operation_scoped:
+            self._open()
+
+    def _open(self) -> None:
         self.directory.mkdir(parents=True, exist_ok=True)
         try:
-            self._client = chromadb.PersistentClient(
-                path=self.directory,
-                settings=Settings(anonymized_telemetry=False),
-            )
+            self._client = open_client(self.directory)
         except ChromaError as exc:
             raise StorageError("初始化 ChromaDB 失败") from exc
+
+    def _release(self) -> None:
+        client, self._client = self._client, None
+        if client is not None:
+            close_client(client)
+
+    @contextmanager
+    def _operation(self):
+        # A single adapter cannot be closed while one of its operations is running.
+        with self._lock:
+            if self._closed:
+                raise StorageError("向量客户端已关闭，请创建新的适配器。")
+            try:
+                if self._client is None:
+                    self._open()
+                yield
+            finally:
+                if self._operation_scoped:
+                    self._release()
+
+    def close(self) -> None:
+        """Release only this adapter's client; safe to call more than once."""
+        with self._lock:
+            self._closed = True
+            self._release()
+
+    def __enter__(self):
+        if self._closed:
+            raise StorageError("向量客户端已关闭，请创建新的适配器。")
+        return self
+
+    def __exit__(self, *_):
+        self.close()
 
     @staticmethod
     def collection_name(collection_id: UUID, namespace_id: str = "legacy") -> str:
@@ -224,6 +272,7 @@ class ChromaVectorStore:
         except ChromaError as exc:
             raise StorageError("创建 ChromaDB 集合失败") from exc
 
+    @_client_operation
     def upsert(
         self,
         chunks: Sequence[Chunk],
@@ -259,6 +308,7 @@ class ChromaVectorStore:
         except ChromaError as exc:
             raise StorageError("写入 ChromaDB 向量失败") from exc
 
+    @_client_operation
     def search(
         self,
         collection_id: UUID,
@@ -309,6 +359,7 @@ class ChromaVectorStore:
             )
         ]
 
+    @_client_operation
     def delete_source_generation(
         self,
         collection_id: UUID,
@@ -334,6 +385,7 @@ class ChromaVectorStore:
         except ChromaError as exc:
             raise StorageError("删除 ChromaDB 资料代次失败") from exc
 
+    @_client_operation
     def delete_stale_source_generations(
         self,
         collection_id: UUID,
@@ -356,6 +408,7 @@ class ChromaVectorStore:
         except ChromaError as exc:
             raise StorageError("清理 ChromaDB 孤立资料代次失败") from exc
 
+    @_client_operation
     def delete_collection(self, collection_id: UUID) -> None:
         try:
             self._client.delete_collection(name=self.collection_name(collection_id, self.namespace_id))
@@ -364,6 +417,7 @@ class ChromaVectorStore:
         except ChromaError as exc:
             raise StorageError("删除 ChromaDB 集合失败") from exc
 
+    @_client_operation
     def has_chunks(self, collection_id: UUID, chunk_ids: Sequence[str]) -> bool:
         """Verify that every requested chunk was persisted in this namespace."""
         if not chunk_ids:

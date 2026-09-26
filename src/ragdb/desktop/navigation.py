@@ -1,7 +1,9 @@
 """Animated sidebar and top bar for the desktop workbench."""
 
+from random import choice
+
 from PySide6.QtCore import QEasingCurve, Property, QPropertyAnimation, QRect, Qt, Signal
-from PySide6.QtGui import QEnterEvent, QKeyEvent, QMouseEvent, QPainter, QPen
+from PySide6.QtGui import QColor, QEnterEvent, QKeyEvent, QMouseEvent, QPainter, QPen
 from PySide6.QtWidgets import (
     QComboBox,
     QFrame,
@@ -26,10 +28,18 @@ NAV_GROUPS = (
 
 class NavButton(QPushButton):
     hovered = Signal(object)
+    # Readable light/dark variants, intentionally excluding the old blue.
+    LINE_COLORS = (
+        ("#b45309", "#fbbf24"), ("#15803d", "#4ade80"),
+        ("#a21caf", "#e879f9"), ("#be123c", "#fb7185"),
+        ("#7e22ce", "#c084fc"), ("#b93815", "#fb923c"),
+    )
 
     def __init__(self, icon_text: str, label: str, page: int) -> None:
         super().__init__(f"{icon_text}   {label}")
         self.icon_text, self.label, self.page = icon_text, label, page
+        self._line_index = choice(range(len(self.LINE_COLORS)))
+        self.dark_mode = False
         self.setCheckable(True)
         self.setCursor(QtCursor.pointing())
         self.setToolTip(label)
@@ -37,6 +47,14 @@ class NavButton(QPushButton):
         self.setAccessibleDescription(f"切换到{label}页面")
         self.setFixedHeight(40)
         self.setProperty("navItem", True)
+
+    def randomize_indicator(self):
+        self._line_index = choice([i for i in range(len(self.LINE_COLORS)) if i != self._line_index])
+        self.update()
+
+    @property
+    def indicator_color(self):
+        return QColor(self.LINE_COLORS[self._line_index][int(self.dark_mode)])
 
     def set_collapsed(self, collapsed: bool) -> None:
         self.setText(
@@ -51,7 +69,7 @@ class NavButton(QPushButton):
         super().paintEvent(event)
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        color = self.palette().highlight().color()
+        color = self.indicator_color
         painter.setPen(QPen(color, 2))
         for y, width in ((7, 13), (13, 17), (self.height() - 8, 13)):
             painter.drawLine(2, y, width, y)
@@ -232,6 +250,8 @@ class SidebarWidget(QWidget):
     def select_page(self, page: int) -> None:
         for button in self.buttons:
             button.setChecked(button.page == page)
+            if button.page == page:
+                button.randomize_indicator()
         self.page_selected.emit(page)
 
     def move_highlight(self, button: NavButton) -> None:
@@ -294,6 +314,9 @@ class SidebarWidget(QWidget):
         self.reduce_motion = reduce_motion
         self.footer.canvas.set_reduce_motion(reduce_motion)
         self.footer.set_dark_mode(_mode == ThemeMode.DARK.value)
+        for button in self.buttons:
+            button.dark_mode = _mode == ThemeMode.DARK.value
+            button.update()
         colors = DARK if _mode == ThemeMode.DARK.value else LIGHT
         self.footer_toggle.setStyleSheet(f"""
             QToolButton {{ background: transparent; color: {colors['muted']}; border: 1px solid transparent; border-radius: 6px; padding: 3px 6px; font-size: 12px; }}

@@ -2,8 +2,8 @@
 
 from enum import StrEnum
 
-from PySide6.QtCore import QObject, QSettings, Signal
-from PySide6.QtGui import QPalette
+from PySide6.QtCore import QObject, QSettings, Signal, Qt
+from PySide6.QtGui import QPalette, QColor
 from PySide6.QtWidgets import QApplication
 
 
@@ -48,6 +48,11 @@ class ThemeManager(QObject):
 
     def __init__(self, settings: QSettings | None = None) -> None:
         super().__init__()
+        app = QApplication.instance()
+        self._system_scheme = app.styleHints().colorScheme() if app else Qt.ColorScheme.Unknown
+        self._fallback_dark = bool(app and app.style().standardPalette().color(QPalette.ColorRole.Window).lightness() < 128)
+        if app:
+            app.styleHints().colorSchemeChanged.connect(self._system_scheme_changed)
         self.settings = settings or QSettings("ragdb", "ragdb-gui")
         self.mode = ThemeMode(
             self.settings.value("appearance/theme", ThemeMode.SYSTEM.value)
@@ -59,13 +64,21 @@ class ThemeManager(QObject):
     def resolved_mode(self) -> ThemeMode:
         if self.mode is not ThemeMode.SYSTEM:
             return self.mode
-        app = QApplication.instance()
-        color = app.palette().color(QPalette.ColorRole.Window) if app else None
-        return ThemeMode.DARK if color and color.lightness() < 128 else ThemeMode.LIGHT
+        if self._system_scheme == Qt.ColorScheme.Dark:
+            return ThemeMode.DARK
+        if self._system_scheme == Qt.ColorScheme.Light:
+            return ThemeMode.LIGHT
+        return ThemeMode.DARK if self._fallback_dark else ThemeMode.LIGHT
 
-    def set_mode(self, mode: ThemeMode) -> None:
-        self.mode = mode
-        self.settings.setValue("appearance/theme", mode.value)
+    def _system_scheme_changed(self, scheme):
+        self._system_scheme = scheme
+        if self.mode is ThemeMode.SYSTEM:
+            self.apply()
+
+    def set_mode(self, mode: ThemeMode | str) -> None:
+        # QVariant converts StrEnum item data to str when read from QComboBox.
+        self.mode = ThemeMode(mode)
+        self.settings.setValue("appearance/theme", self.mode.value)
         self.apply()
 
     def set_reduce_motion(self, enabled: bool) -> None:
@@ -107,13 +120,24 @@ class ThemeManager(QObject):
 
     def apply(self) -> None:
         app = QApplication.instance()
+        resolved = self.resolved_mode()
         if app is not None:
-            app.setStyleSheet(
-                build_stylesheet(
-                    DARK if self.resolved_mode() is ThemeMode.DARK else LIGHT
-                )
-            )
-        self.changed.emit(self.resolved_mode().value, self.reduce_motion)
+            colors = DARK if resolved is ThemeMode.DARK else LIGHT
+            palette = QPalette(app.palette())
+            roles = {
+                QPalette.ColorRole.Window: "window", QPalette.ColorRole.WindowText: "text",
+                QPalette.ColorRole.Base: "panel", QPalette.ColorRole.AlternateBase: "raised",
+                QPalette.ColorRole.Text: "text", QPalette.ColorRole.Button: "raised",
+                QPalette.ColorRole.ButtonText: "text", QPalette.ColorRole.ToolTipBase: "raised",
+                QPalette.ColorRole.ToolTipText: "text", QPalette.ColorRole.Highlight: "accent",
+                QPalette.ColorRole.HighlightedText: "window", QPalette.ColorRole.Link: "accent",
+            }
+            for role, token in roles.items():
+                palette.setColor(role, QColor(colors[token]))
+            app.setPalette(palette)
+            app.setStyleSheet(build_stylesheet(colors))
+        self.changed.emit(resolved.value, self.reduce_motion)
+
 
 
 def build_stylesheet(tokens: dict[str, str]) -> str:

@@ -6,7 +6,7 @@
 
 原生 Windows 截图检查通过，修正了兄弟控件坐标映射导致液滴不可见的问题。定向 62 项通过；修正后专项 11 项通过。全量 **335 passed、1 failed in 360.52s**；失败再现历史 Chroma 微型索引读取错误，单独复测 **1 passed in 2.38s**，未声称问题已修复。
 
-实现提交 `7d28177`。GitHub 推送被自动审批拒绝，待用户确认目的仓库 `Qorq-byte/RAG_db_test` 和分支 `codex/desktop-welcome`。详见 [按钮验收](docs/acceptance/2026-09-27-desktop-buttons.md)。
+用户确认后，实现 `7d28177` 与验收记录 `496fe82` 已成功推送至 `Qorq-byte/RAG_db_test` 的 `codex/desktop-welcome` 分支，尚未合并 main。详见 [按钮验收](docs/acceptance/2026-09-27-desktop-buttons.md)。
 
 ## 2026-09-27 连续滚动无等待切换
 

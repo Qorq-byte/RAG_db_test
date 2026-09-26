@@ -12,4 +12,4 @@
 
 全量：335 passed、1 failed in 360.52s。失败用例 `tests/integration/test_embedding_rebuild.py::test_rebuild_switches_all_source_types_after_complete_verification` 再现已记录的 Chroma `Nothing found on disk`；独立复测 1 passed in 2.38s。没有修改存储逻辑，也不宣称底层问题已解决。
 
-实现已提交 `7d28177`。推送 GitHub 被自动审批拒绝，理由是需要用户确认具体代码发送目的地 `https://github.com/Qorq-byte/RAG_db_test.git`；本次提交尚未推送。
+实现 `7d28177` 与验收记录 `496fe82` 已推送至 `https://github.com/Qorq-byte/RAG_db_test.git` 的 `codex/desktop-welcome` 分支。首次推送曾被自动审批拒绝；用户明确确认目的仓库与分支后，推送成功。尚未合并 main。

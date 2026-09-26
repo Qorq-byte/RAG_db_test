@@ -13,3 +13,14 @@
 全量：335 passed、1 failed in 360.52s。失败用例 `tests/integration/test_embedding_rebuild.py::test_rebuild_switches_all_source_types_after_complete_verification` 再现已记录的 Chroma `Nothing found on disk`；独立复测 1 passed in 2.38s。没有修改存储逻辑，也不宣称底层问题已解决。
 
 实现 `7d28177` 与验收记录 `496fe82` 已推送至 `https://github.com/Qorq-byte/RAG_db_test.git` 的 `codex/desktop-welcome` 分支。首次推送曾被自动审批拒绝；用户明确确认目的仓库与分支后，推送成功。尚未合并 main。
+
+
+## 用户反馈后的参考还原修正
+
+用户指出滴落不自然、侧边栏不应改变。修正前实现有四处偏差：液柱底部尖锐、宽度随按钮变化、用二次函数代替 CSS easeIn、落滴没有继承父级 scaleY。
+
+已按参考重新绘制固定 8px 宽的圆底液柱及 5.4px 两侧凹弧，使用 cubic-bezier(.42, 0, 1, 1)。父级纵向缩放同时作用于连接弧线、液柱和落滴；落滴从 -8px 到 50px 并渐隐，四组位置、高度、延迟和 2s 动画/2s 停顿保持参考数值。接近时仅淡入可见性，不再额外改变初始形状。离开立即停止的交互保留。
+
+侧边栏整个控件树排除液滴；导航恢复透明底色、原有文字和悬停指示效果，底部添加/移除按钮恢复原样，随机指示线保持原行为。主题图标保留。
+
+验证：桌面定向 47 passed in 19.17s；增加真实侧边栏深浅主题回归后专项 14 passed in 3.12s。Windows 原生渲染八个阶段的分帧图，并生成 8s 动效预览，位于 `.data/button-preview/revision-frames.png` 和 `revision.gif`。本次未重跑全量，上一轮全量及 Chroma 间歇性失败记录见上文。

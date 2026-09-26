@@ -3,13 +3,57 @@
 import math
 from time import monotonic
 
-from PySide6.QtCore import QEvent, QObject, QPoint, QRect, QRectF, Qt, QTimer
+from PySide6.QtCore import QEasingCurve, QEvent, QObject, QPoint, QPointF, QRect, QRectF, Qt, QTimer
 from PySide6.QtGui import QColor, QPainter, QPainterPath, QRegion
 from PySide6.QtWidgets import QAbstractButton, QApplication, QComboBox, QLabel, QLineEdit, QTextEdit, QWidget, QPushButton, QToolButton
 from shiboken6 import isValid
 
 
 DRIPS = ((.10, 24, .5), (.30, 20, 3), (.57, 10, 4.25), (.85, 16, 1.5))
+
+
+# Framer Motion's easeIn is cubic-bezier(.42, 0, 1, 1), not t squared.
+EASE_IN = QEasingCurve(QEasingCurve.Type.BezierSpline)
+EASE_IN.addCubicBezierSegment(QPointF(.42, 0), QPointF(1, 1), QPointF(1, 1))
+
+
+def drip_frame(elapsed, delay):
+    """Reference parent scale and child translation/opacity (before transform)."""
+    phase = max(0.0, elapsed - delay) % 4.0
+    ease = EASE_IN.valueForProgress
+    if phase <= .5:
+        scale = .75 + .25 * ease(phase / .5)
+    elif phase < 2:
+        scale = 1 - .25 * ease((phase - .5) / 1.5)
+    else:
+        scale = .75
+    fall = ease(min(1.0, phase / 2))
+    return scale, -8 + 58 * fall, 1 - fall
+
+
+def drip_outline(height):
+    """8px round-bottom body plus the reference's 5.4px concave joins."""
+    path = QPainterPath(QPointF(-5.4, 0))
+    path.cubicTo(-2.41765, 0, 0, 2.41765, 0, 5.4)
+    path.lineTo(0, height - 4)
+    path.cubicTo(0, height - 1.79086, 1.79086, height, 4, height)
+    path.cubicTo(6.20914, height, 8, height - 1.79086, 8, height - 4)
+    path.lineTo(8, 5.4)
+    path.cubicTo(8, 2.41765, 10.41765, 0, 13.4, 0)
+    path.closeSubpath()
+    return path
+
+
+DRIP_PATHS = {height: drip_outline(height) for _, height, _ in DRIPS}
+
+
+def paint_allowed(button):
+    widget = button
+    while widget is not None:
+        if widget.property("wetPaintDisabled") or widget.objectName() == "sidebar":
+            return False
+        widget = widget.parentWidget()
+    return True
 
 
 class PaintOverlay(QWidget):
@@ -43,36 +87,21 @@ class PaintOverlay(QWidget):
         color = QColor("#be123c" if button.property("danger") else "#4f46e5")
         painter.setPen(Qt.PenStyle.NoPen)
         elapsed = monotonic() - control.started
+        # Only fade in visibility; do not distort the reference's initial .75 scale.
         reveal = min(1, elapsed / .15)
         for left, height, delay in DRIPS:
-            # Match the reference: 2s elastic length cycle, 2s pause, staggered
-            # falling droplets. No liquid is painted outside proximity mode.
-            phase = max(0, elapsed - delay) % 4
-            if phase < .5:
-                scale = .75 + .25 * (phase / .5) ** 2
-            elif phase < 2:
-                scale = 1 - .25 * ((phase - .5) / 1.5) ** 2
-            else:
-                scale = .75
-            length = height * scale * reveal
-            x = rect.left() + left * rect.width()
-            y = rect.bottom() - 1
-            width = min(8, max(3, rect.width() * .07))
+            scale, drop_y, opacity = drip_frame(elapsed, delay)
+            painter.save()
+            painter.translate(rect.left() + left * rect.width(), rect.top() + rect.height() * .99)
+            # The CSS parent scaleY applies to joins, body AND falling droplet.
+            painter.scale(1, scale)
             painter.setOpacity(reveal)
             painter.setBrush(color)
-            path = QPainterPath()
-            path.moveTo(x - 5, y)
-            path.cubicTo(x, y, x, y + 3, x, y + 6)
-            path.lineTo(x, y + max(6, length - width / 2))
-            path.quadTo(x + width / 2, y + length + width / 2, x + width, y + max(6, length - width / 2))
-            path.lineTo(x + width, y + 6)
-            path.cubicTo(x + width, y + 3, x + width, y, x + width + 5, y)
-            path.closeSubpath()
-            painter.drawPath(path)
-            if elapsed >= delay and phase < 2:
-                t = phase / 2
-                painter.setOpacity((1 - t*t) * reveal)
-                painter.drawEllipse(QRectF(x, y + length - 8 + 58 * t*t, width, width))
+            painter.drawPath(DRIP_PATHS[height])
+            if opacity > 0:
+                painter.setOpacity(opacity * reveal)
+                painter.drawEllipse(QRectF(0, height + drop_y, 8, 8))
+            painter.restore()
 
 
 class WetPaintController(QObject):
@@ -86,6 +115,7 @@ class WetPaintController(QObject):
         self.reduce_motion = False
         self.timer = QTimer(self)
         self.timer.setInterval(16)
+        self.timer.setTimerType(Qt.TimerType.PreciseTimer)
         self.timer.timeout.connect(self._tick)
         app.installEventFilter(self)
         for widget in app.allWidgets():
@@ -123,7 +153,7 @@ class WetPaintController(QObject):
         for button in window.findChildren(QAbstractButton):
             if (not isinstance(button, (QPushButton, QToolButton))
                     or not button.isVisible() or not button.isEnabled()
-                    or button.property("wetPaintDisabled")):
+                    or not paint_allowed(button)):
                 continue
             rect = QRect(button.mapToGlobal(QPoint()), button.size())
             dx = max(rect.left() - global_point.x(), 0, global_point.x() - rect.right())

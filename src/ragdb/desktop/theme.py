@@ -173,7 +173,10 @@ def build_stylesheet(tokens: dict[str, str]) -> str:
     QComboBox:focus, QListWidget:focus, QTableWidget:focus {{ outline: none; border: 2px solid {tokens["accent"]}; }}
     QPushButton[danger="true"] {{ background: #e11d48; color: white; }}
     QPushButton[danger="true"]:hover, QPushButton[danger="true"][wetNear="true"] {{ background: #be123c; }}
-    QPushButton[navItem="true"][wetNear="true"], QPushButton[navItem="true"]:hover {{ background: #4f46e5; color: white; }}
+    QWidget#sidebar QPushButton[navItem="true"] {{ background: transparent; color: {tokens["muted"]}; border: none; font-weight: 400; }}
+    QWidget#sidebar QPushButton[navItem="true"]:checked {{ color: {tokens["text"]}; font-weight: 650; }}
+    QWidget#sidebar QToolButton {{ background: transparent; color: {tokens["text"]}; border: none; padding: 0; border-radius: 0; font-weight: 400; }}
+    QWidget#sidebar QToolButton:focus {{ border: 2px solid {tokens["accent"]}; }}
     QToolButton[themeIcon="true"] {{ padding: 0; background: transparent; }}
     QToolButton[themeIcon="true"]:checked {{ background: #6366f1; }}
     QToolButton[themeIcon="true"][wetNear="true"] {{ background: #4f46e5; }}

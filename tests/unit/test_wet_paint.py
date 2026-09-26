@@ -79,3 +79,39 @@ def test_disabling_active_button_stops_animation(paint_ui):
     button.setEnabled(False)
     assert not control.timer.isActive()
     assert not control.overlay.isVisible()
+
+
+def test_reference_geometry_and_staggered_timing():
+    from ragdb.desktop.wet_paint import DRIPS, DRIP_PATHS, drip_frame
+    for _, height, delay in DRIPS:
+        assert drip_frame(delay - .01, delay) == (.75, -8, 1)
+        assert drip_frame(delay + .5, delay)[0] == 1
+        assert drip_frame(delay + 2, delay) == (.75, 50, 0)
+        assert drip_frame(delay + 3.9, delay) == (.75, 50, 0)
+        path = DRIP_PATHS[height]
+        # A broad rounded base, not a pointed quadratic tip.
+        assert path.contains(QPointF(3, height - .5))
+        assert path.contains(QPointF(5, height - .5))
+        assert not path.contains(QPointF(0, height - .5))
+        assert path.boundingRect().bottom() == height
+    # CSS easeIn reaches ~31.5% at half duration, not a quadratic's 25%.
+    _, y, opacity = drip_frame(1.5, .5)
+    assert y == pytest.approx(10.29, abs=.05)
+    assert opacity == pytest.approx(.6846, abs=.001)
+
+
+def test_sidebar_subtree_is_excluded_including_nested_controls(paint_ui):
+    window, button, control = paint_ui
+    sidebar = QWidget(window)
+    sidebar.setObjectName('sidebar')
+    sidebar.setGeometry(50, 20, 300, 160)
+    container = QWidget(sidebar)
+    container.setGeometry(0, 0, 300, 160)
+    button.setParent(container)
+    sidebar.show()
+    container.show()
+    button.show()
+    APP.processEvents()
+    move(window, button.mapTo(window, button.rect().center()))
+    assert control.active_button is None
+    assert not control.timer.isActive()

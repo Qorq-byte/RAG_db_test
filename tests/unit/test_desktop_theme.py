@@ -94,3 +94,25 @@ def test_inactive_theme_manager_cannot_override_active_manual_theme(ui, tmp_path
     assert old.resolved_mode() is ThemeMode.LIGHT
     assert background(window) == DARK["window"]
     assert current.mode is ThemeMode.DARK
+
+
+def test_sidebar_controls_keep_original_style_and_never_drip(ui):
+    from PySide6.QtCore import QPoint
+    from PySide6.QtWidgets import QAbstractButton
+    from ragdb.desktop.wet_paint import paint_allowed
+    window, manager = ui
+    manager.set_reduce_motion(False)
+    for mode in (ThemeMode.LIGHT, ThemeMode.DARK):
+        manager.set_mode(mode)
+        control = APP._ragdb_wet_paint
+        for button in window.navigation.findChildren(QAbstractButton):
+            assert not paint_allowed(button)
+            control.pointer_moved(window, button.mapToGlobal(button.rect().center()))
+            assert control.active_button is not button
+        nav = window.navigation.buttons[0]
+        control.clear()
+        before = nav.grab().toImage()
+        control.pointer_moved(window, nav.mapToGlobal(QPoint(nav.width() - 15, nav.height() // 2)))
+        assert not control.timer.isActive()
+        assert nav.grab().toImage() == before
+    manager.set_reduce_motion(True)

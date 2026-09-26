@@ -320,7 +320,7 @@ class SidebarWidget(QWidget):
         colors = DARK if _mode == ThemeMode.DARK.value else LIGHT
         self.footer_toggle.setStyleSheet(f"""
             QToolButton {{ background: transparent; color: {colors['muted']}; border: 1px solid transparent; border-radius: 6px; padding: 3px 6px; font-size: 12px; }}
-            QToolButton:hover, QToolButton[wetNear="true"] {{ background: #4f46e5; color: white; }}
+            QToolButton:hover {{ background: {colors['raised']}; color: {colors['text']}; }}
             QToolButton:focus {{ border-color: {colors['accent']}; }}
         """)
         if reduce_motion:

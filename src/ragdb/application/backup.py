@@ -7,14 +7,16 @@ from pathlib import Path
 import shutil
 import sqlite3
 import tempfile
+from uuid import UUID
 from zipfile import ZipFile, ZIP_DEFLATED
 
 import tomlkit
 
 from ragdb.config import AppSettings
 from ragdb.domain.errors import ConflictError, StorageError
-from ragdb.infrastructure.database import SQLiteDatabase, SQLiteEmbeddingOperationGate
+from ragdb.infrastructure.database import SQLiteDatabase, SQLiteEmbeddingOperationGate, SQLiteEmbeddingProfileRepository
 from ragdb.infrastructure.vectorstore.clients import open_client, close_client
+from ragdb.infrastructure.vectorstore.chroma_store import ChromaVectorStore
 from ragdb.infrastructure.vectorstore.query import read_collection
 
 
@@ -25,6 +27,23 @@ def _hash(path):
 
 def _json(path, value):
     path.write_text(json.dumps(value, ensure_ascii=False, default=lambda item: item.tolist()), encoding="utf-8")
+
+
+def _required_vectors(database: SQLiteDatabase) -> dict[str, set[str]]:
+    """Require current source generations in their active embedding namespace."""
+    with database.connect() as connection:
+        chunks = connection.execute(
+            "SELECT c.id, c.collection_id FROM chunks c JOIN sources s "
+            "ON c.source_id = s.id AND c.generation = s.current_generation"
+        ).fetchall()
+    profile = SQLiteEmbeddingProfileRepository(database).get()
+    if chunks and profile is None:
+        raise StorageError("当前资料缺少有效的活动嵌入配置，备份中止。")
+    required = {}
+    for chunk in chunks:
+        name = ChromaVectorStore.collection_name(UUID(chunk["collection_id"]), profile[2])
+        required.setdefault(name, set()).add(chunk["id"])
+    return required
 
 
 class BackupService:
@@ -44,39 +63,46 @@ class BackupService:
             root = Path(temporary)
             collections = []
             with SQLiteEmbeddingOperationGate(self.database).rebuild():
-                # Freeze all SQLite writes as well as gated vector mutations.
+                # Chats and learning artifacts are captured at this snapshot instant.
+                # Release the SQLite writer lock before the potentially long vector
+                # export; the rebuild gate still freezes all source/vector mutations.
                 with self.database.connect() as lock:
                     lock.execute("BEGIN IMMEDIATE")
                     with closing(sqlite3.connect(self.database.path)) as source, closing(sqlite3.connect(root / "library.sqlite3")) as target:
                         source.backup(target)
-                    if (self.chroma / "chroma.sqlite3").exists():
-                        client = open_client(self.chroma)
-                        try:
-                            for index, collection in enumerate(client.list_collections()):
-                                count = collection.count()
-                                filename = f"vectors-{index}.jsonl"
-                                seen = set()
-                                with (root / filename).open("w", encoding="utf-8") as output:
-                                    for offset in range(0, count, 500):
-                                        records = read_collection(collection, self.chroma, "get", {
-                                            "limit": 500, "offset": offset,
-                                            "include": ["embeddings", "documents", "metadatas"]})
-                                        vectors = records.get("embeddings")
-                                        if vectors is None:
-                                            raise StorageError("索引缺少向量，备份中止。")
-                                        for i, record_id in enumerate(records["ids"]):
-                                            if record_id in seen:
-                                                raise StorageError("备份期间索引记录不一致。")
-                                            seen.add(record_id)
-                                            row = dict(id=record_id, embedding=list(map(float, vectors[i])),
-                                                       document=records["documents"][i], metadata=records["metadatas"][i])
-                                            output.write(json.dumps(row, ensure_ascii=False) + "\n")
-                                if len(seen) != count:
-                                    raise StorageError("索引条数不一致，备份中止。")
-                                collections.append(dict(name=collection.name, metadata=collection.metadata,
-                                    hnsw=(collection.configuration.get("hnsw") or {}), count=count, file=filename))
-                        finally:
-                            close_client(client)
+                required = _required_vectors(SQLiteDatabase(root / "library.sqlite3"))
+                if (self.chroma / "chroma.sqlite3").exists():
+                    client = open_client(self.chroma)
+                    try:
+                        for index, collection in enumerate(client.list_collections()):
+                            count = collection.count()
+                            filename = f"vectors-{index}.jsonl"
+                            seen = set()
+                            with (root / filename).open("w", encoding="utf-8") as output:
+                                for offset in range(0, count, 500):
+                                    records = read_collection(collection, self.chroma, "get", {
+                                        "limit": 500, "offset": offset,
+                                        "include": ["embeddings", "documents", "metadatas"]})
+                                    vectors = records.get("embeddings")
+                                    if vectors is None:
+                                        raise StorageError("索引缺少向量，备份中止。")
+                                    for i, record_id in enumerate(records["ids"]):
+                                        if record_id in seen:
+                                            raise StorageError("备份期间索引记录不一致。")
+                                        seen.add(record_id)
+                                        row = dict(id=record_id, embedding=list(map(float, vectors[i])),
+                                                   document=records["documents"][i], metadata=records["metadatas"][i])
+                                        output.write(json.dumps(row, ensure_ascii=False) + "\n")
+                            if len(seen) != count:
+                                raise StorageError("索引条数不一致，备份中止。")
+                            if not required.pop(collection.name, set()).issubset(seen):
+                                raise StorageError("当前资料缺少活动向量，备份中止；请先修复或重建索引。")
+                            collections.append(dict(name=collection.name, metadata=collection.metadata,
+                                hnsw=(collection.configuration.get("hnsw") or {}), count=count, file=filename))
+                    finally:
+                        close_client(client)
+                if required:
+                    raise StorageError("当前资料缺少活动向量索引，备份中止；请先修复或重建索引。")
             values = self.settings.model_dump(mode="json", exclude={"embedding": {"cloud_api_key"}, "chat": {"cloud_api_key"}})
             values["storage"] = {"data_dir": ".", "sqlite_filename": "ragdb.sqlite3", "chroma_directory": "chroma"}
             _json(root / "settings.json", values)

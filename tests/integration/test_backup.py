@@ -1,3 +1,4 @@
+import hashlib
 import json
 import sqlite3
 from zipfile import ZipFile, ZIP_DEFLATED
@@ -145,3 +146,124 @@ def test_cli_verify_restore_without_current_library(library, tmp_path):
     assert result.exit_code == 0, result.output
     result = runner.invoke(app, ["backup", "restore", str(archive), str(tmp_path / "cli-restored")])
     assert result.exit_code == 0, result.output
+
+
+@pytest.fixture
+def indexed_library(tmp_path):
+    from ragdb.domain.enums import SourceStatus, SourceType
+    from ragdb.domain.models import Chunk, Source
+    from ragdb.infrastructure.database import SQLiteChunkRepository, SQLiteEmbeddingProfileRepository, SQLiteSourceRepository
+
+    service = BackupService(AppSettings(storage=StorageSettings(data_dir=tmp_path / "indexed")))
+    service.database.initialize()
+    collection = SQLiteCollectionRepository(service.database).create(Collection(name="当前代次"))
+    source = Source(collection_id=collection.id, source_type=SourceType.MANUAL_TEXT,
+                    title="资料", uri="manual://generation", content_hash="b" * 64,
+                    status=SourceStatus.READY, current_generation=2)
+    SQLiteSourceRepository(service.database).create(source)
+    chunks = [Chunk(id=f"generation-{generation}", collection_id=collection.id, source_id=source.id,
+                    source_content_hash="b" * 64, generation=generation, ordinal=0,
+                    text=f"第 {generation} 代正文", normalized_text=f"generation {generation}")
+              for generation in (1, 2)]
+    SQLiteChunkRepository(service.database).add_many(chunks)
+    profiles = SQLiteEmbeddingProfileRepository(service.database)
+    _, fingerprint, _ = profiles.initialize(service.settings.embedding)
+    profiles.activate(service.settings.embedding, fingerprint)
+    return service, chunks, fingerprint
+
+
+@pytest.mark.parametrize("fault", ["missing_disk", "missing_collection", "wrong_id", "wrong_namespace", "missing_profile", "invalid_profile"])
+def test_backup_rejects_missing_current_vectors(indexed_library, tmp_path, fault):
+    from ragdb.infrastructure.vectorstore import ChromaVectorStore
+
+    service, chunks, namespace = indexed_library
+    if fault in {"wrong_id", "wrong_namespace"}:
+        with ChromaVectorStore(service.chroma, namespace_id="legacy" if fault == "wrong_namespace" else namespace) as vectors:
+            vectors.upsert([chunks[0] if fault == "wrong_id" else chunks[1]], [[1., 0.]])
+    elif fault == "missing_collection":
+        client = open_client(service.chroma)
+        try:
+            client.create_collection("unrelated_collection", embedding_function=None)
+        finally:
+            close_client(client)
+    elif fault in {"missing_profile", "invalid_profile"}:
+        with service.database.connect() as connection:
+            if fault == "missing_profile":
+                connection.execute("DELETE FROM active_embedding_profile")
+            else:
+                connection.execute("UPDATE active_embedding_profile SET fingerprint = 'invalid'")
+    destination = tmp_path / "incomplete.zip"
+    with pytest.raises(StorageError):
+        service.create(destination)
+    assert not destination.exists()
+
+
+def test_backup_requires_only_current_generation_in_active_namespace(indexed_library, tmp_path):
+    from ragdb.infrastructure.vectorstore import ChromaVectorStore
+
+    service, chunks, namespace = indexed_library
+    with ChromaVectorStore(service.chroma, namespace_id=namespace) as vectors:
+        vectors.upsert([chunks[1]], [[1., 0.]])
+    archive = tmp_path / "current.zip"
+    service.create(archive)
+    config = BackupService.restore(archive, tmp_path / "current-restored")
+    with ChromaVectorStore(config.parent / "chroma", namespace_id=namespace) as vectors:
+        assert vectors.search(chunks[1].collection_id, [1., 0.], 1)[0].chunk.id == chunks[1].id
+
+
+def test_vector_export_allows_chat_writes_but_keeps_source_mutation_gate(library, tmp_path, monkeypatch):
+    import ragdb.application.backup as backup_module
+    from ragdb.domain.models import Conversation
+    from ragdb.infrastructure.database import SQLiteConversationRepository
+
+    collection = SQLiteCollectionRepository(library.database).list_all()[0]
+    original_read = backup_module.read_collection
+    writes = []
+
+    def read_during_chat(*args, **kwargs):
+        if not writes:
+            conversation = Conversation(collection_id=collection.id, title="快照之后",
+                                        provider="local", model="test")
+            SQLiteConversationRepository(library.database).create(conversation)
+            writes.append(conversation.id)
+            with pytest.raises(StorageError):
+                with SQLiteEmbeddingOperationGate(library.database).ingestion():
+                    pytest.fail("Backup must retain the source/vector mutation gate")
+        return original_read(*args, **kwargs)
+
+    monkeypatch.setattr(backup_module, "read_collection", read_during_chat)
+    archive = tmp_path / "concurrent.zip"
+    library.create(archive)
+    config = BackupService.restore(archive, tmp_path / "concurrent-restored")
+    assert len(writes) == 1
+    with library.database.connect() as live, SQLiteDatabase(config.parent / "ragdb.sqlite3").connect() as snapshot:
+        assert live.execute("SELECT COUNT(*) FROM conversations").fetchone()[0] == 1
+        assert snapshot.execute("SELECT COUNT(*) FROM conversations").fetchone()[0] == 0
+
+
+@pytest.mark.parametrize("fault", ["truncated_zip", "invalid_sqlite"])
+@pytest.mark.parametrize("command", ["verify", "restore"])
+def test_cli_reports_corrupt_archive_without_traceback(library, tmp_path, fault, command):
+    archive = tmp_path / "corrupt.zip"
+    if fault == "truncated_zip":
+        archive.write_bytes(b"PK\x03\x04truncated")
+    else:
+        original = tmp_path / "original.zip"
+        library.create(original)
+        with ZipFile(original) as source, ZipFile(archive, "w", ZIP_DEFLATED) as target:
+            manifest = json.loads(source.read("manifest.json"))
+            invalid = b"not a SQLite database"
+            manifest["files"]["library.sqlite3"] = hashlib.sha256(invalid).hexdigest()
+            for name in source.namelist():
+                if name != "manifest.json":
+                    target.writestr(name, invalid if name == "library.sqlite3" else source.read(name))
+            target.writestr("manifest.json", json.dumps(manifest))
+    args = ["backup", command, str(archive)]
+    destination = tmp_path / "failed-restore"
+    if command == "restore":
+        args.append(str(destination))
+    result = CliRunner().invoke(app, args)
+    assert result.exit_code == 6, result.output
+    assert "备份操作失败" in result.output
+    assert "Traceback" not in result.output
+    assert not destination.exists()

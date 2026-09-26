@@ -2,6 +2,8 @@
 
 import json
 from pathlib import Path
+import sqlite3
+from zipfile import BadZipFile
 import typer
 
 from ragdb.application.backup import BackupService
@@ -15,7 +17,7 @@ app = typer.Typer(help="创建、校验和恢复全库备份。", no_args_is_hel
 def _run(function):
     try:
         result = function()
-    except (RagdbError, OSError, ValueError, KeyError) as error:
+    except (RagdbError, OSError, ValueError, KeyError, BadZipFile, sqlite3.DatabaseError) as error:
         typer.echo(f"备份操作失败：{error}", err=True)
         raise typer.Exit(6) from error
     typer.echo(json.dumps(result, ensure_ascii=False, default=str))

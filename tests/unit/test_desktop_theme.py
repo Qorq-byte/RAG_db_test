@@ -48,7 +48,9 @@ def test_actual_icon_switch_changes_rendered_background_and_persists(ui):
 
 def test_system_scheme_notifications_update_only_follow_system(ui):
     window, manager = ui
-    manager.set_mode(ThemeMode.SYSTEM)
+    window.top_bar.theme.buttons[ThemeMode.SYSTEM].click()
+    assert window.top_bar.theme.buttons[ThemeMode.SYSTEM].isChecked()
+    assert sum(button.isChecked() for button in window.top_bar.theme.buttons.values()) == 1
     for scheme, colors in ((Qt.ColorScheme.Dark, DARK), (Qt.ColorScheme.Light, LIGHT)):
         APP.styleHints().colorSchemeChanged.emit(scheme)
         APP.processEvents()

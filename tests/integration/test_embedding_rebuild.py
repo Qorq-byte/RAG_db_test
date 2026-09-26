@@ -80,7 +80,9 @@ def setup_database(path: Path):
     chunk_repo.add_many(chunks)
     SQLiteKeywordIndex(database).index(chunks)
     old_vectors = [[0.1, 0.2] for _ in chunks]
-    legacy_store = ChromaVectorStore(path / "chroma")
+    # Match runtime ownership: the old index remains usable without pinning an
+    # idle Chroma system throughout the entire candidate rebuild.
+    legacy_store = ChromaVectorStore(path / "chroma", operation_scoped=True)
     legacy_store.upsert(chunks, old_vectors)
     old_settings = EmbeddingSettings()
     SQLiteEmbeddingProfileRepository(database).initialize(old_settings)
@@ -331,6 +333,152 @@ def test_rebuild_gate_blocks_another_process(tmp_path):
     assert result.returncode != 0
     assert b"StorageError" in result.stderr
     assert b"unexpected ingestion" not in result.stdout
+
+
+@pytest.mark.parametrize("fault", ["query", "empty", "collection", "generation", "id", "source", "hash", "second_collection"])
+def test_query_validation_failure_keeps_old_profile_fts_and_vectors(tmp_path, monkeypatch, fault):
+    from uuid import uuid4
+
+    database, collections, _, chunks, old_store, old_settings = setup_database(tmp_path)
+    provider = FakeEmbeddingProvider()
+    monkeypatch.setattr("ragdb.application.embedding_rebuild.create_embedding_provider", lambda _: provider)
+    original_search = ChromaVectorStore.search
+    calls = []
+
+    def query(store, collection_id, vector, limit, filters=None):
+        if store.namespace_id == "legacy":
+            return original_search(store, collection_id, vector, limit, filters)
+        calls.append(collection_id)
+        if fault == "query" or (fault == "second_collection" and len(calls) == 2):
+            raise StorageError("injected query failure")
+        if fault == "empty":
+            return []
+        results = original_search(store, collection_id, vector, limit, filters)
+        changes = {
+            "collection": {"collection_id": uuid4()}, "generation": {"generation": 999},
+            "id": {"id": "foreign-chunk"}, "source": {"source_id": uuid4()},
+            "hash": {"source_content_hash": "b" * 64},
+        }.get(fault)
+        if changes:
+            results = [results[0].model_copy(update={"chunk": results[0].chunk.model_copy(update=changes)})]
+        return results
+
+    with database.connect() as connection:
+        before_fts = list(map(tuple, connection.execute("SELECT * FROM chunks_fts")))
+    candidate = EmbeddingSettings(local_model="replacement")
+    try:
+        with monkeypatch.context() as patcher:
+            patcher.setattr(ChromaVectorStore, "search", query)
+            with pytest.raises(StorageError, match="活动索引未切换"):
+                EmbeddingRebuildService(database, tmp_path / "chroma", batch_size=1).rebuild(candidate)
+        assert len(calls) == (2 if fault == "second_collection" else 1)
+        assert provider.calls == len(chunks) + 1
+        assert SQLiteEmbeddingProfileRepository(database).get()[0] == old_settings
+        assert all(old_store.search(collection.id, [0.1, 0.2], 1) for collection in collections)
+        with ChromaVectorStore(tmp_path / "chroma", embedding_profile_fingerprint(candidate)) as target:
+            assert all(target.search(collection.id, [0.1, 0.2, 0.3], 1) == [] for collection in collections)
+        with database.connect() as connection:
+            assert list(map(tuple, connection.execute("SELECT * FROM chunks_fts"))) == before_fts
+        # Failure releases the exclusive gate and a subsequent clean rebuild works.
+        assert EmbeddingRebuildService(database, tmp_path / "chroma").rebuild(candidate).changed
+    finally:
+        old_store.close()
+
+
+@pytest.mark.parametrize("during_query", [False, True])
+def test_cancel_during_query_validation_does_not_publish(tmp_path, monkeypatch, during_query):
+    database, collections, _, _, old_store, old_settings = setup_database(tmp_path)
+    monkeypatch.setattr("ragdb.application.embedding_rebuild.create_embedding_provider", lambda _: FakeEmbeddingProvider())
+    cancelled = False
+    original_search = ChromaVectorStore.search
+
+    def query(store, *args, **kwargs):
+        nonlocal cancelled
+        result = original_search(store, *args, **kwargs)
+        if store.namespace_id != "legacy":
+            cancelled = True
+        return result
+
+    def progress(value):
+        nonlocal cancelled
+        if not during_query and value.phase == "verifying":
+            cancelled = True
+
+    candidate = EmbeddingSettings(local_model="replacement")
+    try:
+        with monkeypatch.context() as patcher:
+            patcher.setattr(ChromaVectorStore, "search", query)
+            with pytest.raises(EmbeddingRebuildCancelled):
+                EmbeddingRebuildService(database, tmp_path / "chroma").rebuild(
+                    candidate, on_progress=progress, should_cancel=lambda: cancelled,
+                )
+        assert SQLiteEmbeddingProfileRepository(database).get()[0] == old_settings
+        assert old_store.search(collections[0].id, [0.1, 0.2], 1)
+        with ChromaVectorStore(tmp_path / "chroma", embedding_profile_fingerprint(candidate)) as target:
+            assert all(target.search(collection.id, [0.1, 0.2, 0.3], 1) == [] for collection in collections)
+        assert EmbeddingRebuildService(database, tmp_path / "chroma").rebuild(candidate).changed
+    finally:
+        old_store.close()
+
+
+def test_success_validates_all_nonempty_collections_without_model_requests(tmp_path, monkeypatch):
+    database, collections, _, chunks, old_store, _ = setup_database(tmp_path)
+    SQLiteCollectionRepository(database).create(Collection(name="empty"))
+    provider = FakeEmbeddingProvider()
+    monkeypatch.setattr("ragdb.application.embedding_rebuild.create_embedding_provider", lambda _: provider)
+    progress = []
+    try:
+        result = EmbeddingRebuildService(database, tmp_path / "chroma", batch_size=1).rebuild(
+            EmbeddingSettings(local_model="replacement"), on_progress=progress.append,
+        )
+        assert result.changed and result.collection_count == 5
+        assert provider.calls == len(chunks) + 1
+        assert {item.collection_id for item in progress if item.phase == "verifying"} == {c.id for c in collections}
+    finally:
+        old_store.close()
+
+    # No parent Chroma owner remains: verify published SQLite profile in a fresh process.
+    code = """
+import sys
+from pathlib import Path
+from ragdb.infrastructure.database import SQLiteDatabase, SQLiteEmbeddingProfileRepository, SQLiteCollectionRepository
+from ragdb.infrastructure.vectorstore import ChromaVectorStore
+path = Path(sys.argv[1])
+db = SQLiteDatabase(path / 'ragdb.sqlite3')
+profile = SQLiteEmbeddingProfileRepository(db).get()
+with ChromaVectorStore(path / 'chroma', profile[2]) as store:
+    for collection in SQLiteCollectionRepository(db).list_all():
+        if collection.name != 'empty':
+            assert store.search(collection.id, [0.1, 0.2, 0.3], 1)
+"""
+    child = subprocess.run([sys.executable, "-c", code, str(tmp_path)], capture_output=True, text=True, timeout=30)
+    assert child.returncode == 0, child.stderr
+
+
+def test_reader_reopen_never_resets_another_live_owner(tmp_path, monkeypatch):
+    from chromadb.api.shared_system_client import SharedSystemClient
+
+    database, collections, _, _, old_store, old_settings = setup_database(tmp_path)
+    monkeypatch.setattr("ragdb.application.embedding_rebuild.create_embedding_provider", lambda _: FakeEmbeddingProvider())
+    original_search = ChromaVectorStore.search
+
+    def query(store, *args, **kwargs):
+        if store.namespace_id != "legacy":
+            raise StorageError("unreadable shared system")
+        return original_search(store, *args, **kwargs)
+
+    with ChromaVectorStore(tmp_path / "chroma") as live:
+        baseline = dict(SharedSystemClient._identifier_to_refcount)
+        client = live._client
+        with monkeypatch.context() as patcher:
+            patcher.setattr(ChromaVectorStore, "search", query)
+            with pytest.raises(StorageError, match="活动索引未切换"):
+                EmbeddingRebuildService(database, tmp_path / "chroma").rebuild(EmbeddingSettings(local_model="replacement"))
+        assert live._client is client and not client._closed
+        assert SharedSystemClient._identifier_to_refcount == baseline
+        assert live.search(collections[0].id, [0.1, 0.2], 1)
+        assert SQLiteEmbeddingProfileRepository(database).get()[0] == old_settings
+    old_store.close()
 
 
 @pytest.mark.parametrize("outcome", ["success", "failure", "cancel"])

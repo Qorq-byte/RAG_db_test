@@ -29,6 +29,7 @@ class EmbeddingRebuildProgress:
     total_chunks: int
     collection_id: UUID | None = None
     source_id: UUID | None = None
+    phase: str = "building"
 
 
 @dataclass(frozen=True, slots=True)
@@ -100,6 +101,7 @@ class EmbeddingRebuildService:
                 ).fetchone()[0]
             target = ChromaVectorStore(self.chroma_directory, namespace_id=fingerprint)
             completed = 0
+            query_samples: dict[UUID, tuple[float, ...]] = {}
             try:
                 # This namespace is not active. It may contain a stale interrupted build.
                 for collection in collections:
@@ -122,9 +124,22 @@ class EmbeddingRebuildService:
                         target.upsert(batch, vectors)
                         if not target.has_chunks(collection_id, [chunk.id for chunk in batch]):
                             raise StorageError("暂存向量校验失败，活动索引未切换。")
+                        query_samples.setdefault(collection_id, tuple(vectors[0]))
                         completed += len(batch)
                         if on_progress:
                             on_progress(EmbeddingRebuildProgress(completed, total, collection_id, source_id))
+                # Release the writer before opening a reader. If this is the last
+                # owner Chroma reloads its persisted state; other owners remain safe.
+                # A still-unreadable shared system must fail validation, not be reset.
+                target.close()
+                target = ChromaVectorStore(self.chroma_directory, namespace_id=fingerprint)
+                for collection_id, vector in query_samples.items():
+                    self._check_cancel(should_cancel)
+                    if on_progress:
+                        on_progress(EmbeddingRebuildProgress(completed, total, collection_id, phase="verifying"))
+                    self._check_cancel(should_cancel)
+                    self._verify_query(target, collection_id, vector)
+                    self._check_cancel(should_cancel)
                 self._check_cancel(should_cancel)
                 self.profiles.activate(settings, fingerprint)
                 return EmbeddingRebuildResult(fingerprint, completed, len(collections), True)
@@ -137,6 +152,28 @@ class EmbeddingRebuildService:
                 raise
             finally:
                 target.close()
+
+    def _verify_query(self, target: ChromaVectorStore, collection_id: UUID, vector: Sequence[float]) -> None:
+        try:
+            results = target.search(collection_id, vector, limit=1)
+        except Exception as exc:
+            raise StorageError("新索引查询校验失败，活动索引未切换；请检查存储后重试。") from exc
+        if not results:
+            raise StorageError("新索引查询没有返回切片，活动索引未切换。")
+        # Tied vectors may return any current chunk, not necessarily the sample.
+        with self.database.connect() as connection:
+            for result in results:
+                chunk = result.chunk
+                valid = connection.execute(
+                    "SELECT 1 FROM chunks c JOIN sources s ON c.source_id = s.id "
+                    "AND c.generation = s.current_generation "
+                    "WHERE c.id = ? AND c.collection_id = ? AND s.collection_id = ? "
+                    "AND c.source_id = ? AND c.generation = ? AND c.source_content_hash = ?",
+                    (chunk.id, str(collection_id), str(collection_id), str(chunk.source_id),
+                     chunk.generation, chunk.source_content_hash),
+                ).fetchone()
+                if chunk.collection_id != collection_id or valid is None:
+                    raise StorageError("新索引查询结果不属于预期集合或当前资料代次，活动索引未切换。")
 
     @staticmethod
     def _check_cancel(should_cancel: Callable[[], bool] | None) -> None:

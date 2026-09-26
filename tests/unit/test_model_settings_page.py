@@ -86,6 +86,14 @@ def test_form_provider_visibility_password_and_rebuild_difference(page):
     assert page.runtime.settings.embedding.local_model != "replacement"
 
 
+def test_query_validation_progress_explains_publication_gate(page):
+    from uuid import uuid4
+
+    page.show_progress(EmbeddingRebuildProgress(8, 8, uuid4(), phase="verifying"))
+    assert "可查询性" in page.feedback.text()
+    assert "通过后才切换" in page.feedback.text()
+
+
 def test_chat_save_is_immediate_and_restores_after_restart(page):
     page.chat.local_model.setCurrentText("local-chat-new")
     page.save_chat()

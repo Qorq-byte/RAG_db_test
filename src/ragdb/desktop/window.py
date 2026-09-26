@@ -86,6 +86,7 @@ class MainWindow(QMainWindow):
                 continue
             if runtime is not None and index == 5:
                 page = OperationsPage(runtime)
+                self.operations_page = page
                 self.collection_context.changed.connect(page.set_collection)
                 self.pages.addWidget(page)
                 continue
@@ -210,6 +211,11 @@ class MainWindow(QMainWindow):
         self._apply_responsive_layout()
 
     def closeEvent(self, event) -> None:
+        operations_page = getattr(self, "operations_page", None)
+        if operations_page is not None and operations_page.index_maintenance.busy:
+            self.statusBar().showMessage("索引维护尚未结束，请等待完成后关闭窗口。")
+            event.ignore()
+            return
         settings_page = getattr(self, "model_settings_page", None)
         if settings_page is not None and settings_page.busy:
             if settings_page._action == "rebuild":

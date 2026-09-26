@@ -49,9 +49,11 @@ class IndexMaintenanceService:
         self.catalog = ChromaIndexCatalog(chroma_directory)
 
     def preview(self) -> IndexInventory:
+        if not self.database.path.is_file():
+            raise StorageError("尚未初始化知识库，请先打开工作台或创建知识集合。")
         active = self.profiles.get()
         if active is None:
-            raise StorageError("尚未初始化活动嵌入索引，请先打开工作台或初始化知识库。")
+            raise StorageError("尚未初始化活动嵌入索引，请先打开工作台或创建知识集合。")
         _, fingerprint, namespace = active
         collections = {item.id: item.name for item in self.collections.list_all()}
         items = []

@@ -4,6 +4,7 @@ from PySide6.QtWidgets import QPushButton, QTabWidget, QTextBrowser
 
 from ragdb.desktop.study_pages import AsyncPage
 from ragdb.diagnostics import run_diagnostics
+from ragdb.desktop.index_maintenance_widget import IndexMaintenanceWidget
 
 
 class OperationsPage(AsyncPage):
@@ -23,6 +24,8 @@ class OperationsPage(AsyncPage):
         tabs.addTab(self.tasks_view, "最近任务")
         tabs.addTab(self.logs_view, "操作日志")
         tabs.addTab(self.diagnostics_view, "环境诊断")
+        self.index_maintenance = IndexMaintenanceWidget(runtime)
+        tabs.addTab(self.index_maintenance, "索引维护")
         self.set_content(tabs)
         refresh.clicked.connect(self.refresh)
         diagnose.clicked.connect(self.diagnose)

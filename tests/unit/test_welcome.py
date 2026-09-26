@@ -56,7 +56,10 @@ def test_intro_blocks_entry_until_completed_then_requires_click(page):
     APPLICATION.processEvents()
     assert not page.ready and not page.enter_button.isVisible()
     wheel(page, -3000)
-    wait_until(lambda: page.ready)
+    wait_until(lambda: page.scene.photos_exited)
+    assert not page.ready
+    wheel(page, -120)
+    assert page.ready
     assert page.enter_button.isVisible()
     assert page.enter_button.text() == "欢迎使用RAG系统"
     assert not entered
@@ -180,7 +183,10 @@ def test_wheel_morph_sweep_reverse_bounds_and_final_button(page):
     assert arc_cards - visible()  # earlier cards have left the clipped viewport
     assert not page.ready
     wheel(page, -9000)
-    wait_until(lambda: page.ready)
+    wait_until(lambda: page.scene.photos_exited)
+    assert not page.ready
+    wheel(page, -120)
+    assert page.ready
     assert page.scene.virtual_scroll == 3000
     wheel(page, 120)
     assert not page.ready and not page.enter_button.isVisible()
@@ -258,3 +264,30 @@ def test_touch_swipe_and_hover_flip(page):
     QTest.mouseMove(view, QPoint(640, 400))
     wait_until(lambda: abs(card.flip_value) < .01)
     assert not card.hovered
+
+
+def test_next_scroll_after_photos_exit_reveals_immediately_without_settling(page):
+    page.finish_intro()
+    wheel(page, -3000)
+    wait_until(lambda: page.scene.photos_exited)
+    assert not page.scene.settled  # visible exit precedes the spring's settling tail
+    assert not page.enter_button.isVisible()
+    wheel(page, 0)  # trackpad gesture end is not another downward scroll
+    assert not page.ready
+    wheel(page, 0, pixel=-1)
+    assert page.ready and page.enter_button.isVisible()
+    assert page.enter_button.isEnabled()
+    assert page.opacity.opacity() == 1
+    assert page.reveal.state() is QAbstractAnimation.State.Stopped
+    wheel(page, 120)
+    assert not page.ready and not page.enter_button.isVisible()
+
+
+def test_settling_alone_never_reveals_button(page):
+    page.finish_intro()
+    wheel(page, -3000)
+    wait_until(lambda: page.scene.settled)
+    assert page.scene.photos_exited
+    assert not page.ready and not page.enter_button.isVisible()
+    wheel(page, -120)
+    assert page.ready and page.opacity.opacity() == 1

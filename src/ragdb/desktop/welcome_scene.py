@@ -168,6 +168,7 @@ class WelcomeScene(QGraphicsView):
         self.pointer = 0.0
         self.reduced = False
         self.locked = False
+        self.entry_revealed = False
         self.settled = False
         self._touch_y = None
         self._poses = None
@@ -191,9 +192,20 @@ class WelcomeScene(QGraphicsView):
         if self._poses is None:
             self._render(snap=True)
 
+    @property
+    def photos_exited(self) -> bool:
+        """Use painted card bounds, not a spring's invisible settling tail."""
+        return (self.progress >= 1 and self.values[0] > .99 and self.values[1] > 0
+                and not any(self.sceneRect().intersects(card.sceneBoundingRect())
+                            for card in self.cards))
+
     def scroll_by(self, delta: float) -> None:
         if self.locked:
             return
+        if delta > 0 and self.photos_exited:
+            self.entry_revealed = True
+        elif delta < 0:
+            self.entry_revealed = False
         self.virtual_scroll = max(0.0, min(MAX_SCROLL, self.virtual_scroll + delta))
         self._wake()
         self.frame_changed.emit()
@@ -280,6 +292,7 @@ class WelcomeScene(QGraphicsView):
         return quiet
 
     def jump_to_end(self):
+        self.entry_revealed = True
         self.progress = 1.0
         self.virtual_scroll = MAX_SCROLL
         self.values = [1.0, 1.0, self.pointer]

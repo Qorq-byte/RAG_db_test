@@ -141,17 +141,14 @@ class WelcomePage(QWidget):
         self.arc_opacity.setOpacity(max(0, min(1, (morph - .8) / .2)))
         self.intro.move(0, self.height() // 2 - 48 + int(20 * (1 - intro)))
         self.arc.move(0, int(self.height() * .1 + 20 * (1 - max(0, min(1, (morph - .8) / .2)))))
-        ready = (self.scene.progress >= 1 and self.scene.virtual_scroll >= MAX_SCROLL
-                 and self.scene.values[1] >= .999 and (self.scene.settled or self.ready))
+        ready = self.scene.entry_revealed
         if ready and not self.ready:
             self.ready = True
             self.content.show()
             self.content.raise_()
             self.enter_button.setEnabled(not self._busy)
-            if self.theme_manager.reduce_motion:
-                self.opacity.setOpacity(1)
-            else:
-                self.reveal.start()
+            self.reveal.stop()
+            self.opacity.setOpacity(1)
             self.enter_button.setFocus(Qt.FocusReason.OtherFocusReason)
         elif not ready and self.ready and not self._busy:
             self.ready = False

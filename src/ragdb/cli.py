@@ -85,6 +85,8 @@ chat_app.add_typer(chat_session_app, name="session")
 app.add_typer(generate_app, name="generate")
 app.add_typer(artifact_app, name="artifact")
 app.add_typer(index_app, name="index")
+from ragdb.backup_cli import app as backup_app
+app.add_typer(backup_app, name="backup")
 
 
 def _index_maintenance_service(ctx: typer.Context):

@@ -216,7 +216,7 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, event) -> None:
         operations_page = getattr(self, "operations_page", None)
-        if operations_page is not None and operations_page.index_maintenance.busy:
+        if operations_page is not None and (operations_page.index_maintenance.busy or operations_page.backup.busy):
             self.statusBar().showMessage("索引维护尚未结束，请等待完成后关闭窗口。")
             event.ignore()
             return

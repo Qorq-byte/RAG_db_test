@@ -49,11 +49,13 @@ DRIP_PATHS = {height: drip_outline(height) for _, height, _ in DRIPS}
 
 def paint_allowed(button):
     widget = button
+    enabled = False
     while widget is not None:
         if widget.property("wetPaintDisabled") or widget.objectName() == "sidebar":
             return False
+        enabled = enabled or bool(widget.property("wetPaintEnabled"))
         widget = widget.parentWidget()
-    return True
+    return enabled
 
 
 class PaintOverlay(QWidget):
@@ -186,7 +188,7 @@ class WetPaintController(QObject):
     def _tick(self):
         button = self.active_button
         if (button is None or not isValid(button) or not button.isVisible()
-                or not button.isEnabled() or self.reduce_motion):
+                or not button.isEnabled() or not paint_allowed(button) or self.reduce_motion):
             self.clear()
             return
         if self.overlay is not None and isValid(self.overlay):

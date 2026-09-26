@@ -38,6 +38,7 @@ class ThemeSwitcher(QWidget):
     def __init__(self, manager, parent=None):
         super().__init__(parent)
         self.manager = manager
+        self.setProperty("wetPaintDisabled", True)
         self.setAccessibleName("界面主题")
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)

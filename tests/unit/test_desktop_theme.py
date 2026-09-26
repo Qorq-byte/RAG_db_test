@@ -116,3 +116,20 @@ def test_sidebar_controls_keep_original_style_and_never_drip(ui):
         assert not control.timer.isActive()
         assert nav.grab().toImage() == before
     manager.set_reduce_motion(True)
+
+
+def test_theme_icons_excluded_but_top_bar_action_enabled(ui):
+    from ragdb.desktop.wet_paint import paint_allowed
+    window, manager = ui
+    manager.set_mode('light')
+    manager.set_reduce_motion(False)
+    control = APP._ragdb_wet_paint
+    for button in window.top_bar.theme.buttons.values():
+        assert not paint_allowed(button)
+        control.pointer_moved(window, button.mapToGlobal(button.rect().center()))
+        assert control.active_button is not button
+    detail = window.top_bar.detail_button
+    assert paint_allowed(detail)
+    control.pointer_moved(window, detail.mapToGlobal(detail.rect().center()))
+    assert control.active_button is detail
+    manager.set_reduce_motion(True)

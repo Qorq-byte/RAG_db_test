@@ -18,6 +18,7 @@ def paint_ui():
     window = QWidget()
     window.resize(400, 230)
     button = QPushButton('Wet paint', window)
+    button.setProperty('wetPaintEnabled', True)
     button.setGeometry(100, 60, 180, 44)
     window.show()
     APP.processEvents()
@@ -115,3 +116,26 @@ def test_sidebar_subtree_is_excluded_including_nested_controls(paint_ui):
     move(window, button.mapTo(window, button.rect().center()))
     assert control.active_button is None
     assert not control.timer.isActive()
+
+
+def test_unmarked_content_button_never_starts_animation(paint_ui):
+    window, button, control = paint_ui
+    button.setProperty('wetPaintEnabled', False)
+    button.setText('清除已保存密钥')
+    move(window, QPoint(150, 80))
+    assert not control.timer.isActive()
+
+
+def test_only_page_header_actions_are_enabled(paint_ui):
+    from ragdb.desktop.components import PageShell
+    from ragdb.desktop.wet_paint import paint_allowed
+    window, _, control = paint_ui
+    page = PageShell('模型设置')
+    header = QPushButton('重新加载')
+    page.actions.addWidget(header)
+    content = QWidget()
+    clear = QPushButton('清除已保存密钥', content)
+    page.set_content(content)
+    assert paint_allowed(header)
+    assert not paint_allowed(clear)
+    page.deleteLater()

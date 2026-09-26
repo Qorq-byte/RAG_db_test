@@ -400,6 +400,7 @@ class TopBar(QWidget):
         from ragdb.desktop.theme_switcher import ThemeSwitcher
         self.theme = ThemeSwitcher(theme_manager)
         self.detail_button = QToolButton()
+        self.detail_button.setProperty("wetPaintEnabled", True)
         self.detail_button.setText("详情")
         self.detail_button.setToolTip("显示或隐藏详情面板")
         self.detail_button.setAccessibleName("显示或隐藏详情面板")

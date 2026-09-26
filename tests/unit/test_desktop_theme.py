@@ -80,3 +80,15 @@ def test_click_randomizes_indicator_but_repainting_does_not(ui):
     manager.set_mode(ThemeMode.DARK)
     assert all(b.indicator_color.name() in {pair[1] for pair in b.LINE_COLORS}
                for b in window.navigation.buttons)
+
+
+def test_inactive_theme_manager_cannot_override_active_manual_theme(ui, tmp_path):
+    window, current = ui
+    old = ThemeManager(QSettings(str(tmp_path / "old.ini"), QSettings.Format.IniFormat))
+    old.set_mode("system")
+    current.set_mode("dark")
+    APP.styleHints().colorSchemeChanged.emit(Qt.ColorScheme.Light)
+    APP.processEvents()
+    assert old.resolved_mode() is ThemeMode.LIGHT
+    assert background(window) == DARK["window"]
+    assert current.mode is ThemeMode.DARK

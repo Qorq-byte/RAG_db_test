@@ -1,6 +1,7 @@
 """Application theme tokens and persisted appearance preferences."""
 
 from enum import StrEnum
+from weakref import ref
 
 from PySide6.QtCore import QObject, QSettings, Signal, Qt
 from PySide6.QtGui import QPalette, QColor
@@ -72,7 +73,9 @@ class ThemeManager(QObject):
 
     def _system_scheme_changed(self, scheme):
         self._system_scheme = scheme
-        if self.mode is ThemeMode.SYSTEM:
+        app = QApplication.instance()
+        owner = getattr(app, "_ragdb_theme_owner", lambda: None)
+        if self.mode is ThemeMode.SYSTEM and owner() is self:
             self.apply()
 
     def set_mode(self, mode: ThemeMode | str) -> None:
@@ -122,6 +125,7 @@ class ThemeManager(QObject):
         app = QApplication.instance()
         resolved = self.resolved_mode()
         if app is not None:
+            app._ragdb_theme_owner = ref(self)
             colors = DARK if resolved is ThemeMode.DARK else LIGHT
             palette = QPalette(app.palette())
             roles = {

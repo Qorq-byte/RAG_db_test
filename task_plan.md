@@ -8,9 +8,9 @@
 
 第一期知识库的八个里程碑及后续问答、学习产物、桌面工作台、模型设置均已完成。最近交付是桌面模型设置阶段 1–5：本地 Ollama `embeddinggemma:latest` 嵌入与 DeepSeek `deepseek-flash` 问答/学习生成在隔离合成集合中通过真实联调；系统凭据和重启恢复通过。合并前完整回归 **216 passed**，`ragdb doctor` 退出码 0。
 
-上述功能已进入 GitHub `main`；阶段 5 合并为 `5efca40`。阶段 6 开发与验收已完成：最终全量回归 **249 passed**，实际 CLI、Windows 桌面流程与 `ragdb doctor` 通过。产品步骤已推送 `codex/vector-index-maintenance`，文档归档后合并主线；Chroma 间歇性读取限制见[阶段 6 验收](docs/acceptance/2026-09-26-vector-index-maintenance.md)。
+上述功能已进入 GitHub `main`；阶段 5 合并为 `5efca40`。阶段 6 开发与验收已完成：最终全量回归 **249 passed**，实际 CLI、Windows 桌面流程与 `ragdb doctor` 通过。各步骤已独立推送，并以 `15d16e7` 合并 GitHub `main`；Chroma 间歇性读取限制见[阶段 6 验收](docs/acceptance/2026-09-26-vector-index-maintenance.md)。
 
-文档入口：[下一阶段详细计划](docs/superpowers/plans/2026-09-25-vector-index-maintenance-implementation.md) · [模型设置验收](docs/acceptance/2026-09-25-desktop-model-settings.md) · [上阶段实施计划](docs/superpowers/plans/2026-09-24-desktop-model-settings-implementation.md) · [交付记录](progress.md) · [技术发现](findings.md)。历史测试结果仅代表当时的验证范围。
+文档入口：[阶段 6 详细计划](docs/superpowers/plans/2026-09-25-vector-index-maintenance-implementation.md) · [模型设置验收](docs/acceptance/2026-09-25-desktop-model-settings.md) · [上阶段实施计划](docs/superpowers/plans/2026-09-24-desktop-model-settings-implementation.md) · [交付记录](progress.md) · [技术发现](findings.md)。历史测试结果仅代表当时的验证范围。
 
 ## 已确定的技术边界
 

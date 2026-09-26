@@ -2,7 +2,7 @@
 
 ## 状态与依据
 
-**状态：6.1–6.4 开发与验收已完成（2026-09-26），文档推送后合并主线。** 最终全量回归 249 passed，CLI、Windows 原生桌面与 `ragdb doctor` 通过；结果与底层 Chroma 间歇性读取限制见[阶段 6 验收](../../acceptance/2026-09-26-vector-index-maintenance.md)。用户已授权执行本计划；本阶段边界见[维护设计](../specs/2026-09-25-vector-index-maintenance-design.md)。
+**状态：6.1–6.4 已完成（2026-09-26），以 `15d16e7` 合并并推送 GitHub `main`。** 最终全量回归 249 passed，CLI、Windows 原生桌面与 `ragdb doctor` 通过；结果与底层 Chroma 间歇性读取限制见[阶段 6 验收](../../acceptance/2026-09-26-vector-index-maintenance.md)。用户已授权执行本计划；本阶段边界见[维护设计](../specs/2026-09-25-vector-index-maintenance-design.md)。
 
 [模型设置设计](../specs/2026-09-24-desktop-model-settings-design.md)要求重建成功后保留旧 Chroma 命名空间，并将清理留给后续显式维护流程。`ChromaVectorStore` 按 `ragdb_<集合 UUID>`（legacy）或 `ragdb_<集合 UUID>_<指纹前 24 位>` 命名集合；SQLite `active_embedding_profile.namespace_id` 是活动索引的权威来源。本阶段实施前只有按已知集合与命名空间删除的方法；现已补齐盘点和确认清理入口。
 

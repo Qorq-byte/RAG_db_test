@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 
 from PySide6.QtCore import QEasingCurve, QPointF, QRectF, QSize, Qt, QTimer, QVariantAnimation, Signal
-from PySide6.QtGui import QColor, QPainter, QPainterPath, QPen, QPixmap, QTransform, QPalette
+from PySide6.QtGui import QColor, QPainter, QPainterPath, QPixmap, QTransform, QPalette
 from PySide6.QtWidgets import QWidget, QToolButton, QSizePolicy, QLabel
 
 
@@ -248,10 +248,6 @@ class FanCanvas(QWidget):
                 source = QRectF((photo.width() - 160 / ratio) / 2, (photo.height() - 224 / ratio) / 2, 160 / ratio, 224 / ratio)
                 painter.drawPixmap(rect, photo, source)
             painter.restore()
-        if self.hasFocus():
-            painter.setPen(QPen(self.palette().highlight().color(), 1))
-            painter.setBrush(Qt.BrushStyle.NoBrush)
-            painter.drawRoundedRect(self.rect().adjusted(2, 2, -2, -2), 8, 8)
 
 
 class PageDots(QWidget):

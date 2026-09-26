@@ -5,8 +5,8 @@ import time
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 import pytest
-from PySide6.QtCore import QAbstractAnimation, QSettings, Qt, QPoint
-from PySide6.QtGui import QPalette
+from PySide6.QtCore import QAbstractAnimation, QSettings, Qt, QPoint, QPointF
+from PySide6.QtGui import QPalette, QWheelEvent
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication
 
@@ -39,16 +39,17 @@ def fan():
 def test_staggered_entry_and_pagination_lock(fan):
     canvas = fan.canvas
     assert canvas.busy
-    assert not fan.next.isEnabled()
+    wheel(fan.canvas, -120)
+    assert canvas.center == 3
     assert canvas.animation.duration() == 1760
     assert canvas.count == 10
     assert all(not photo.isNull() for photo in canvas.photos)
     wait_for(lambda: not canvas.busy)
     assert sum(p.opacity > .99 for p in canvas.poses) == 7
     assert canvas.visible_map() == {i: i for i in range(7)}
-    fan.next.click()
+    wheel(fan.canvas, -120)
     assert canvas.center == 4 and canvas.busy
-    fan.next.click()
+    wheel(fan.canvas, -120)
     assert canvas.center == 4
     wait_for(lambda: not canvas.busy)
     assert set(canvas.visible_map()) == set(range(1, 8))
@@ -93,7 +94,7 @@ def test_hidden_widget_stops_motion_and_restores_final_fan(fan):
     assert not c.leave_timer.isActive()
     fan.show()
     wait_for(lambda: not c.busy)
-    fan.next.click()
+    wheel(fan.canvas, -120)
     fan.hide()
     assert not c.busy and c.animation.state() == QAbstractAnimation.State.Stopped
     fan.show()
@@ -109,9 +110,8 @@ def test_fan_fits_sidebar_and_controls_remain_usable(fan, width, height):
     fan.grab()
     for path in fan.canvas.hit_paths.values():
         assert fan.canvas.rect().contains(path.boundingRect().toAlignedRect())
-    assert fan.previous.width() == fan.next.width() == 32
-    assert fan.previous.geometry().right() < fan.next.geometry().left()
-    assert fan.rect().contains(fan.next.geometry())
+    assert fan.dots.isVisible() and fan.scroll_hint.isVisible()
+    assert fan.rect().contains(fan.scroll_hint.geometry())
 
 
 def test_remove_add_preference_survives_restart_and_collapse(tmp_path):
@@ -160,7 +160,7 @@ def test_small_collections_and_missing_photos(tmp_path, count):
     widget.show()
     APP.processEvents()
     try:
-        assert not widget.next.isVisible()
+        assert not widget.scroll_hint.isVisible()
         center = widget.canvas.center
         widget.canvas.cycle(1)
         assert widget.canvas.center == center
@@ -175,9 +175,53 @@ def test_short_sidebar_keeps_restore_control_without_useless_arrows(fan):
     APP.processEvents()
     assert fan.compact_hint.isVisible()
     assert not fan.canvas.isVisible()
-    assert not fan.next.isVisible()
+    assert not fan.scroll_hint.isVisible()
     assert fan.canvas.animation.state() == QAbstractAnimation.State.Stopped
     fan.resize(136, 170)
     APP.processEvents()
     assert not fan.compact_hint.isVisible()
-    assert fan.canvas.isVisible() and fan.next.isVisible()
+    assert fan.canvas.isVisible() and fan.scroll_hint.isVisible()
+
+
+def wheel(widget, angle=0, pixel=0, horizontal=False):
+    event = QWheelEvent(QPointF(widget.rect().center()), QPointF(),
+                       QPoint(pixel, 0) if horizontal else QPoint(0, pixel),
+                       QPoint(0, angle), Qt.MouseButton.NoButton,
+                       Qt.KeyboardModifier.NoModifier, Qt.ScrollPhase.NoScrollPhase, False)
+    APP.sendEvent(widget, event)
+    assert event.isAccepted()
+
+
+def test_wheel_direction_precision_and_no_extra_queued_pages(fan):
+    c = fan.canvas
+    wait_for(lambda: not c.busy)
+    wheel(c, -120)
+    assert c.center == 4
+    for _ in range(10):
+        wheel(c, -120)
+    wait_for(lambda: not c.busy)
+    assert c.center == 4  # input during transition must not queue delayed flips
+    wheel(c, 120)
+    wait_for(lambda: not c.busy)
+    assert c.center == 3
+    c.set_reduce_motion(True)
+    wheel(c, -120, pixel=-10)
+    assert c.center == 3  # pixel delta wins, no double count
+    for _ in range(3):
+        wheel(c, pixel=-10)
+    assert c.center == 4
+    wheel(c, pixel=40, horizontal=True)
+    assert c.center == 3
+    wheel(fan, -120)  # scrolling over the hint/dots also works
+    assert c.center == 4
+
+
+def test_partial_wheel_gesture_does_not_leak_across_hide(fan):
+    c = fan.canvas
+    c.set_reduce_motion(True)
+    wheel(c, pixel=-30)
+    fan.hide()
+    fan.show()
+    APP.processEvents()
+    wheel(c, pixel=-10)
+    assert c.center == 3

@@ -3,10 +3,11 @@
 from dataclasses import dataclass
 import json
 from pathlib import Path
+from time import monotonic
 
 from PySide6.QtCore import QEasingCurve, QPointF, QRectF, QSize, Qt, QTimer, QVariantAnimation, Signal
 from PySide6.QtGui import QColor, QPainter, QPainterPath, QPixmap, QTransform, QPalette
-from PySide6.QtWidgets import QWidget, QToolButton, QSizePolicy, QLabel
+from PySide6.QtWidgets import QWidget, QSizePolicy, QLabel
 
 
 from ragdb.desktop.theme import DARK, LIGHT
@@ -65,8 +66,8 @@ class FanCanvas(QWidget):
         super().__init__(parent)
         self.setMouseTracking(True)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
-        self.setAccessibleName("风景扇形卡片，左右方向键切换")
-        self.setToolTip("悬停展开卡片，使用下方箭头或左右方向键切换")
+        self.setAccessibleName("风景扇形卡片，鼠标滚轮或左右方向键切换")
+        self.setToolTip("悬停展开卡片，向下滚动看下一张，向上滚动看上一张；也可使用左右方向键")
         manifest = json.loads((assets / "sources.json").read_text(encoding="utf-8")) if (assets / "sources.json").exists() else []
         self.names = [item["alt"] for item in manifest]
         self.photos = [QPixmap(str(assets / item["file"])) for item in manifest]
@@ -86,6 +87,9 @@ class FanCanvas(QWidget):
         self.leave_timer.setInterval(50)
         self.leave_timer.timeout.connect(lambda: self.set_hover(None))
         self.hit_paths = {}
+        self._wheel_amount = 0.0
+        self._wheel_time = 0.0
+        self._wheel_pixels = False
 
     def visible_map(self):
         if self.count <= 7:
@@ -183,7 +187,30 @@ class FanCanvas(QWidget):
                 break
         super().mouseMoveEvent(event)
 
+    def wheelEvent(self, event):
+        event.accept()
+        if self.busy or self.count <= 7:
+            self._wheel_amount = 0
+            return
+        pixels = not event.pixelDelta().isNull()
+        vector = event.pixelDelta() if pixels else event.angleDelta()
+        delta = -(vector.y() if vector.y() else vector.x())
+        now = monotonic()
+        if (now - self._wheel_time > .35 or pixels != self._wheel_pixels
+                or delta * self._wheel_amount < 0):
+            self._wheel_amount = 0
+        self._wheel_time, self._wheel_pixels = now, pixels
+        self._wheel_amount += delta
+        threshold = 40 if pixels else 120
+        if abs(self._wheel_amount) >= threshold:
+            direction = 1 if self._wheel_amount > 0 else -1
+            self._wheel_amount = 0
+            self.cycle(direction)
+        if event.phase() == Qt.ScrollPhase.ScrollEnd:
+            self._wheel_amount = 0
+
     def leaveEvent(self, event):
+        self._wheel_amount = 0
         self.leave_timer.start()
         super().leaveEvent(event)
 
@@ -203,6 +230,7 @@ class FanCanvas(QWidget):
             self._animate(transitions, busy=True)
 
     def hideEvent(self, event):
+        self._wheel_amount = 0
         self.animation.stop()
         self.leave_timer.stop()
         self.active_slot = None
@@ -277,21 +305,17 @@ class FanCarousel(QWidget):
         self.setMinimumHeight(0)
         self.setMaximumHeight(300)
         self.canvas = FanCanvas(self, assets=assets, reduce_motion=reduce_motion)
-        self.previous = QToolButton(self)
-        self.next = QToolButton(self)
         self.dots = PageDots(self.canvas, self)
+        self.dots.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        self.scroll_hint = QLabel("滚动切换图片", self)
+        self.scroll_hint.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.scroll_hint.setProperty("muted", True)
+        self.scroll_hint.setStyleSheet("font-size: 11px;")
+        self.scroll_hint.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
         self.compact_hint = QLabel("增大窗口以查看卡片", self)
         self.compact_hint.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.compact_hint.setProperty("muted", True)
         self.compact_hint.setStyleSheet("font-size: 11px;")
-        for button, text, label, direction in ((self.previous, "‹", "上一张卡片", -1), (self.next, "›", "下一张卡片", 1)):
-            button.setText(text)
-            button.setAccessibleName(label)
-            button.setToolTip(label)
-            button.setCursor(Qt.CursorShape.PointingHandCursor)
-            button.setStyleSheet("QToolButton { border-radius: 16px; border: 1px solid palette(mid); background: palette(alternate-base); font-size: 22px; } QToolButton:hover, QToolButton:focus { border: 2px solid palette(highlight); } QToolButton:pressed { background: palette(midlight); }")
-            button.clicked.connect(lambda _checked=False, d=direction: self.canvas.cycle(d))
-        self.canvas.busy_changed.connect(self._busy_changed)
         self.canvas.center_changed.connect(self._describe_position)
         self._describe_position(self.canvas.center)
 
@@ -313,9 +337,11 @@ class FanCarousel(QWidget):
     def _describe_position(self, center):
         self.dots.setAccessibleDescription(f"第 {center + 1} 张，共 {self.canvas.count} 张")
 
-    def _busy_changed(self, busy):
-        self.previous.setEnabled(not busy)
-        self.next.setEnabled(not busy)
+    def wheelEvent(self, event):
+        if self.canvas.isVisible():
+            self.canvas.wheelEvent(event)
+        else:
+            event.accept()
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
@@ -326,10 +352,7 @@ class FanCarousel(QWidget):
         pagination = self.canvas.count > 7 and not compact
         self.canvas.setGeometry(0, 0, w, max(0, h - (40 if pagination else 0)))
         self.canvas.setVisible(not compact)
-        for widget in (self.previous, self.next, self.dots):
-            widget.setVisible(pagination)
-        controls = min(w, 164)
-        left = (w - controls) // 2
-        self.previous.setGeometry(left, h - 34, 32, 32)
-        self.next.setGeometry(left + controls - 32, h - 34, 32, 32)
-        self.dots.setGeometry(left + 36, h - 34, max(0, controls - 72), 32)
+        self.dots.setVisible(pagination)
+        self.scroll_hint.setVisible(pagination)
+        self.dots.setGeometry(0, h - 36, w, 14)
+        self.scroll_hint.setGeometry(0, h - 20, w, 20)

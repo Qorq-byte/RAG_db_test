@@ -86,6 +86,12 @@ class ThemeManager(QObject):
     def set_sidebar_collapsed(self, collapsed: bool) -> None:
         self.settings.setValue("layout/sidebar_collapsed", collapsed)
 
+    def sidebar_footer_visible(self) -> bool:
+        return self.settings.value("layout/sidebar_footer_visible", True, type=bool)
+
+    def set_sidebar_footer_visible(self, visible: bool) -> None:
+        self.settings.setValue("layout/sidebar_footer_visible", visible)
+
     def detail_panel_visible(self) -> bool:
         return self.settings.value("layout/detail_panel_visible", True, type=bool)
 

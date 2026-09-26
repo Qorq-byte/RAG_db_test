@@ -13,7 +13,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ragdb.desktop.theme import ThemeManager, ThemeMode
+from ragdb.desktop.theme import ThemeManager, ThemeMode, DARK, LIGHT
+from ragdb.desktop.sidebar_fan import FanCarousel
 
 
 NAV_GROUPS = (
@@ -125,16 +126,19 @@ class SidebarWidget(QWidget):
     collapsed_changed = Signal(bool)
     user_collapsed_changed = Signal(bool)
     width_adjusted = Signal(int)
+    footer_visibility_changed = Signal(bool)
 
     def __init__(
         self,
         reduce_motion: bool = False,
         expanded_width: int = 236,
         collapsed: bool = False,
+        footer_visible: bool = True,
     ) -> None:
         super().__init__()
         self.setObjectName("sidebar")
         self._collapsed = False
+        self._footer_visible = footer_visible
         self._expanded_width = self._clamp_width(expanded_width)
         self._resizing = False
         self._resize_origin_x = 0
@@ -179,7 +183,15 @@ class SidebarWidget(QWidget):
                 self.buttons.append(button)
                 layout.addWidget(button)
             layout.addSpacing(8)
-        layout.addStretch()
+        layout.addStretch(1)
+        self.footer = FanCarousel(self, reduce_motion=reduce_motion)
+        layout.addWidget(self.footer, 3)
+        self.footer_toggle = QToolButton(self)
+        self.footer_toggle.setCursor(QtCursor.pointing())
+        self.footer_toggle.setMinimumHeight(30)
+        self.footer_toggle.clicked.connect(self.toggle_footer)
+        layout.addWidget(self.footer_toggle)
+        self._update_footer()
         self.resize_handle = SidebarResizeHandle()
         self.resize_handle.setParent(self)
         self.resize_handle.resize_started.connect(self._start_resize)
@@ -243,6 +255,7 @@ class SidebarWidget(QWidget):
         if collapsed == self._collapsed:
             return
         self._collapsed = collapsed
+        self._update_footer()
         target = 68 if collapsed else self._expanded_width
         self.brand.setText("R" if collapsed else "RAG DB")
         self.collection.setVisible(not collapsed)
@@ -260,6 +273,37 @@ class SidebarWidget(QWidget):
             self.width_animation.setEndValue(target)
             self.width_animation.start()
         self.collapsed_changed.emit(collapsed)
+
+    @property
+    def footer_visible(self):
+        return self._footer_visible
+
+    def _update_footer(self):
+        self.footer.setVisible(self._footer_visible and not self._collapsed)
+        label = "移除底部卡片" if self._footer_visible else "添加底部卡片"
+        self.footer_toggle.setText(("−" if self._footer_visible else "+") if self._collapsed else label)
+        self.footer_toggle.setToolTip(label)
+        self.footer_toggle.setAccessibleName(label)
+
+    def toggle_footer(self):
+        self._footer_visible = not self._footer_visible
+        self._update_footer()
+        self.footer_visibility_changed.emit(self._footer_visible)
+
+    def update_motion_preference(self, _mode, reduce_motion):
+        self.reduce_motion = reduce_motion
+        self.footer.canvas.set_reduce_motion(reduce_motion)
+        self.footer.set_dark_mode(_mode == ThemeMode.DARK.value)
+        colors = DARK if _mode == ThemeMode.DARK.value else LIGHT
+        self.footer_toggle.setStyleSheet(f"""
+            QToolButton {{ background: transparent; color: {colors['muted']}; border: 1px solid transparent; border-radius: 6px; padding: 3px 6px; font-size: 12px; }}
+            QToolButton:hover {{ background: {colors['raised']}; color: {colors['text']}; }}
+            QToolButton:focus {{ border-color: {colors['accent']}; }}
+        """)
+        if reduce_motion:
+            self.width_animation.stop()
+            self.set_sidebar_width(68 if self._collapsed else self._expanded_width)
+            self.hover_animation.stop()
 
     def set_expanded_width(self, width: int) -> None:
         self._expanded_width = self._clamp_width(width)

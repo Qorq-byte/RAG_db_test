@@ -1,9 +1,10 @@
 """Animated sidebar and top bar for the desktop workbench."""
 
+from random import choice
+
 from PySide6.QtCore import QEasingCurve, Property, QPropertyAnimation, QRect, Qt, Signal
-from PySide6.QtGui import QEnterEvent, QKeyEvent, QMouseEvent, QPainter, QPen
+from PySide6.QtGui import QColor, QEnterEvent, QKeyEvent, QMouseEvent, QPainter, QPen
 from PySide6.QtWidgets import (
-    QComboBox,
     QFrame,
     QHBoxLayout,
     QLabel,
@@ -13,7 +14,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ragdb.desktop.theme import ThemeManager, ThemeMode
+from ragdb.desktop.theme import ThemeManager, ThemeMode, DARK, LIGHT
+from ragdb.desktop.sidebar_fan import FanCarousel
 
 
 NAV_GROUPS = (
@@ -25,10 +27,18 @@ NAV_GROUPS = (
 
 class NavButton(QPushButton):
     hovered = Signal(object)
+    # Readable light/dark variants, intentionally excluding the old blue.
+    LINE_COLORS = (
+        ("#b45309", "#fbbf24"), ("#15803d", "#4ade80"),
+        ("#a21caf", "#e879f9"), ("#be123c", "#fb7185"),
+        ("#7e22ce", "#c084fc"), ("#b93815", "#fb923c"),
+    )
 
     def __init__(self, icon_text: str, label: str, page: int) -> None:
         super().__init__(f"{icon_text}   {label}")
         self.icon_text, self.label, self.page = icon_text, label, page
+        self._line_index = choice(range(len(self.LINE_COLORS)))
+        self.dark_mode = False
         self.setCheckable(True)
         self.setCursor(QtCursor.pointing())
         self.setToolTip(label)
@@ -36,6 +46,14 @@ class NavButton(QPushButton):
         self.setAccessibleDescription(f"切换到{label}页面")
         self.setFixedHeight(40)
         self.setProperty("navItem", True)
+
+    def randomize_indicator(self):
+        self._line_index = choice([i for i in range(len(self.LINE_COLORS)) if i != self._line_index])
+        self.update()
+
+    @property
+    def indicator_color(self):
+        return QColor(self.LINE_COLORS[self._line_index][int(self.dark_mode)])
 
     def set_collapsed(self, collapsed: bool) -> None:
         self.setText(
@@ -50,7 +68,7 @@ class NavButton(QPushButton):
         super().paintEvent(event)
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        color = self.palette().highlight().color()
+        color = self.indicator_color
         painter.setPen(QPen(color, 2))
         for y, width in ((7, 13), (13, 17), (self.height() - 8, 13)):
             painter.drawLine(2, y, width, y)
@@ -80,6 +98,7 @@ class SidebarResizeHandle(QToolButton):
 
     def __init__(self) -> None:
         super().__init__()
+        self.setProperty("wetPaintDisabled", True)
         self.setCursor(QtCursor.horizontal_resize())
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.setToolTip("拖拽或使用左右方向键调整导航栏宽度")
@@ -125,16 +144,19 @@ class SidebarWidget(QWidget):
     collapsed_changed = Signal(bool)
     user_collapsed_changed = Signal(bool)
     width_adjusted = Signal(int)
+    footer_visibility_changed = Signal(bool)
 
     def __init__(
         self,
         reduce_motion: bool = False,
         expanded_width: int = 236,
         collapsed: bool = False,
+        footer_visible: bool = True,
     ) -> None:
         super().__init__()
         self.setObjectName("sidebar")
         self._collapsed = False
+        self._footer_visible = footer_visible
         self._expanded_width = self._clamp_width(expanded_width)
         self._resizing = False
         self._resize_origin_x = 0
@@ -179,7 +201,15 @@ class SidebarWidget(QWidget):
                 self.buttons.append(button)
                 layout.addWidget(button)
             layout.addSpacing(8)
-        layout.addStretch()
+        layout.addStretch(1)
+        self.footer = FanCarousel(self, reduce_motion=reduce_motion)
+        layout.addWidget(self.footer, 3)
+        self.footer_toggle = QToolButton(self)
+        self.footer_toggle.setCursor(QtCursor.pointing())
+        self.footer_toggle.setMinimumHeight(30)
+        self.footer_toggle.clicked.connect(self.toggle_footer)
+        layout.addWidget(self.footer_toggle)
+        self._update_footer()
         self.resize_handle = SidebarResizeHandle()
         self.resize_handle.setParent(self)
         self.resize_handle.resize_started.connect(self._start_resize)
@@ -220,6 +250,8 @@ class SidebarWidget(QWidget):
     def select_page(self, page: int) -> None:
         for button in self.buttons:
             button.setChecked(button.page == page)
+            if button.page == page:
+                button.randomize_indicator()
         self.page_selected.emit(page)
 
     def move_highlight(self, button: NavButton) -> None:
@@ -243,6 +275,7 @@ class SidebarWidget(QWidget):
         if collapsed == self._collapsed:
             return
         self._collapsed = collapsed
+        self._update_footer()
         target = 68 if collapsed else self._expanded_width
         self.brand.setText("R" if collapsed else "RAG DB")
         self.collection.setVisible(not collapsed)
@@ -260,6 +293,40 @@ class SidebarWidget(QWidget):
             self.width_animation.setEndValue(target)
             self.width_animation.start()
         self.collapsed_changed.emit(collapsed)
+
+    @property
+    def footer_visible(self):
+        return self._footer_visible
+
+    def _update_footer(self):
+        self.footer.setVisible(self._footer_visible and not self._collapsed)
+        label = "移除底部卡片" if self._footer_visible else "添加底部卡片"
+        self.footer_toggle.setText(("−" if self._footer_visible else "+") if self._collapsed else label)
+        self.footer_toggle.setToolTip(label)
+        self.footer_toggle.setAccessibleName(label)
+
+    def toggle_footer(self):
+        self._footer_visible = not self._footer_visible
+        self._update_footer()
+        self.footer_visibility_changed.emit(self._footer_visible)
+
+    def update_motion_preference(self, _mode, reduce_motion):
+        self.reduce_motion = reduce_motion
+        self.footer.canvas.set_reduce_motion(reduce_motion)
+        self.footer.set_dark_mode(_mode == ThemeMode.DARK.value)
+        for button in self.buttons:
+            button.dark_mode = _mode == ThemeMode.DARK.value
+            button.update()
+        colors = DARK if _mode == ThemeMode.DARK.value else LIGHT
+        self.footer_toggle.setStyleSheet(f"""
+            QToolButton {{ background: transparent; color: {colors['muted']}; border: 1px solid transparent; border-radius: 6px; padding: 3px 6px; font-size: 12px; }}
+            QToolButton:hover {{ background: {colors['raised']}; color: {colors['text']}; }}
+            QToolButton:focus {{ border-color: {colors['accent']}; }}
+        """)
+        if reduce_motion:
+            self.width_animation.stop()
+            self.set_sidebar_width(68 if self._collapsed else self._expanded_width)
+            self.hover_animation.stop()
 
     def set_expanded_width(self, width: int) -> None:
         self._expanded_width = self._clamp_width(width)
@@ -330,15 +397,10 @@ class TopBar(QWidget):
         self.collection.setProperty("muted", True)
         self.task_status = QLabel("后台空闲")
         self.task_status.setProperty("muted", True)
-        self.theme = QComboBox()
-        self.theme.addItem("跟随系统", ThemeMode.SYSTEM)
-        self.theme.addItem("浅色", ThemeMode.LIGHT)
-        self.theme.addItem("深色", ThemeMode.DARK)
-        self.theme.setCurrentIndex(max(0, self.theme.findData(theme_manager.mode)))
-        self.theme.currentIndexChanged.connect(
-            lambda _index: theme_manager.set_mode(self.theme.currentData())
-        )
+        from ragdb.desktop.theme_switcher import ThemeSwitcher
+        self.theme = ThemeSwitcher(theme_manager)
         self.detail_button = QToolButton()
+        self.detail_button.setProperty("wetPaintEnabled", True)
         self.detail_button.setText("详情")
         self.detail_button.setToolTip("显示或隐藏详情面板")
         self.detail_button.setAccessibleName("显示或隐藏详情面板")

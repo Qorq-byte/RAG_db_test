@@ -222,6 +222,7 @@ class ModelSettingsPage(PageShell):
         scroll.setFrameShape(QFrame.Shape.NoFrame)
         self.set_content(scroll)
         self.refresh = QPushButton("重新加载")
+        self.refresh.setProperty("wetPaintDisabled", True)
         self.actions.addWidget(self.refresh)
         self.feedback = label("设置仅在保存或重建成功后生效。")
         self.layout().addWidget(self.feedback)

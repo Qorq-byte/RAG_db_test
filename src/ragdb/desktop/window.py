@@ -53,6 +53,7 @@ class MainWindow(QMainWindow):
             self.theme_manager.reduce_motion,
             expanded_width=self.theme_manager.sidebar_width(),
             collapsed=self.theme_manager.sidebar_collapsed(),
+            footer_visible=self.theme_manager.sidebar_footer_visible(),
         )
         self.pages = QStackedWidget()
         self.detail_panel = DetailPanel()
@@ -125,6 +126,9 @@ class MainWindow(QMainWindow):
             self.theme_manager.set_sidebar_collapsed
         )
         self.navigation.width_adjusted.connect(self.theme_manager.set_sidebar_width)
+        self.navigation.footer_visibility_changed.connect(self.theme_manager.set_sidebar_footer_visible)
+        self.theme_manager.changed.connect(self.navigation.update_motion_preference)
+        self.navigation.update_motion_preference(self.theme_manager.resolved_mode().value, self.theme_manager.reduce_motion)
         self.top_bar.detail_toggled.connect(self.toggle_detail_preference)
         self.detail_panel.closed.connect(self.close_detail_preference)
         self._shortcuts = self._create_shortcuts()

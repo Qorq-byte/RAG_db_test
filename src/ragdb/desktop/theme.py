@@ -1,9 +1,10 @@
 """Application theme tokens and persisted appearance preferences."""
 
 from enum import StrEnum
+from weakref import ref
 
-from PySide6.QtCore import QObject, QSettings, Signal
-from PySide6.QtGui import QPalette
+from PySide6.QtCore import QObject, QSettings, Signal, Qt
+from PySide6.QtGui import QPalette, QColor
 from PySide6.QtWidgets import QApplication
 
 
@@ -48,6 +49,11 @@ class ThemeManager(QObject):
 
     def __init__(self, settings: QSettings | None = None) -> None:
         super().__init__()
+        app = QApplication.instance()
+        self._system_scheme = app.styleHints().colorScheme() if app else Qt.ColorScheme.Unknown
+        self._fallback_dark = bool(app and app.style().standardPalette().color(QPalette.ColorRole.Window).lightness() < 128)
+        if app:
+            app.styleHints().colorSchemeChanged.connect(self._system_scheme_changed)
         self.settings = settings or QSettings("ragdb", "ragdb-gui")
         self.mode = ThemeMode(
             self.settings.value("appearance/theme", ThemeMode.SYSTEM.value)
@@ -59,18 +65,32 @@ class ThemeManager(QObject):
     def resolved_mode(self) -> ThemeMode:
         if self.mode is not ThemeMode.SYSTEM:
             return self.mode
-        app = QApplication.instance()
-        color = app.palette().color(QPalette.ColorRole.Window) if app else None
-        return ThemeMode.DARK if color and color.lightness() < 128 else ThemeMode.LIGHT
+        if self._system_scheme == Qt.ColorScheme.Dark:
+            return ThemeMode.DARK
+        if self._system_scheme == Qt.ColorScheme.Light:
+            return ThemeMode.LIGHT
+        return ThemeMode.DARK if self._fallback_dark else ThemeMode.LIGHT
 
-    def set_mode(self, mode: ThemeMode) -> None:
-        self.mode = mode
-        self.settings.setValue("appearance/theme", mode.value)
+    def _system_scheme_changed(self, scheme):
+        self._system_scheme = scheme
+        app = QApplication.instance()
+        owner = getattr(app, "_ragdb_theme_owner", lambda: None)
+        if self.mode is ThemeMode.SYSTEM and owner() is self:
+            self.apply()
+
+    def set_mode(self, mode: ThemeMode | str) -> None:
+        # QVariant converts StrEnum item data to str when read from QComboBox.
+        self.mode = ThemeMode(mode)
+        self.settings.setValue("appearance/theme", self.mode.value)
         self.apply()
 
     def set_reduce_motion(self, enabled: bool) -> None:
         self.reduce_motion = enabled
         self.settings.setValue("appearance/reduce_motion", enabled)
+        app = QApplication.instance()
+        if app and getattr(app, "_ragdb_theme_owner", lambda: None)() is self:
+            from ragdb.desktop.wet_paint import install_wet_paint
+            install_wet_paint(app, enabled)
         self.changed.emit(self.resolved_mode().value, enabled)
 
     def sidebar_width(self) -> int:
@@ -85,6 +105,12 @@ class ThemeManager(QObject):
 
     def set_sidebar_collapsed(self, collapsed: bool) -> None:
         self.settings.setValue("layout/sidebar_collapsed", collapsed)
+
+    def sidebar_footer_visible(self) -> bool:
+        return self.settings.value("layout/sidebar_footer_visible", True, type=bool)
+
+    def set_sidebar_footer_visible(self, visible: bool) -> None:
+        self.settings.setValue("layout/sidebar_footer_visible", visible)
 
     def detail_panel_visible(self) -> bool:
         return self.settings.value("layout/detail_panel_visible", True, type=bool)
@@ -101,13 +127,27 @@ class ThemeManager(QObject):
 
     def apply(self) -> None:
         app = QApplication.instance()
+        resolved = self.resolved_mode()
         if app is not None:
-            app.setStyleSheet(
-                build_stylesheet(
-                    DARK if self.resolved_mode() is ThemeMode.DARK else LIGHT
-                )
-            )
-        self.changed.emit(self.resolved_mode().value, self.reduce_motion)
+            app._ragdb_theme_owner = ref(self)
+            colors = DARK if resolved is ThemeMode.DARK else LIGHT
+            palette = QPalette(app.palette())
+            roles = {
+                QPalette.ColorRole.Window: "window", QPalette.ColorRole.WindowText: "text",
+                QPalette.ColorRole.Base: "panel", QPalette.ColorRole.AlternateBase: "raised",
+                QPalette.ColorRole.Text: "text", QPalette.ColorRole.Button: "raised",
+                QPalette.ColorRole.ButtonText: "text", QPalette.ColorRole.ToolTipBase: "raised",
+                QPalette.ColorRole.ToolTipText: "text", QPalette.ColorRole.Highlight: "accent",
+                QPalette.ColorRole.HighlightedText: "window", QPalette.ColorRole.Link: "accent",
+            }
+            for role, token in roles.items():
+                palette.setColor(role, QColor(colors[token]))
+            app.setPalette(palette)
+            app.setStyleSheet(build_stylesheet(colors))
+            from ragdb.desktop.wet_paint import install_wet_paint
+            install_wet_paint(app, self.reduce_motion)
+        self.changed.emit(resolved.value, self.reduce_motion)
+
 
 
 def build_stylesheet(tokens: dict[str, str]) -> str:
@@ -127,11 +167,20 @@ def build_stylesheet(tokens: dict[str, str]) -> str:
     QLabel[status="success"] {{ color: {tokens["success"]}; background: {tokens["raised"]}; padding: 3px 8px; border-radius: 8px; }}
     QLabel[status="warning"] {{ color: {tokens["warning"]}; background: {tokens["raised"]}; padding: 3px 8px; border-radius: 8px; }}
     QLabel[status="failure"] {{ color: {tokens["danger"]}; background: {tokens["raised"]}; padding: 3px 8px; border-radius: 8px; }}
-    QPushButton {{ background: {tokens["raised"]}; border: 1px solid {tokens["border"]}; border-radius: 7px; padding: 7px 12px; }}
-    QPushButton:hover {{ border-color: {tokens["accent"]}; }}
-    QPushButton:focus, QToolButton:focus, QComboBox:focus, QListWidget:focus, QTableWidget:focus {{ outline: none; border: 2px solid {tokens["accent"]}; }}
-    QPushButton[primary="true"] {{ background: {tokens["accent"]}; color: #071216; border-color: {tokens["accent"]}; font-weight: 600; }}
-    QPushButton[danger="true"] {{ color: {tokens["danger"]}; }}
+    QPushButton, QToolButton {{ background: #6366f1; color: white; border: 2px solid transparent; border-radius: 4px; padding: 8px 14px; font-weight: 600; }}
+    QPushButton:hover, QToolButton:hover, QPushButton[wetNear="true"], QToolButton[wetNear="true"] {{ background: #4f46e5; color: white; }}
+    QPushButton:focus, QToolButton:focus {{ border-color: #a5b4fc; outline: none; }}
+    QComboBox:focus, QListWidget:focus, QTableWidget:focus {{ outline: none; border: 2px solid {tokens["accent"]}; }}
+    QPushButton[danger="true"] {{ background: #e11d48; color: white; }}
+    QPushButton[danger="true"]:hover, QPushButton[danger="true"][wetNear="true"] {{ background: #be123c; }}
+    QWidget#sidebar QPushButton[navItem="true"] {{ background: transparent; color: {tokens["muted"]}; border: none; font-weight: 400; }}
+    QWidget#sidebar QPushButton[navItem="true"]:checked {{ color: {tokens["text"]}; font-weight: 650; }}
+    QWidget#sidebar QToolButton {{ background: transparent; color: {tokens["text"]}; border: none; padding: 0; border-radius: 0; font-weight: 400; }}
+    QWidget#sidebar QToolButton:focus {{ border: 2px solid {tokens["accent"]}; }}
+    QToolButton[themeIcon="true"] {{ padding: 0; background: transparent; }}
+    QToolButton[themeIcon="true"]:checked {{ background: #6366f1; }}
+    QToolButton[themeIcon="true"][wetNear="true"] {{ background: #4f46e5; }}
+    QPushButton:disabled, QToolButton:disabled {{ background: {tokens["border"]}; color: {tokens["muted"]}; }}
     QLineEdit, QComboBox, QTextEdit, QTextBrowser, QListWidget, QTableWidget, QTabWidget::pane {{ background: {tokens["panel"]}; border: 1px solid {tokens["border"]}; border-radius: 8px; padding: 7px; selection-background-color: {tokens["accent_soft"]}; }}
     QTabBar::tab {{ padding: 8px 16px; color: {tokens["muted"]}; border-bottom: 2px solid transparent; }}
     QTabBar::tab:selected {{ color: {tokens["text"]}; border-bottom-color: {tokens["accent"]}; font-weight: 650; }}

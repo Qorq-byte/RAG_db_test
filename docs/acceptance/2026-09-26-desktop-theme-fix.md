@@ -1,5 +1,7 @@
 # 桌面主题切换与导航随机线条修复
 
+本文是主题下拉框故障与修复的历史验收。当前界面已改为太阳/月亮/显示器图标，图标不滴落；连同后续修改已通过 `08ebd21` 合并 main。现行规则见[按钮与主题图标验收](2026-09-27-desktop-buttons.md)，整体测试边界见[主线摘要](2026-09-27-desktop-delivery.md)。
+
 ## 根因与修复
 
 Windows 原生窗口通过真实主题下拉框复现：QComboBox 的 QVariant 将 ThemeMode（StrEnum）转为普通 str；set_mode 读取 mode.value 抛出 AttributeError，三个选项都没有应用样式。此前测试直接传枚举，遗漏真实下拉框边界。

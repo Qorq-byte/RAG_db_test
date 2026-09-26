@@ -1,5 +1,7 @@
 # 桌面启动欢迎页（按用户反馈修订）
 
+交付状态：已随 `08ebd21` 合并 main，详见[主线交付摘要](../../acceptance/2026-09-27-desktop-delivery.md)。
+
 ## 设计依据与纠正
 
 完整移植用户的 `前端设计/用户界面进入界面.txt`，保持 PySide6 原生桌面。上一版擅自将滚轮弧带排除在范围外，用户已明确否定；本规格取代之前的范围缩减。只在参考交互的最后添加“欢迎使用RAG系统”按钮。
@@ -24,4 +26,4 @@ QGraphicsView + Qt 弹簧计时器和本地图片，无 React / WebEngine。动�
 
 测试真实 QWheelEvent / QMouseEvent，检查变形、顺序离场、视差、边界、回滚、最终按钮、隐藏停止和已有启动保护。用隔离库在 Windows Qt 窗口验收并截图。保留用户 CLI 测试修改及设计原文件，不纳入提交。
 
-沿用每步提交推送约定，分支 `codex/desktop-welcome`。
+实施时沿用每步提交推送约定，分支 `codex/desktop-welcome`，现已合并 main。入口按钮不启用液滴效果。

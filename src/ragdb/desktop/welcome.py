@@ -46,12 +46,14 @@ class WelcomePage(QWidget):
         for layer in (self.intro, self.arc):
             layer.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
         self.title = self._label("The future is built on AI.", self.intro)
+        self.title.setWordWrap(True)
         self.subtitle = self._label("SCROLL TO EXPLORE", self.intro)
         self.arc_title = self._label("Explore Our Vision", self.arc)
         self.arc_description = self._label(
             "Discover a world where technology meets creativity.\n"
             "Scroll through our curated collection of innovations designed to shape the future.", self.arc)
         self.arc_description.setWordWrap(True)
+        self.arc_description.setAlignment(Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop)
         self.intro_opacity = IntroTextEffect(self.intro)
         self.intro.setGraphicsEffect(self.intro_opacity)
         self.arc_opacity = QGraphicsOpacityEffect(self.arc)
@@ -179,17 +181,18 @@ class WelcomePage(QWidget):
     def _layout(self):
         w, h = self.width(), self.height()
         narrow = w < 768
-        self.intro.setGeometry(0, h // 2 - 48, w, 110)
-        self.title.setGeometry(0, 0, w, 54)
+        self.intro.setGeometry(0, h // 2 - 48, w, 140)
+        inner_width = int(max(180, min(w - 32, min(w, h) * .7 - 100, 600)))
+        self.title.setGeometry((w - inner_width) // 2, 0, inner_width, 76 if narrow else 54)
         self.title.setStyleSheet(f"font-size: {24 if narrow else 36}px; font-weight: 500;")
-        self.subtitle.setGeometry(0, 66, w, 24)
+        self.subtitle.setGeometry(0, 90 if narrow else 66, w, 24)
         self.subtitle.setStyleSheet("font-size: 12px; font-weight: 700; letter-spacing: 2px; color: #9ca3af;")
         arc_y = int(h * .1 + 20 * (1 - max(0, min(1, (self.scene.values[0] - .8) / .2))))
         self.arc.setGeometry(0, arc_y, w, 180)
-        self.arc_title.setGeometry(0, 0, w, 64)
+        self.arc_title.setGeometry(0, 0, w, 42 if narrow else 64)
         self.arc_title.setStyleSheet(f"font-size: {30 if narrow else 48}px; font-weight: 600; color: #111827;")
         description_width = min(512, w - 32)
-        self.arc_description.setGeometry((w - description_width) // 2, 80, description_width, 92)
+        self.arc_description.setGeometry((w - description_width) // 2, 58 if narrow else 80, description_width, 92)
         self.arc_description.setStyleSheet(f"font-size: {14 if narrow else 16}px; color: #4b5563;")
         self.content.setGeometry((w - 360) // 2, h // 2 - 26, 360, 132)
         self.enter_button.setGeometry(25, 0, 310, 52)

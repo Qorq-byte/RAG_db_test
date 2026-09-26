@@ -4,7 +4,7 @@
 
 ## 项目进度与计划
 
-- [当前进度总览](task_plan.md)：阶段 7 已合并主线；新增桌面欢迎页在功能分支完成，最新产品回归 301 项通过。
+- [当前进度总览](task_plan.md)：阶段 7 已合并主线；桌面欢迎页完整滚轮交互修订在功能分支完成，最新产品回归 306 项通过。
 - [欢迎页验收记录](docs/acceptance/2026-09-26-desktop-welcome.md)：原生动画、入口交互、启动与资源打包验证。
 - [索引可靠性验收](docs/acceptance/2026-09-26-index-reliability.md)：阶段 7 的失败历史与剩余限制。
 - [阶段 7 实施计划](docs/superpowers/plans/2026-09-26-index-reliability-implementation.md)：索引重建与读取可靠性，7.1–7.4 已完成并交付主线。

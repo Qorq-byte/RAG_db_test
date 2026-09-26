@@ -2,7 +2,7 @@
 
 ## 状态与依据
 
-**状态：规划完成，尚未实施。** 本文是基于当前交付证据整理的推荐执行路线，具体底层修复以 7.1 的调查结果为准。本轮仅整理文档。
+**状态：实施中，7.1 完成；7.2–7.4 待实施。** 本文是基于当前交付证据整理的推荐执行路线，具体底层修复以 7.1 的调查结果为准。调查结果见 [阶段 7 验收记录](../../acceptance/2026-09-26-index-reliability.md)。
 
 基线为 GitHub `main` 的 `3cbdc9b`：阶段 6 已通过 `15d16e7` 合并，最终回归 249 passed，CLI、Windows 原生桌面与 `ragdb doctor` 通过，详见[验收记录](../../acceptance/2026-09-26-vector-index-maintenance.md)。当前模型组合继续使用本地 Ollama `embeddinggemma:latest` 嵌入和 DeepSeek `deepseek-flash` 问答/学习生成。
 
@@ -82,4 +82,4 @@
 - `tests/integration/test_embedding_rebuild.py`
 - `tests/integration/test_index_maintenance.py`
 
-建议工作分支：`codex/index-reliability`。当前 7.1–7.4 均未开始；本计划中的命令、校验和交付标准不代表已实现。
+建议工作分支：`codex/index-reliability`。当前 7.1 已完成；本计划中的命令、校验和交付标准不代表已实现。

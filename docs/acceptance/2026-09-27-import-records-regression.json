@@ -1,0 +1,115 @@
+{
+  "date": "2026-09-27",
+  "source_commit": "a5a99f94a64e8cfbef40cd82f945e9b452daf7e4",
+  "total_tests": 427,
+  "passed": 427,
+  "failures": 0,
+  "errors": 0,
+  "skipped": 0,
+  "coverage_matches_full_collection": true,
+  "missing_tests": 0,
+  "extra_tests": 0,
+  "duplicate_tests": 0,
+  "groups": [
+    {
+      "report": "import-records-full-core.xml",
+      "tests": 308,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "duration_seconds": 330.965,
+      "sha256": "e123dc4ed25703ea07ad21a7d2d1f04d3b33b7c24970397bff407d0c91c138be"
+    },
+    {
+      "report": "import-records-desktop.xml",
+      "tests": 29,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "duration_seconds": 22.522,
+      "sha256": "99ba73e562625825a41a4f7884b2d8a9add0b4dc82a3698b071f5888ff7ff4d7"
+    },
+    {
+      "report": "import-records-full-qt-1.xml",
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "duration_seconds": 4.558,
+      "sha256": "41c963dfca0e6d669224af19392d7389bb88e90dfaac63c38a8c8b20c3ac0061"
+    },
+    {
+      "report": "import-records-full-qt-2.xml",
+      "tests": 7,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "duration_seconds": 6.072,
+      "sha256": "7fd6020c9cee926efc6982a363e6cdeae0dedffe29697116c82e2be0097d0d81"
+    },
+    {
+      "report": "import-records-full-qt-3.xml",
+      "tests": 6,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "duration_seconds": 9.231,
+      "sha256": "89278426124a811cdb5f7f4cf7b3954401b0ddc89d9cab9ef2b4d8599a482b6e"
+    },
+    {
+      "report": "import-records-full-qt-4.xml",
+      "tests": 6,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "duration_seconds": 9.92,
+      "sha256": "459c50f5d25e2d44c898268367e5effa1087d04943b9ecc4b0bac3cfb5a839af"
+    },
+    {
+      "report": "import-records-full-qt-5.xml",
+      "tests": 4,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "duration_seconds": 7.841,
+      "sha256": "ec82492752992323cfc7265be895acfd278e164bfe946112277ccf9bdeb584e0"
+    },
+    {
+      "report": "import-records-full-qt-6.xml",
+      "tests": 21,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "duration_seconds": 24.261,
+      "sha256": "6bff0975b14560f2f1df39ed904ac631d68964da2e9886fba18903b1c1f4f9e8"
+    },
+    {
+      "report": "import-records-full-qt-7.xml",
+      "tests": 17,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "duration_seconds": 20.821,
+      "sha256": "75e8a27441e81231cc8b2a488e40828e8ab18c976040196a52a401c347f7d3b5"
+    },
+    {
+      "report": "import-records-full-qt-8.xml",
+      "tests": 17,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "duration_seconds": 45.57,
+      "sha256": "4045b807a09e5e2ff728c612fd514ed3d12ad63935c15e2fde07d52362d74252"
+    },
+    {
+      "report": "import-records-full-qt-9.xml",
+      "tests": 11,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "duration_seconds": 0.66,
+      "sha256": "a34bb395527896e908224418e33bb9c150f1fede598e4507336a4db01aab150b"
+    }
+  ],
+  "installer_rebuilt": false
+}

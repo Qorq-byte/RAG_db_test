@@ -188,13 +188,17 @@ languages = "chi_sim+eng"
 
 更换嵌入供应商或模型时，请使用桌面端“系统 → 模型设置 → 重建并切换”重建所有集合。`ragdb reindex` 只重新处理指定集合中可访问的本地文件，不能完成全局嵌入模型切换。
 
-可查看目录批量导入的历史任务和操作日志：
+桌面选择集合后，在“任务与诊断”查看“最近任务”和“操作日志”。文件、目录、文本、网页、GitHub 仓库导入都会记录开始与结束状态；最近任务显示新增、更新、跳过和失败数量。导入结束立即刷新，页面打开时每 2 秒刷新；也可点击“刷新记录”。记录随知识库保存，重启后仍可查看。
+
+也可通过 CLI 查看历史任务和操作日志：
 
 ```powershell
 uv run ragdb task list --collection ai-notes
 uv run ragdb task show <TASK_ID>
 uv run ragdb log list --collection ai-notes
 ```
+
+旧版没有写入的导入记录不会自动补齐。本项为源码修复，现有 v0.1.0 安装包尚不包含；按用户要求，更新安装包须另行取得同意。见[导入记录修复验收](docs/acceptance/2026-09-27-import-records.md)。
 
 ## 数据与隐私
 

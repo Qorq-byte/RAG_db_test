@@ -259,10 +259,14 @@ def test_touch_swipe_and_hover_flip(page):
     card = page.scene.cards[0]
     point = page.scene.mapFromScene(card.scenePos())
     QTest.mouseMove(view, point)
-    wait_until(lambda: card.flip_value >= .99)
+    # OutBack crosses the target before overshooting. A crossing is not the
+    # terminal state: processEvents() can advance the next frame past it.
+    wait_until(lambda: card.flip.state() == QAbstractAnimation.State.Stopped
+               and abs(card.flip_value - 1) < .01)
     assert card.hovered
     QTest.mouseMove(view, QPoint(640, 400))
-    wait_until(lambda: abs(card.flip_value) < .01)
+    wait_until(lambda: card.flip.state() == QAbstractAnimation.State.Stopped
+               and abs(card.flip_value) < .01)
     assert not card.hovered
 
 

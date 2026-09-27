@@ -326,10 +326,10 @@ uv run ragdb evaluate run my-report.json --dataset labels.json --collection 我�
 
 ### Windows 安装版
 
-v0.1.0已知问题：模型连接测试结束会清空尚未保存的API Key。临时处理是测试成功后重新填写API Key，直接点击“保存并应用”，不要再次测试。源码已修复；安装包更新按用户要求等待明确同意，见[修复验收](docs/acceptance/2026-09-27-model-key-save-fix.md)。
+当前版本 **v0.1.1** 已包含模型连接与密钥保存、实时问答、会话管理、集合切换、导入记录、概览刷新和嵌入接口修复。旧版 v0.1.0 的连接测试后密钥草稿丢失问题已修复。
 
-从 [GitHub Release v0.1.0](https://github.com/Qorq-byte/RAG_db_test/releases/tag/v0.1.0) 获取[Windows x64安装包](https://github.com/Qorq-byte/RAG_db_test/releases/download/v0.1.0/RAGDB-0.1.0-windows-x64-setup.exe)和[SHA256校验文件](https://github.com/Qorq-byte/RAG_db_test/releases/download/v0.1.0/SHA256SUMS.txt)。运行安装程序后，从开始菜单打开 RAGDB；无需另装Python或项目虚拟环境。安装目录内的 `RAGDB-CLI.exe` 提供同一套CLI命令。文件大小、校验值及验证结果见[安装包验收](docs/acceptance/2026-09-27-windows-installer.md)。
+从 [GitHub Release v0.1.1](https://github.com/Qorq-byte/RAG_db_test/releases/tag/v0.1.1) 获取[Windows x64安装包](https://github.com/Qorq-byte/RAG_db_test/releases/download/v0.1.1/RAGDB-0.1.1-windows-x64-setup.exe)和[SHA256校验文件](https://github.com/Qorq-byte/RAG_db_test/releases/download/v0.1.1/SHA256SUMS.txt)。关闭旧版 RAGDB 后运行安装程序，沿用原安装目录，无需先卸载；默认用户配置和知识库目录保留。安装后从开始菜单打开 RAGDB，无需另装Python或项目虚拟环境。安装目录内的 `RAGDB-CLI.exe` 提供同一套CLI命令。文件大小、校验值及验证边界见[v0.1.1安装包验收](docs/acceptance/2026-09-27-windows-installer-v0.1.1.md)。
 
 程序默认安装到 `%LOCALAPPDATA%/Programs/RAGDB`，配置和资料存放在 `%LOCALAPPDATA%/RAGDB`。卸载保留资料目录。初始嵌入配置为 Ollama `embeddinggemma:latest`；需要本机Ollama服务及已安装模型，也可在模型设置页选择其他本地模型或云端服务。模型权重、OCR程序和API密钥不随安装包分发。恢复库可用 `RAGDB.exe --config D:/restored-library/config.toml` 打开。
 
-复现构建：安装Inno Setup后执行 `./scripts/build_windows.ps1 -InnoCompiler "完整ISCC.exe路径"`。生成安装程序及 `SHA256SUMS.txt`；细节和实际安装/卸载证据见验收记录。
+复现构建：安装Inno Setup后执行 `./scripts/build_windows.ps1 -InnoCompiler "完整ISCC.exe路径"`。开发环境正在使用时，可加 `-EnvironmentPath "独立构建环境目录"`。生成安装程序及 `SHA256SUMS.txt`；细节和安装/卸载证据见验收记录。

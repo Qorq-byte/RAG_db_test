@@ -1,0 +1,42 @@
+{
+  "release": "v0.1.1",
+  "draft": false,
+  "source_commit": "fb83b7b191d68d536630b6c23fa843e031deb7fb",
+  "assets": [
+    {
+      "name": "RAGDB-0.1.1-windows-x64-setup.exe",
+      "size_bytes": 406211317,
+      "sha256": "4b408f9a334d795f7356537efb864e4687f5b2031dd904eb7cf4ffc6c3ecf60b",
+      "url": "https://github.com/Qorq-byte/RAG_db_test/releases/download/v0.1.1/RAGDB-0.1.1-windows-x64-setup.exe"
+    },
+    {
+      "name": "SHA256SUMS.txt",
+      "size_bytes": 101,
+      "sha256": "29adb7c616c89848d13293abaee513f77a77e862638e166ff669cbbab7431d7c",
+      "url": "https://github.com/Qorq-byte/RAG_db_test/releases/download/v0.1.1/SHA256SUMS.txt"
+    }
+  ],
+  "frozen_code": {
+    "status": "passed",
+    "checks": "all ragdb frozen module bytecode matches current source",
+    "modules_per_executable": {
+      "RAGDB.exe": 101,
+      "RAGDB-CLI.exe": 101
+    }
+  },
+  "installation": {
+    "gui": 0,
+    "user_data_preserved": true,
+    "production_registration_unchanged": true,
+    "status": "passed",
+    "version": "0.1.1",
+    "installer_identity": "isolated validation AppId, same payload and setup rules",
+    "install": 0,
+    "uninstall": 0,
+    "reinstall": 0
+  },
+  "source_regression_tests": 475,
+  "version_launcher_tests": 4,
+  "frozen_self_test": "passed before and after installation",
+  "production_installation_modified": false
+}

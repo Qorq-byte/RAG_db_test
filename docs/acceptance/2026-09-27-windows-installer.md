@@ -1,5 +1,7 @@
 # Windows 安装包验收
 
+本文保留 v0.1.0 的历史验收。后续已获用户同意并发布 [v0.1.1](2026-09-27-windows-installer-v0.1.1.md)，最新下载入口见该文档。
+
 ## 产物
 
 - 文件：`dist/RAGDB-0.1.0-windows-x64-setup.exe`

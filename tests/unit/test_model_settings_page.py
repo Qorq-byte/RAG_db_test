@@ -172,6 +172,72 @@ def test_cloud_key_stays_in_vault_and_is_not_repopulated(page):
     assert page.chat.key.text() == ""
 
 
+def test_test_then_save_retains_new_key_and_uses_cloud_after_restart(page, monkeypatch):
+    from ragdb.infrastructure.chat.factory import create_chat_model
+    from ragdb.infrastructure.chat.openai_compatible import OpenAICompatibleChatModel
+
+    page.chat.provider.setCurrentIndex(page.chat.provider.findData("cloud"))
+    page.chat.fields["cloud_base_url"].setText("https://api.deepseek.com")
+    page.chat.fields["cloud_model"].setText("test-chat")
+    page.chat.key.setText("new-unsaved-test-key")
+    monkeypatch.setattr(page, "confirm", lambda *args: True)
+    tested = []
+    monkeypatch.setattr(page.service, "test_chat", lambda settings: tested.append(settings))
+    page.test_connection(page.chat)
+    finish(page)
+    assert tested[0].cloud_api_key.get_secret_value() == "new-unsaved-test-key"
+    assert page.runtime.settings.chat.provider == "local"
+    assert not page.service.credentials.values
+    assert page.chat.key.text() == "new-unsaved-test-key"
+    page.save_chat()
+    finish(page)
+    assert "已保存" in page.feedback.text()
+    assert page.chat.key.text() == ""
+    restarted = ApplicationRuntime.from_config(page.service.config_path)
+    model = create_chat_model(restarted.settings.chat)
+    assert isinstance(model, OpenAICompatibleChatModel)
+    assert model.base_url == "https://api.deepseek.com"
+    assert model.api_key == "new-unsaved-test-key"
+    assert "new-unsaved-test-key" not in page.service.config_path.read_text(encoding="utf-8")
+    import httpx
+    from ragdb.domain.models import ChatPromptMessage
+    def respond(request):
+        assert str(request.url) == "https://api.deepseek.com/chat/completions"
+        assert request.headers["authorization"] == "Bearer new-unsaved-test-key"
+        return httpx.Response(200, json={"choices": [{"message": {"content": "cloud answer"}}]})
+    with httpx.Client(transport=httpx.MockTransport(respond)) as client:
+        model._client = client
+        assert model.complete([ChatPromptMessage(role="user", content="test")]).content == "cloud answer"
+
+
+def test_embedding_test_retains_draft_and_unrelated_chat_key(page, monkeypatch):
+    page.embedding.provider.setCurrentIndex(page.embedding.provider.findData("cloud"))
+    page.embedding.key.setText("embedding-test-key")
+    page.chat.key.setText("chat-draft-key")
+    monkeypatch.setattr(page, "confirm", lambda *args: True)
+    monkeypatch.setattr(page.service, "test_embedding", lambda _: None)
+    page.test_connection(page.embedding)
+    finish(page)
+    assert page.embedding.key.text() == "embedding-test-key"
+    assert page.chat.key.text() == "chat-draft-key"
+
+
+def test_failed_save_preserves_draft_key_for_retry(page, monkeypatch):
+    page.chat.provider.setCurrentIndex(page.chat.provider.findData("cloud"))
+    page.chat.key.setText("retry-test-key")
+    original = page.service.save_chat
+    monkeypatch.setattr(page.service, "save_chat", lambda *args: (_ for _ in ()).throw(RuntimeError("vault unavailable")))
+    page.save_chat()
+    finish(page)
+    assert "保存失败" in page.feedback.text()
+    assert page.chat.key.text() == "retry-test-key"
+    monkeypatch.setattr(page.service, "save_chat", original)
+    page.save_chat()
+    finish(page)
+    assert "已保存" in page.feedback.text()
+    assert page.chat.key.text() == ""
+
+
 def test_environment_fields_and_dotenv_sources_are_locked(page, monkeypatch):
     page.service.env_file.write_text("RAGDB_CHAT__LOCAL_MODEL=dotenv-chat\n", encoding="utf-8")
     monkeypatch.setenv("RAGDB_CHAT__LOCAL_MODEL", "env-chat")

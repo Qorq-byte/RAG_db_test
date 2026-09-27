@@ -42,3 +42,17 @@ def test_chat_adapters_normalize_invalid_responses() -> None:
     model = OllamaChatModel("qwen", "http://localhost:11434", 12, client)
     with pytest.raises(RuntimeError, match="响应格式错误"):
         model.complete([ChatPromptMessage(role="user", content="问题")])
+
+
+@pytest.mark.parametrize("body,expected", [
+    ({"error": "model 'qwen2.5:7b' not found"}, "未安装"),
+    ({"error": "unknown route"}, "服务地址"),
+])
+def test_ollama_404_explains_how_to_configure_chat(body, expected):
+    client = httpx.Client(transport=httpx.MockTransport(lambda _: httpx.Response(404, json=body)))
+    model = OllamaChatModel("qwen2.5:7b", "http://localhost:11434", 12, client)
+    with pytest.raises(RuntimeError) as failure:
+        model.complete([ChatPromptMessage(role="user", content="问题")])
+    assert expected in str(failure.value)
+    assert "模型设置" in str(failure.value)
+    assert "Client error" not in str(failure.value)

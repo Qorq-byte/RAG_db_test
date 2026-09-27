@@ -23,6 +23,23 @@ class OllamaChatModel:
                 json={"model": self.model_name, "stream": False, "messages": [message.model_dump() for message in messages]},
             )
             response.raise_for_status()
+        except httpx.HTTPStatusError as exc:
+            if exc.response.status_code == 404:
+                try:
+                    payload = exc.response.json()
+                    error = payload.get("error", "") if isinstance(payload, dict) else ""
+                except ValueError:
+                    error = ""
+                if isinstance(error, str) and error.startswith("model ") and "not found" in error:
+                    raise RuntimeError(
+                        "本地问答模型未安装。请在“模型设置 → 问答与生成”中选择已安装的 Ollama 问答模型，"
+                        "或配置云端服务并“保存并应用”。嵌入模型不能用于问答。"
+                    ) from None
+                raise RuntimeError(
+                    "本地问答接口返回 404。请在“模型设置 → 问答与生成”中检查 Ollama 服务地址和模型名称；"
+                    "使用云端 API 时请选择“云端 / OpenAI 兼容”并保存。"
+                ) from None
+            raise RuntimeError(f"本地问答请求失败：HTTP {exc.response.status_code}，请检查模型服务。") from None
         except httpx.HTTPError as exc:
             raise RuntimeError(f"本地问答请求失败：{exc}") from exc
         try:

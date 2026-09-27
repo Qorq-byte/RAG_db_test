@@ -318,7 +318,8 @@ class ModelSettingsPage(PageShell):
         for widget in (self.chat, self.embedding, self.refresh):
             widget.setEnabled(True)
         for form in (self.chat, self.embedding):
-            form.key.clear()
+            # Connection tests and failed saves must retain the unsaved draft.
+            # Successful save/rebuild/reload handlers clear it via reset().
             form.update_controls()
         self.cancel.setVisible(False)
         self.update_summary()
@@ -430,7 +431,10 @@ class ModelSettingsPage(PageShell):
                            else embedding_profile_fingerprint(current) == embedding_profile_fingerprint(draft))
             if same_target:
                 setattr(self.runtime.settings, form.section, current.model_copy(update={"cloud_api_key": None}))
-        self._run("clear", clear, lambda _: self.feedback.setText("已清除系统凭据库中的密钥。"), "清除失败，请检查系统凭据库或外部配置来源。")
+        def cleared(_):
+            form.key.clear()
+            self.feedback.setText("已清除系统凭据库中的密钥。")
+        self._run("clear", clear, cleared, "清除失败，请检查系统凭据库或外部配置来源。")
 
     def reload(self):
         def load():

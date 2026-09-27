@@ -26,6 +26,7 @@ from PySide6.QtWidgets import (
 
 from ragdb.desktop.components import PageShell, StatCard, StatusBadge
 from ragdb.desktop.workers import BackgroundTask
+from ragdb.desktop.import_feedback import import_feedback
 
 
 class OverviewPage(PageShell):
@@ -93,6 +94,7 @@ class OverviewPage(PageShell):
 
 class CollectionsPage(PageShell):
     collection_selected = Signal(object, str)
+    records_changed = Signal()
 
     def __init__(self, runtime) -> None:
         super().__init__("集合与资料", "组织证据源，并跟踪每份资料的处理状态。")
@@ -231,7 +233,7 @@ class CollectionsPage(PageShell):
             return None
         return item.data(Qt.ItemDataRole.UserRole)
 
-    def _run(self, collection, function) -> None:
+    def _run(self, collection, function, kind: str = "file") -> None:
         if self._import_in_flight:
             self.feedback.setText("当前导入尚未完成")
             self.feedback.setProperty("status", "warning")
@@ -242,7 +244,7 @@ class CollectionsPage(PageShell):
         self.feedback.setProperty("status", "warning")
         self.feedback.style().unpolish(self.feedback)
         self.feedback.style().polish(self.feedback)
-        task = BackgroundTask(collection.id, function)
+        task = BackgroundTask(collection.id, lambda: self.runtime.run_import(collection, kind, function))
         self._tasks.add(task)
         task.signals.succeeded.connect(self._import_finished)
         task.signals.failed.connect(self._import_failed)
@@ -250,6 +252,7 @@ class CollectionsPage(PageShell):
             self._tasks.discard(current)
             self._import_in_flight = False
             self.import_button.setEnabled(True)
+            self.records_changed.emit()
 
         task.signals.finished.connect(finished)
         QThreadPool.globalInstance().start(task)
@@ -263,12 +266,15 @@ class CollectionsPage(PageShell):
         self.feedback.setProperty("status", "failure")
 
     def _import_finished(self, collection_id, _result) -> None:
-        self.feedback.setText("导入完成")
-        self.feedback.setProperty("status", "success")
         item = self.collections.currentItem()
         current = item.data(Qt.ItemDataRole.UserRole) if item else None
         if current is not None and current.id == collection_id:
             self._select(item, None)
+            text, status = import_feedback(_result)
+            self.feedback.setText(text)
+            self.feedback.setProperty("status", status)
+            self.feedback.style().unpolish(self.feedback)
+            self.feedback.style().polish(self.feedback)
 
     def import_file(self) -> None:
         collection = self._collection()
@@ -290,6 +296,7 @@ class CollectionsPage(PageShell):
                 lambda: self.runtime.ingestion_service().ingest_directory(
                     collection, Path(path)
                 ),
+                kind="directory",
             )
 
     def import_text(self) -> None:
@@ -301,6 +308,7 @@ class CollectionsPage(PageShell):
                 lambda: self.runtime.ingestion_service().ingest_text(
                     collection, text, "手动文本"
                 ),
+                kind="text",
             )
 
     def import_web(self) -> None:
@@ -308,7 +316,7 @@ class CollectionsPage(PageShell):
         url, accepted = QInputDialog.getText(self, "导入网页", "URL")
         if collection and accepted and url.strip():
             self._run(
-                collection, lambda: self.runtime.ingest_web(collection, url.strip())
+                collection, lambda: self.runtime.ingest_web(collection, url.strip()), kind="web",
             )
 
     def import_repository(self) -> None:
@@ -318,6 +326,7 @@ class CollectionsPage(PageShell):
             self._run(
                 collection,
                 lambda: self.runtime.ingest_repository(collection, url.strip()),
+                kind="repository",
             )
 
     def delete_source(self) -> None:

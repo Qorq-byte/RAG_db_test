@@ -96,6 +96,7 @@ class MainWindow(QMainWindow):
                 page = OperationsPage(runtime)
                 self.operations_page = page
                 self.collection_context.changed.connect(page.set_collection)
+                self.collections_page.records_changed.connect(page.refresh)
                 self.pages.addWidget(page)
                 continue
             if runtime is not None and index == 6:

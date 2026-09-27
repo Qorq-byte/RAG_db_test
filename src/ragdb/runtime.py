@@ -9,7 +9,8 @@ from ragdb.application.collections import CollectionService
 from ragdb.application.generation import GenerationService
 from ragdb.application.embedding_rebuild import EmbeddingRebuildResult, EmbeddingRebuildService
 from ragdb.application.model_settings import ModelSettingsService, chat_credential_name
-from ragdb.application.ingestion import LocalIngestionService
+from ragdb.application.ingestion import DirectoryIngestionResult, LocalIngestionService
+from ragdb.application.import_tracking import ImportRecorder
 from ragdb.application.search import SearchService
 from ragdb.application.sources import SourceService
 from ragdb.config import AppSettings, EmbeddingSettings, load_settings
@@ -31,6 +32,7 @@ class ApplicationRuntime:
     def __init__(self, settings: AppSettings, database: SQLiteDatabase, config_path: Path = Path("config.toml")) -> None:
         self.settings = settings
         self.database = database
+        self.import_recorder = ImportRecorder(self.tasks, self.operation_logs)
         self.config_path = config_path
         self.configuration_warning = None
         if settings.chat.provider == "cloud" and settings.chat.cloud_api_key is None:
@@ -111,7 +113,7 @@ class ApplicationRuntime:
         ocr = None
         if settings.ocr.enabled and settings.ocr.executable_path is not None:
             ocr = TesseractOcr(settings.ocr.executable_path, settings.ocr.languages, settings.ocr.dpi)
-        return LocalIngestionService(SQLiteSourceRepository(self.database), SQLiteChunkRepository(self.database), SQLiteTaskRepository(self.database), ParserRegistry(ocr=ocr), StructuredChunker(settings.chunking), SQLiteKeywordIndex(self.database), create_embedding_provider(embedding), store, SQLiteGenerationRepository(self.database), operation_gate=gate)
+        return LocalIngestionService(SQLiteSourceRepository(self.database), SQLiteChunkRepository(self.database), SQLiteTaskRepository(self.database), ParserRegistry(ocr=ocr), StructuredChunker(settings.chunking), SQLiteKeywordIndex(self.database), create_embedding_provider(embedding), store, SQLiteGenerationRepository(self.database), operation_gate=gate, import_recorder=self.import_recorder)
 
     def rebuild_embeddings(self, settings: EmbeddingSettings, *, on_progress=None, should_cancel=None) -> EmbeddingRebuildResult:
         ModelSettingsService(self.config_path).store_embedding_credential(settings)
@@ -180,7 +182,17 @@ class ApplicationRuntime:
     def operation_logs(self) -> SQLiteOperationLogRepository:
         return SQLiteOperationLogRepository(self.database)
 
+    def run_import(self, collection, kind: str, operation):
+        """Include model setup and remote fetching in the recorded import attempt."""
+        recorded = self.import_recorder.run(collection, kind, operation)
+        if isinstance(recorded.result, DirectoryIngestionResult):
+            return replace(recorded.result, task=recorded.task)
+        return recorded.result
+
     def ingest_web(self, collection, url: str):
+        return self.run_import(collection, "web", lambda: self._ingest_web(collection, url))
+
+    def _ingest_web(self, collection, url: str):
         service = self.ingestion_service()
         crawler = WebCrawler(self.settings.crawl)
         try:
@@ -190,6 +202,9 @@ class ApplicationRuntime:
         return [service.ingest_web_page(collection, page.url, page.title, page.text) for page in pages]
 
     def ingest_repository(self, collection, url: str):
+        return self.run_import(collection, "repository", lambda: self._ingest_repository(collection, url))
+
+    def _ingest_repository(self, collection, url: str):
         service = self.ingestion_service()
         importer = PublicGitHubImporter(self.settings.storage.data_dir / "cache" / "repos", service.max_file_size_bytes)
         _, files = importer.clone_and_list(url)

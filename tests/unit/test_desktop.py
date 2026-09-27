@@ -352,6 +352,22 @@ def test_chat_collection_switch_syncs_workbench_and_actual_request(monkeypatch):
     window.close()
 
 
+def test_chat_busy_updates_top_bar_and_collection_lock() -> None:
+    window = MainWindow(_Runtime())
+    try:
+        window._chat_busy_changed(True)
+        assert window.top_bar.task_status.text() == "正在回答问题"
+        assert window.collection_context.locked
+        assert not window.collections_page.isEnabled()
+        window._chat_busy_changed(False)
+        assert window.top_bar.task_status.text() == "后台空闲"
+        assert not window.collection_context.locked
+        assert window.collections_page.isEnabled()
+    finally:
+        window.close()
+        APPLICATION.processEvents()
+
+
 def test_cancel_collection_switch_preserves_current_chat(monkeypatch):
     window = MainWindow(_Runtime())
     window.collections_page.collections.setCurrentRow(0)

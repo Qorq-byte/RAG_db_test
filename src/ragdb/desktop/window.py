@@ -154,7 +154,7 @@ class MainWindow(QMainWindow):
     def _chat_busy_changed(self, busy):
         self.collection_context.locked = busy
         self.collections_page.setEnabled(not busy)
-        self.navigation.task_status.setText("正在回答问题" if busy else "后台空闲")
+        self.top_bar.task_status.setText("正在回答问题" if busy else "后台空闲")
 
     def choose_chat_collection(self):
         if self.chat_page.busy or self.collection_context.locked:

@@ -71,13 +71,76 @@ def test_empty_search_does_not_call_model_and_records_refusal(setup) -> None:
     assert len(repository.list_messages(result.conversation.id)) == 2
 
 
-def test_session_cannot_cross_collection_boundaries(setup) -> None:
+def test_same_session_can_use_a_different_retrieval_collection(setup) -> None:
+    collection, repository = setup
+    second = SQLiteCollectionRepository(repository.database).create(Collection(name="第二个集合"))
+    first_hit = hit()
+    second_hit = hit().model_copy(update={"source_title": "第二集合资料", "source_uri": "text://second", "text": "第二集合的新证据"})
+    targets = []
+    class ScopedSearch:
+        def search(self, collection_id, query):
+            targets.append(collection_id)
+            return [first_hit if collection_id == collection.id else second_hit]
+    model = FakeChatModel()
+    service = AnswerService(ScopedSearch(), model, repository, evidence_limit=6, evidence_character_budget=1000, history_character_budget=500)
+    first = service.ask(collection.id, "第一轮问题")
+    second_answer = service.ask(second.id, "第二轮问题", session_id=first.conversation.id)
+    assert second_answer.conversation.id == first.conversation.id
+    assert targets == [collection.id, second.id]
+    messages = repository.list_messages(first.conversation.id)
+    assert len(messages) == 4
+    assert repository.list_citations(messages[1].id)[0].source_id == first_hit.source_id
+    assert repository.list_citations(messages[3].id)[0].source_id == second_hit.source_id
+    assert model.messages[1].content == "第一轮问题"
+    assert "第二集合的新证据" in model.messages[-1].content
+    assert "RAG 先检索资料" not in model.messages[-1].content
+    assert repository.get(first.conversation.id).collection_id == collection.id
+    assert len(repository.list_for_collection(collection.id)) == 1
+    assert repository.list_for_collection(second.id) == []
+
+
+def test_missing_session_still_fails(setup) -> None:
     collection, repository = setup
     service = AnswerService(FakeSearch([]), FakeChatModel(), repository, evidence_limit=6, evidence_character_budget=1000, history_character_budget=500)
-    session = service.ask(collection.id, "问题").conversation
 
-    with pytest.raises(Exception, match="指定会话不存在于该知识集合"):
-        service.ask(uuid4(), "另一个集合", session_id=session.id)
+    with pytest.raises(Exception, match="指定会话不存在"):
+        service.ask(collection.id, "问题", session_id=uuid4())
+
+
+def test_empty_new_collection_never_uses_previous_answer_as_evidence(setup):
+    collection, repository = setup
+    second = SQLiteCollectionRepository(repository.database).create(Collection(name="空资料集合"))
+    model = FakeChatModel()
+    service = AnswerService(FakeSearch([hit()]), model, repository, evidence_limit=6, evidence_character_budget=1000, history_character_budget=500)
+    first = service.ask(collection.id, "第一轮")
+    service.search_service = FakeSearch([])
+    def unexpected_call(*args):
+        pytest.fail("No-evidence follow-up must not call the model")
+    model.complete = unexpected_call
+    followup = service.ask(second.id, "沿用旧答案？", first.conversation.id)
+    assert followup.conversation.id == first.conversation.id
+    assert followup.content == NO_EVIDENCE_ANSWER
+    assert followup.citations == ()
+    assert len(repository.list_messages(first.conversation.id)) == 4
+
+
+@pytest.mark.parametrize("outcome", ["failure", "cancel"])
+def test_failed_cross_collection_turn_preserves_existing_history(setup, outcome):
+    from ragdb.infrastructure.chat.streaming import ChatCancelled
+    collection, repository = setup
+    second = SQLiteCollectionRepository(repository.database).create(Collection(name="后续集合"))
+    service = AnswerService(FakeSearch([hit()]), FakeChatModel(), repository, evidence_limit=6, evidence_character_budget=1000, history_character_budget=500)
+    first = service.ask(collection.id, "成功的第一轮")
+    before = repository.list_messages(first.conversation.id)
+    class FailedModel(FakeChatModel):
+        def stream(self, messages, **kwargs):
+            yield "未完成输出"
+            raise ChatCancelled() if outcome == "cancel" else RuntimeError("failure")
+    service.chat_model = FailedModel()
+    with pytest.raises(ChatCancelled if outcome == "cancel" else RuntimeError):
+        service.ask(second.id, "未完成的第二轮", first.conversation.id, stream=True)
+    assert repository.list_messages(first.conversation.id) == before
+    assert repository.list_for_collection(second.id) == []
 
 
 @pytest.mark.parametrize('outcome', ['success', 'failure', 'cancel'])

@@ -112,12 +112,7 @@ class ChatPage(PageShell):
         self.switch_collection.setText("切换集合" if collection_id is not None else "选择集合")
         self.manage_sessions.setEnabled(collection_id is not None)
         if changed:
-            self.session_id = None
-            self.transcript.clear()
-            self._bubble = None
-            self._buffer = ""
-            self.details_requested.emit("")
-            self.feedback.setText("Enter 发送 · Shift+Enter 换行" if collection_id is not None else "请先选择知识集合")
+            self.feedback.setText("后续问题将使用当前所选集合" if collection_id is not None else "请先选择知识集合")
         self.refresh_sessions()
 
     def request_collection_switch(self):
@@ -132,6 +127,13 @@ class ChatPage(PageShell):
             for session in self.runtime.conversations.list_for_collection(self.collection_id):
                 self.sessions.addItem(session.title or str(session.id), session.id)
         if self.session_id:
+            if not any(self.sessions.itemData(i) == self.session_id for i in range(self.sessions.count())):
+                session = self.runtime.conversations.get(self.session_id)
+                title = (session.title or str(session.id)) if session else "当前会话（已不可用）"
+                self.sessions.addItem(title, self.session_id)
+                self.sessions.setItemData(
+                    self.sessions.count() - 1, "当前会话保持不变，历史记录保存在创建时的集合中。", Qt.ItemDataRole.ToolTipRole,
+                )
             # QVariant compares opaque Python UUID objects by identity, while
             # repository reads create equal but distinct UUID instances.
             selected = next((i for i in range(self.sessions.count())
@@ -148,7 +150,7 @@ class ChatPage(PageShell):
         if self.busy:
             return
         self.session_id = self.sessions.currentData()
-        self.transcript.clear()
+        self._clear_conversation_display()
         if self.session_id:
             for message in self.runtime.conversations.list_messages(self.session_id):
                 bubble = self._add_bubble(message.role.value, message.content)
@@ -159,9 +161,17 @@ class ChatPage(PageShell):
         if self.busy:
             return
         self.session_id = None
+        self.sessions.blockSignals(True)
         self.sessions.setCurrentIndex(0)
-        self.transcript.clear()
+        self.sessions.blockSignals(False)
+        self._clear_conversation_display()
         self.question.setFocus()
+
+    def _clear_conversation_display(self):
+        self.transcript.clear()
+        self._bubble = None
+        self._buffer = ""
+        self.details_requested.emit("")
 
     def manage_conversations(self):
         if self.busy or self.collection_id is None:
@@ -179,9 +189,6 @@ class ChatPage(PageShell):
         if self.session_id in session_ids:
             self.generation += 1
             self.new_session()
-            self._bubble = None
-            self._buffer = ""
-            self.details_requested.emit("")
             self.feedback.setText("当前会话已删除，可开始新会话")
         self.refresh_sessions()
 
@@ -213,9 +220,12 @@ class ChatPage(PageShell):
         self._start(question, bubble, context, True)
 
     def _retry(self, question, bubble, context, stream):
-        if self.busy or context != (self.collection_id, self.session_id, self.generation):
+        if (self.busy or self.collection_id is None or context[1] != self.session_id
+                or bubble not in self.transcript.messages):
             return
-        self._start(question, bubble, context, stream)
+        # A retry is a new attempt using the collection currently shown above
+        # the composer. Switching collections must not leave a dead retry button.
+        self._start(question, bubble, (self.collection_id, self.session_id, self.generation), stream)
 
     def _start(self, question, bubble, context, stream):
         self._cancel.clear()

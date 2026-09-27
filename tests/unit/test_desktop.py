@@ -334,8 +334,9 @@ def test_chat_collection_switch_syncs_workbench_and_actual_request(monkeypatch):
     assert window.top_bar.collection.text() == window.navigation.collection.text() == second.name
     assert window.collections_page.collections.currentItem().data(Qt.ItemDataRole.UserRole).id == second.id
     assert window.pages.widget(2).collection_id == window.operations_page.collection_id == second.id
-    assert not page.transcript.messages and page.session_id is None
-    assert window.details.toPlainText() == ""
+    assert page.transcript.messages[0].content == "上一个集合的回答"
+    assert page.session_id is None  # Unsaved conversations also keep their visible messages.
+    assert window.details.toPlainText() == "上一个集合的引用"
     assert page.question.toPlainText() == "尚未发送的问题"
     calls = []
     def ask(collection_id, question, session_id, **kwargs):

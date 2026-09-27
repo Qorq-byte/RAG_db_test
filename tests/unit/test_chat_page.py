@@ -131,9 +131,98 @@ def test_context_change_cancels_old_request_without_cross_talk(chat):
     until(lambda: not page.busy)
     assert page.collection_id == next_collection
     assert page.collection_label.text() == "当前提问集合：next"
-    assert not page.transcript.messages
+    assert len(page.transcript.messages) == 2
+    assert "未保存" in page.transcript.messages[-1].state.text()
     page._progress(old_token, "delta", "stale")
     assert "stale" not in page.transcript.toPlainText()
+
+
+def test_switching_collection_keeps_session_and_continues_saved_history(chat):
+    second = SQLiteCollectionRepository(chat.repo.database).create(Collection(name="第二个集合"))
+    page = chat.page
+    chat.release.set()
+    page.question.setPlainText("第一轮问题")
+    page.ask()
+    until(lambda: not page.busy)
+    session_id = page.session_id
+    first_bubbles = list(page.transcript.messages)
+    page.question.setPlainText("第二轮问题")
+    page.set_collection(second.id, second.name, 2)
+    assert page.session_id == session_id
+    assert page.sessions.currentData() == session_id
+    assert page.transcript.messages == first_bubbles
+    assert page.question.toPlainText() == "第二轮问题"
+    page.ask()
+    until(lambda: not page.busy)
+    assert page.session_id == session_id
+    assert len(chat.repo.list_messages(session_id)) == 4
+    assert len(page.transcript.messages) == 4
+    assert len(chat.repo.list_for_collection(chat.collection.id)) == 1
+    assert chat.repo.list_for_collection(second.id) == []
+    restored = ChatPage(page.runtime)
+    restored.set_collection(chat.collection.id, chat.collection.name, 1)
+    index = next(i for i in range(restored.sessions.count()) if restored.sessions.itemData(i) == session_id)
+    restored.sessions.setCurrentIndex(index)
+    assert len(restored.transcript.messages) == 4
+    assert restored.transcript.messages[-1].references.isHidden() is False
+    restored.set_collection(second.id, second.name, 2)
+    assert restored.session_id == session_id
+    assert len(restored.transcript.messages) == 4
+    restored.new_session()
+    assert restored.session_id is None
+    assert not restored.transcript.messages
+    restored.close()
+
+
+def test_retry_after_collection_switch_uses_current_scope_in_same_session(chat, monkeypatch):
+    second = SQLiteCollectionRepository(chat.repo.database).create(Collection(name="重试集合"))
+    page = chat.page
+    chat.release.set()
+    page.question.setPlainText("第一轮")
+    page.ask()
+    until(lambda: not page.busy)
+    original_session = page.session_id
+    original_ask = chat.service.ask
+    calls = []
+    failing = True
+    def ask(collection_id, *args, **kwargs):
+        calls.append(collection_id)
+        if failing:
+            raise RuntimeError("暂时失败")
+        return original_ask(collection_id, *args, **kwargs)
+    monkeypatch.setattr(chat.service, "ask", ask)
+    page.question.setPlainText("需要重试的第二轮")
+    page.ask()
+    until(lambda: not page.busy)
+    bubble = page.transcript.messages[-1]
+    page.set_collection(second.id, second.name, 2)
+    failing = False
+    bubble.retry.click()
+    until(lambda: not page.busy)
+    assert calls == [chat.collection.id, second.id]
+    assert page.session_id == original_session
+    assert len(chat.repo.list_messages(original_session)) == 4
+    assert len(page.transcript.messages) == 4
+
+
+def test_only_explicit_session_selection_replaces_display(chat):
+    second = SQLiteCollectionRepository(chat.repo.database).create(Collection(name="其他会话集合"))
+    page = chat.page
+    chat.release.set()
+    page.question.setPlainText("当前会话问题")
+    page.ask()
+    until(lambda: not page.busy)
+    first_session = page.session_id
+    other = chat.service.ask(second.id, "另一条会话的问题", stream=True).conversation
+    page.set_collection(second.id, second.name, 2)
+    assert page.session_id == first_session
+    assert "当前会话问题" in page.transcript.toPlainText()
+    index = next(i for i in range(page.sessions.count()) if page.sessions.itemData(i) == other.id)
+    page.sessions.setCurrentIndex(index)
+    assert page.session_id == other.id
+    assert "另一条会话的问题" in page.transcript.toPlainText()
+    assert "当前会话问题" not in page.transcript.toPlainText()
+    assert len(chat.repo.list_messages(first_session)) == 2
 
 
 def test_explicit_stream_rejection_offers_manual_fallback(chat, monkeypatch):

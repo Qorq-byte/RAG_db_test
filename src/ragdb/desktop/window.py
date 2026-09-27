@@ -6,6 +6,7 @@ from PySide6.QtWidgets import (
     QApplication,
     QDialog,
     QHBoxLayout,
+    QInputDialog,
     QLabel,
     QMainWindow,
     QSplitter,
@@ -88,6 +89,7 @@ class MainWindow(QMainWindow):
                 if index == 3:
                     self.chat_page = page
                     page.busy_changed.connect(self._chat_busy_changed)
+                    page.collection_switch_requested.connect(self.choose_chat_collection)
                 self.collection_context.changed.connect(page.set_collection)
                 page.details_requested.connect(self.detail_panel.show_text)
                 self.pages.addWidget(page)
@@ -153,6 +155,45 @@ class MainWindow(QMainWindow):
         self.collection_context.locked = busy
         self.collections_page.setEnabled(not busy)
         self.navigation.task_status.setText("正在回答问题" if busy else "后台空闲")
+
+    def choose_chat_collection(self):
+        if self.chat_page.busy or self.collection_context.locked:
+            return
+        try:
+            collections = list(self.runtime.collections.list_all())
+        except Exception:
+            self.chat_page.feedback.setText("读取知识集合失败，请稍后重试。")
+            return
+        if not collections:
+            self.navigation.select_page(1)
+            self.collections_page.feedback.setText("暂无知识集合，请先点击“新建集合”。")
+            return
+        current = next((index for index, collection in enumerate(collections)
+                        if collection.id == self.collection_context.collection_id), 0)
+        name, accepted = QInputDialog.getItem(
+            self, "切换提问集合", "选择知识集合", [item.name for item in collections], current, False,
+        )
+        if not accepted or self.chat_page.busy or self.collection_context.locked:
+            return
+        selected = next((item for item in collections if item.name == name), None)
+        if selected is None:
+            return
+        try:
+            if selected.id == self.collection_context.collection_id:
+                # Keep retry tokens valid when the user confirms the same collection.
+                current_collection = next((item for item in self.runtime.collections.list_all()
+                                           if item.id == selected.id), None)
+                if current_collection is not None and current_collection.name == self.collection_context.collection_name:
+                    self.chat_page.question.setFocus()
+                    return
+            found = self.collections_page.refresh(selected_id=selected.id)
+        except Exception:
+            self.chat_page.feedback.setText("刷新知识集合失败，请稍后重试。")
+            return
+        if not found:
+            self.chat_page.feedback.setText("所选集合已不存在，请重新选择。")
+            return
+        self.chat_page.question.setFocus()
 
     def toggle_detail_preference(self) -> None:
         self.set_detail_preference(not self._detail_panel_preference)

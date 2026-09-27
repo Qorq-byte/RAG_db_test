@@ -4,8 +4,8 @@ from threading import Event
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6.QtWidgets import QApplication, QPushButton
-from PySide6.QtCore import QSettings, QThreadPool
+from PySide6.QtWidgets import QApplication, QInputDialog, QPushButton
+from PySide6.QtCore import QSettings, QThreadPool, Qt
 
 from ragdb.desktop.window import MainWindow, PAGES
 from ragdb.desktop.workers import BackgroundTask
@@ -311,6 +311,133 @@ def test_window_shortcuts_do_not_override_multiline_editor_focus() -> None:
     window._select_page_from_shortcut(1)
 
     assert window.pages.currentIndex() == 3
+    window.close()
+
+
+def test_chat_collection_switch_syncs_workbench_and_actual_request(monkeypatch):
+    from types import SimpleNamespace
+    runtime = _Runtime()
+    second = Collection(name="计算机网络")
+    runtime.collection_api.items.append(second)
+    window = MainWindow(runtime)
+    window.collections_page.collections.setCurrentRow(0)
+    window.navigation.select_page(3)
+    page = window.chat_page
+    page._add_bubble("assistant", "上一个集合的回答")
+    page.question.setPlainText("尚未发送的问题")
+    window.detail_panel.show_text("上一个集合的引用")
+    monkeypatch.setattr(QInputDialog, "getItem", lambda *args: (second.name, True))
+    page.switch_collection.click()
+    assert window.pages.currentIndex() == 3
+    assert page.collection_label.text() == "当前提问集合：计算机网络"
+    assert page.collection_id == window.collection_context.collection_id == second.id
+    assert window.top_bar.collection.text() == window.navigation.collection.text() == second.name
+    assert window.collections_page.collections.currentItem().data(Qt.ItemDataRole.UserRole).id == second.id
+    assert window.pages.widget(2).collection_id == window.operations_page.collection_id == second.id
+    assert not page.transcript.messages and page.session_id is None
+    assert window.details.toPlainText() == ""
+    assert page.question.toPlainText() == "尚未发送的问题"
+    calls = []
+    def ask(collection_id, question, session_id, **kwargs):
+        calls.append((collection_id, question, session_id))
+        raise RuntimeError("受控测试：已核对请求目标")
+    runtime.answer_service = lambda: SimpleNamespace(ask=ask)
+    page.ask()
+    QThreadPool.globalInstance().waitForDone(3000)
+    APPLICATION.processEvents()
+    assert calls == [(second.id, "尚未发送的问题", None)]
+    assert not page.busy
+    assert page.switch_collection.isEnabled()
+    window.close()
+
+
+def test_cancel_collection_switch_preserves_current_chat(monkeypatch):
+    window = MainWindow(_Runtime())
+    window.collections_page.collections.setCurrentRow(0)
+    page = window.chat_page
+    page._add_bubble("assistant", "保留回答")
+    page.question.setPlainText("保留草稿")
+    generation = window.collection_context.generation
+    def cancel(*args):
+        assert args[4] == 0  # Current collection is selected by default.
+        return "", False
+    monkeypatch.setattr(QInputDialog, "getItem", cancel)
+    page.switch_collection.click()
+    assert window.collection_context.generation == generation
+    assert "保留回答" in page.transcript.toPlainText()
+    assert page.question.toPlainText() == "保留草稿"
+    window.close()
+
+
+def test_choosing_current_collection_keeps_conversation(monkeypatch):
+    runtime = _Runtime()
+    window = MainWindow(runtime)
+    window.collections_page.collections.setCurrentRow(0)
+    page = window.chat_page
+    bubble = page._add_bubble("assistant", "保留当前对话")
+    generation = page.generation
+    monkeypatch.setattr(QInputDialog, "getItem", lambda *args: (runtime.collection_api.items[0].name, True))
+    page.switch_collection.click()
+    assert page.transcript.messages == [bubble]
+    assert page.generation == window.collection_context.generation == generation
+    window.close()
+
+
+def test_no_collections_routes_to_creation_page():
+    runtime = _Runtime()
+    runtime.collection_api.items.clear()
+    window = MainWindow(runtime)
+    window.navigation.select_page(3)
+    assert window.chat_page.collection_label.text() == "当前提问集合：未选择"
+    assert window.chat_page.switch_collection.text() == "选择集合"
+    window.chat_page.switch_collection.click()
+    assert window.pages.currentIndex() == 1
+    assert "新建集合" in window.collections_page.feedback.text()
+    window.close()
+
+
+def test_collection_read_failure_keeps_existing_context(monkeypatch):
+    runtime = _Runtime()
+    window = MainWindow(runtime)
+    window.collections_page.collections.setCurrentRow(0)
+    before = window.collection_context.collection_id
+    def fail():
+        raise OSError("private path")
+    monkeypatch.setattr(runtime.collection_api, "list_all", fail)
+    window.chat_page.switch_collection.click()
+    assert "读取知识集合失败" in window.chat_page.feedback.text()
+    assert window.chat_page.collection_id == before
+    assert window.chat_page.collection_label.text() == "当前提问集合：人工智能"
+    window.close()
+
+
+def test_collection_disappearing_during_selection_clears_stale_target(monkeypatch):
+    runtime = _Runtime()
+    window = MainWindow(runtime)
+    window.collections_page.collections.setCurrentRow(0)
+    selected = runtime.collection_api.items[0]
+    def remove_and_choose(*args):
+        runtime.collection_api.items.clear()
+        return selected.name, True
+    monkeypatch.setattr(QInputDialog, "getItem", remove_and_choose)
+    window.chat_page.switch_collection.click()
+    assert window.collection_context.collection_id is None
+    assert window.chat_page.collection_id is None
+    assert "未选择" in window.chat_page.collection_label.text()
+    assert "已不存在" in window.chat_page.feedback.text()
+    window.close()
+
+
+def test_refresh_preserves_collection_identity_after_rename():
+    runtime = _Runtime()
+    window = MainWindow(runtime)
+    window.collections_page.collections.setCurrentRow(0)
+    renamed = runtime.collection_api.items[0].model_copy(update={"name": "<b>资料</b>" + "长名称" * 20})
+    runtime.collection_api.items[0] = renamed
+    window.collections_page.refresh()
+    assert window.chat_page.collection_id == renamed.id
+    assert window.chat_page.collection_label.text() == f"当前提问集合：{renamed.name}"
+    assert window.chat_page.collection_label.textFormat() == Qt.TextFormat.PlainText
     window.close()
 
 

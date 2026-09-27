@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from PySide6.QtCore import QThreadPool, Qt, Signal
+from PySide6.QtCore import QSignalBlocker, QThreadPool, Qt, Signal
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QFileDialog,
@@ -171,20 +171,23 @@ class CollectionsPage(PageShell):
         self.collections.currentItemChanged.connect(self._select)
         self.refresh()
 
-    def refresh(self) -> None:
-        selected = (
-            self.collections.currentItem().text()
-            if self.collections.currentItem()
-            else None
-        )
-        self.collections.clear()
-        for collection in self.runtime.collection_service().list_all():
-            item = QListWidgetItem(collection.name)
-            item.setData(Qt.ItemDataRole.UserRole, collection)
-            self.collections.addItem(item)
-            if collection.name == selected:
-                self.collections.setCurrentItem(item)
+    def refresh(self, *, selected_id=None) -> bool:
+        current = self.collections.currentItem()
+        if selected_id is None and current is not None:
+            selected_id = current.data(Qt.ItemDataRole.UserRole).id
+        # Read before clearing, so a failed refresh preserves the visible selection.
+        collections = self.runtime.collection_service().list_all()
+        with QSignalBlocker(self.collections):
+            self.collections.clear()
+            for collection in collections:
+                item = QListWidgetItem(collection.name)
+                item.setData(Qt.ItemDataRole.UserRole, collection)
+                self.collections.addItem(item)
+                if collection.id == selected_id:
+                    self.collections.setCurrentItem(item)
+        self._select(self.collections.currentItem(), None)
         self.feedback.setText(f"{self.collections.count()} 个集合")
+        return self.collections.currentItem() is not None
 
     def create_collection(self) -> None:
         name, accepted = QInputDialog.getText(self, "新建集合", "集合名称")
@@ -214,6 +217,7 @@ class CollectionsPage(PageShell):
     def _select(self, current, _previous) -> None:
         self.sources.setRowCount(0)
         if current is None:
+            self.collection_selected.emit(None, "未选择集合")
             return
         collection = current.data(Qt.ItemDataRole.UserRole)
         self.collection_selected.emit(collection.id, collection.name)

@@ -72,6 +72,11 @@ def test_immediate_question_stream_progress_and_history_citations(chat):
     assert page.transcript.messages[0].body.toPlainText() == "<b>用户问题</b>"
     assert not page.sessions.isEnabled() and not page.new.isEnabled()
     assert not page.manage_sessions.isEnabled()
+    assert not page.switch_collection.isEnabled()
+    switches = []
+    page.collection_switch_requested.connect(lambda: switches.append(True))
+    page.request_collection_switch()
+    assert switches == []
     page.manage_conversations()  # Direct calls are also blocked while generating.
     assert page.ask_button.text() == "停止生成"
     until(lambda: "第一段" in page.transcript.toPlainText())
@@ -85,6 +90,7 @@ def test_immediate_question_stream_progress_and_history_citations(chat):
     assert page.transcript.messages[-1].content == "第一段，第二段 [1]"
     assert len(chat.repo.list_messages(page.session_id)) == 2
     assert page.manage_sessions.isEnabled()
+    assert page.switch_collection.isEnabled()
     page.select_session(page.sessions.currentIndex())
     until(lambda: page.transcript.messages[-1].references.isVisible())
     evidence = []
@@ -119,9 +125,12 @@ def test_context_change_cancels_old_request_without_cross_talk(chat):
     next_collection = uuid4()
     old_token = page._token
     page.set_collection(next_collection, "next", 2)
+    assert page.collection_label.text() == "当前提问集合：demo"
+    assert not page.switch_collection.isEnabled()
     chat.release.set()
     until(lambda: not page.busy)
     assert page.collection_id == next_collection
+    assert page.collection_label.text() == "当前提问集合：next"
     assert not page.transcript.messages
     page._progress(old_token, "delta", "stale")
     assert "stale" not in page.transcript.toPlainText()

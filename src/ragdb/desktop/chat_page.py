@@ -1,11 +1,12 @@
 """Conversation page: immediate messages, real progress and streamed answers."""
 
 from threading import Event
+from html import escape
 from time import monotonic
 from uuid import uuid4
 
-from PySide6.QtCore import QThreadPool, QTimer, Signal, Slot
-from PySide6.QtWidgets import QComboBox, QFrame, QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget
+from PySide6.QtCore import QThreadPool, QTimer, Qt, Signal, Slot
+from PySide6.QtWidgets import QComboBox, QFrame, QHBoxLayout, QLabel, QPushButton, QSizePolicy, QVBoxLayout, QWidget
 
 from ragdb.desktop.components import PageShell
 from ragdb.desktop.chat_widgets import ConversationView, QuestionEditor
@@ -17,6 +18,7 @@ from ragdb.infrastructure.chat.streaming import StreamingUnsupported
 class ChatPage(PageShell):
     details_requested = Signal(str)
     busy_changed = Signal(bool)
+    collection_switch_requested = Signal()
 
     def __init__(self, runtime):
         super().__init__("问答", "基于当前知识集合，边生成边呈现答案与依据。")
@@ -58,6 +60,18 @@ class ChatPage(PageShell):
         composer = QFrame()
         composer.setProperty("card", True)
         form = QVBoxLayout(composer)
+        collection_row = QHBoxLayout()
+        self.collection_label = QLabel("当前提问集合：未选择")
+        self.collection_label.setTextFormat(Qt.TextFormat.PlainText)
+        self.collection_label.setWordWrap(True)
+        self.collection_label.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
+        self.collection_label.setStyleSheet("font-size: 14px; font-weight: 600;")
+        self.switch_collection = QPushButton("选择集合")
+        self.switch_collection.setAccessibleName("选择或切换当前提问集合")
+        self.switch_collection.clicked.connect(self.request_collection_switch)
+        collection_row.addWidget(self.collection_label, 1)
+        collection_row.addWidget(self.switch_collection)
+        form.addLayout(collection_row)
         self.question = QuestionEditor()
         self.question.setPlaceholderText("向当前知识集合提问…")
         self.question.returnPressed.connect(self.ask)
@@ -92,11 +106,23 @@ class ChatPage(PageShell):
             return
         changed = collection_id != self.collection_id
         self.collection_id, self.generation = collection_id, generation
+        label = f"当前提问集合：{name}" if collection_id is not None else "当前提问集合：未选择"
+        self.collection_label.setText(label)
+        self.collection_label.setToolTip(f"<qt>{escape(label)}</qt>")
+        self.switch_collection.setText("切换集合" if collection_id is not None else "选择集合")
         self.manage_sessions.setEnabled(collection_id is not None)
         if changed:
             self.session_id = None
             self.transcript.clear()
+            self._bubble = None
+            self._buffer = ""
+            self.details_requested.emit("")
+            self.feedback.setText("Enter 发送 · Shift+Enter 换行" if collection_id is not None else "请先选择知识集合")
         self.refresh_sessions()
+
+    def request_collection_switch(self):
+        if not self.busy:
+            self.collection_switch_requested.emit()
 
     def refresh_sessions(self):
         self.sessions.blockSignals(True)
@@ -226,6 +252,7 @@ class ChatPage(PageShell):
         task.signals.finished.connect(self._finished)
         self.sessions.setEnabled(False)
         self.manage_sessions.setEnabled(False)
+        self.switch_collection.setEnabled(False)
         self.new.setEnabled(False)
         self.question.setEnabled(False)
         self.ask_button.setText("停止生成")
@@ -290,6 +317,7 @@ class ChatPage(PageShell):
         self._token = None
         self.sessions.setEnabled(True)
         self.manage_sessions.setEnabled(self.collection_id is not None)
+        self.switch_collection.setEnabled(True)
         self.new.setEnabled(True)
         self.question.setEnabled(True)
         self.ask_button.setEnabled(True)

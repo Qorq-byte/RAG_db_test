@@ -1,0 +1,48 @@
+{
+  "passed": 402,
+  "failed": 0,
+  "skipped": 0,
+  "coverage_matches_full_collection": true,
+  "groups": [
+    {
+      "report": ".data\\chat-final-regression.xml",
+      "passed": 66,
+      "seconds": 61.282
+    },
+    {
+      "report": ".data\\chat-final-core.xml",
+      "passed": 271,
+      "seconds": 283.887
+    },
+    {
+      "report": ".data\\chat-final-qt-1.xml",
+      "passed": 6,
+      "seconds": 8.796
+    },
+    {
+      "report": ".data\\chat-final-qt-2.xml",
+      "passed": 6,
+      "seconds": 9.884
+    },
+    {
+      "report": ".data\\chat-final-qt-3.xml",
+      "passed": 4,
+      "seconds": 7.938
+    },
+    {
+      "report": ".data\\chat-final-qt-4.xml",
+      "passed": 21,
+      "seconds": 16.405
+    },
+    {
+      "report": ".data\\chat-final-qt-5.xml",
+      "passed": 17,
+      "seconds": 22.275
+    },
+    {
+      "report": ".data\\chat-final-qt-6.xml",
+      "passed": 11,
+      "seconds": 0.715
+    }
+  ]
+}

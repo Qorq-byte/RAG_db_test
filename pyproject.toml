@@ -1,6 +1,6 @@
 [project]
 name = "rag-db-test"
-version = "0.1.0"
+version = "0.1.1"
 description = "面向人工智能学习的个人 RAG 知识库"
 requires-python = ">=3.11,<3.12"
 dependencies = [

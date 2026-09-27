@@ -1,0 +1,97 @@
+{
+  "date": "2026-09-27",
+  "source_commit": "5c39dd251a520d9fa075eb29fd563ff5d9b82e31",
+  "total_tests": 475,
+  "passed": 475,
+  "failures": 0,
+  "errors": 0,
+  "skipped": 0,
+  "coverage_matches_full_collection": true,
+  "missing_tests": 0,
+  "extra_tests": 0,
+  "duplicate_tests": 0,
+  "groups": [
+    {
+      "report": "embedding-audit-full-core.xml",
+      "tests": 331,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "duration_seconds": 275.159,
+      "sha256": "1b59ffc6e121b239d5de76705eb99c6bde6d05f6d752b565dc2de3db61084b13"
+    },
+    {
+      "report": "embedding-audit-desktop.xml",
+      "tests": 61,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "duration_seconds": 36.817,
+      "sha256": "b8c864fc4558341d5c76974dae5f2584c8c149e708597ae9146f1501f10f48df"
+    },
+    {
+      "report": "embedding-audit-qt-desktop_startup.xml",
+      "tests": 6,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "duration_seconds": 8.359,
+      "sha256": "8f8d7f02951d3431deb6062fe448dcb9c9471f432d93eceb20d40a91712504dc"
+    },
+    {
+      "report": "embedding-audit-qt-desktop_theme.xml",
+      "tests": 6,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "duration_seconds": 8.869,
+      "sha256": "9ce859065507055b0c0da86ede4e8e10dc3ba64c64f97c6470da9f32fb282411"
+    },
+    {
+      "report": "embedding-audit-qt-index_maintenance_widget.xml",
+      "tests": 4,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "duration_seconds": 7.463,
+      "sha256": "15e76bcdbfebec395989fb1ff7ec18f2d947eba231004eeba673ea2205b80557"
+    },
+    {
+      "report": "embedding-audit-qt-model_settings_page.xml",
+      "tests": 22,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "duration_seconds": 15.094,
+      "sha256": "89edb74b7655f67241887ae6ce110e3892d3f0b37f8e661568f7307a27caee19"
+    },
+    {
+      "report": "embedding-audit-qt-sidebar_fan.xml",
+      "tests": 17,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "duration_seconds": 20.656,
+      "sha256": "b5eed5c831c53528de0a808afb0af55be385dce4963d803929b367f56b9a6c5b"
+    },
+    {
+      "report": "embedding-audit-qt-welcome.xml",
+      "tests": 17,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "duration_seconds": 49.467,
+      "sha256": "c56bd76464c356d8a5fe69eda05d1b4af282b21e65c49d12f510b1799c5ce4a1"
+    },
+    {
+      "report": "embedding-audit-qt-wet_paint.xml",
+      "tests": 11,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "duration_seconds": 0.734,
+      "sha256": "8615004e32280b0b4fb6e2fa252651dffe3623bd6b9d226190231ef28a957211"
+    }
+  ],
+  "installer_rebuilt": false
+}

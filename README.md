@@ -304,6 +304,8 @@ uv run ragdb evaluate run my-report.json --dataset labels.json --collection 我�
 
 ### Windows 安装版
 
+v0.1.0已知问题：模型连接测试结束会清空尚未保存的API Key。临时处理是测试成功后重新填写API Key，直接点击“保存并应用”，不要再次测试。源码已修复；安装包更新按用户要求等待明确同意，见[修复验收](docs/acceptance/2026-09-27-model-key-save-fix.md)。
+
 从 [GitHub Release v0.1.0](https://github.com/Qorq-byte/RAG_db_test/releases/tag/v0.1.0) 获取[Windows x64安装包](https://github.com/Qorq-byte/RAG_db_test/releases/download/v0.1.0/RAGDB-0.1.0-windows-x64-setup.exe)和[SHA256校验文件](https://github.com/Qorq-byte/RAG_db_test/releases/download/v0.1.0/SHA256SUMS.txt)。运行安装程序后，从开始菜单打开 RAGDB；无需另装Python或项目虚拟环境。安装目录内的 `RAGDB-CLI.exe` 提供同一套CLI命令。文件大小、校验值及验证结果见[安装包验收](docs/acceptance/2026-09-27-windows-installer.md)。
 
 程序默认安装到 `%LOCALAPPDATA%/Programs/RAGDB`，配置和资料存放在 `%LOCALAPPDATA%/RAGDB`。卸载保留资料目录。初始嵌入配置为 Ollama `embeddinggemma:latest`；需要本机Ollama服务及已安装模型，也可在模型设置页选择其他本地模型或云端服务。模型权重、OCR程序和API密钥不随安装包分发。恢复库可用 `RAGDB.exe --config D:/restored-library/config.toml` 打开。

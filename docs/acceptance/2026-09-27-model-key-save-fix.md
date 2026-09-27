@@ -16,6 +16,7 @@ v0.1.0安装版中，用户填写DeepSeek配置及API Key，连接测试成功�
 
 - 修复前，两项草稿保留/保存重试回归均失败；两项404提示回归均失败。
 - 修复后，模型设置服务、桌面表单和问答适配器联合回归 **41 passed in 6.25s**。
+- 最终全量 **379 passed, 1 warning in 432.83s**，无失败；警告来自故意构造重复ZIP条目的拒绝测试。命令：`.venv/Scripts/python.exe -m pytest -q --basetemp .data/model-settings-full-20260927 -p no:cacheprovider --junitxml .data/model-settings-full-20260927.xml`。
 - 覆盖测试成功后保存、重启后恢复云端供应商及密钥、通过模拟HTTP核对DeepSeek请求地址与Authorization、保存失败重试、嵌入测试不清空任一表单草稿。
 - 对本机Ollama实际请求，确认模型未安装时显示新的操作提示。云端回归使用模拟响应，没有使用用户真实API Key调用DeepSeek。
 

@@ -16,6 +16,11 @@ class OpenAICompatibleChatModel:
         self.api_key = api_key
         self.timeout_seconds = timeout_seconds
         self._client = client or httpx.Client()
+        self._owns_client = client is None
+
+    def close(self):
+        if self._owns_client:
+            self._client.close()
 
     def complete(self, messages: Sequence[ChatPromptMessage]) -> ChatCompletion:
         if not self.api_key:

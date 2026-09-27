@@ -15,6 +15,11 @@ class OllamaChatModel:
         self.base_url = base_url.rstrip("/")
         self.timeout_seconds = timeout_seconds
         self._client = client or httpx.Client()
+        self._owns_client = client is None
+
+    def close(self):
+        if self._owns_client:
+            self._client.close()
 
     def complete(self, messages: Sequence[ChatPromptMessage]) -> ChatCompletion:
         try:

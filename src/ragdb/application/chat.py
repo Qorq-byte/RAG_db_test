@@ -41,6 +41,10 @@ class AnswerService:
         self.evidence_character_budget = evidence_character_budget
         self.history_character_budget = history_character_budget
 
+    def close(self):
+        if hasattr(self.chat_model, "close"):
+            self.chat_model.close()
+
     def ask(self, collection_id: UUID, question: str, session_id: UUID | None = None, title: str | None = None,
             *, on_event=None, should_cancel=None, stream=False) -> ChatAnswer:
         question = question.strip()

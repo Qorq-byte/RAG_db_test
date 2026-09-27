@@ -161,6 +161,12 @@ def build_stylesheet(tokens: dict[str, str]) -> str:
     QFrame#navHover {{ background: {tokens["accent_soft"]}; border: none; border-radius: 7px; }}
     QWidget#topBar, QFrame[card="true"], QFrame[resultCard="true"], QWidget#detailPanel {{ background: {tokens["panel"]}; border: 1px solid {tokens["border"]}; border-radius: 10px; }}
     QFrame[resultCard="true"]:hover {{ border-color: {tokens["accent"]}; background: {tokens["raised"]}; }}
+    QFrame#chatUserBubble {{ background: {tokens["accent_soft"]}; border: none; border-radius: 16px; }}
+    QFrame#chatAssistantBubble {{ background: transparent; border: none; }}
+    QFrame#chatAssistantBubble QPushButton {{ background: transparent; color: {tokens["muted"]}; border: none; padding: 4px 8px; min-height: 20px; }}
+    QFrame#chatAssistantBubble QPushButton:hover {{ background: {tokens["raised"]}; color: {tokens["text"]}; }}
+    QTextBrowser#chatMessageText {{ background: transparent; border: none; padding: 0; font-size: 15px; }}
+    QScrollArea#conversationView {{ background: transparent; border: none; }}
     QLabel[resultTitle="true"] {{ font-size: 14px; font-weight: 650; }}
     QLabel[muted="true"] {{ color: {tokens["muted"]}; }}
     QLabel[pageTitle="true"] {{ font-size: 24px; font-weight: 650; }}

@@ -21,6 +21,7 @@ from ragdb.desktop.model_settings_page import ModelSettingsPage
 from ragdb.desktop.components import DetailPanel
 from ragdb.desktop.navigation import SidebarWidget, TopBar
 from ragdb.desktop.theme import ThemeManager
+from ragdb.desktop.chat_widgets import ConversationView
 
 
 PAGES = ("概览", "集合与资料", "检索", "问答", "学习产物", "任务与诊断", "模型设置")
@@ -34,8 +35,11 @@ class CollectionContext(QWidget):
         self.collection_id = None
         self.collection_name = ""
         self.generation = 0
+        self.locked = False
 
     def select(self, collection_id, name: str) -> None:
+        if self.locked:
+            return
         self.collection_id, self.collection_name = collection_id, name
         self.generation += 1
         self.changed.emit(collection_id, name, self.generation)
@@ -81,6 +85,9 @@ class MainWindow(QMainWindow):
             if runtime is not None and index in (2, 3, 4):
                 page_type = {2: SearchPage, 3: ChatPage, 4: ArtifactsPage}[index]
                 page = page_type(runtime)
+                if index == 3:
+                    self.chat_page = page
+                    page.busy_changed.connect(self._chat_busy_changed)
                 self.collection_context.changed.connect(page.set_collection)
                 page.details_requested.connect(self.detail_panel.show_text)
                 self.pages.addWidget(page)
@@ -141,6 +148,11 @@ class MainWindow(QMainWindow):
         self.top_bar.set_page(PAGES[index])
         self._apply_detail_visibility(index in (2, 3, 4))
 
+    def _chat_busy_changed(self, busy):
+        self.collection_context.locked = busy
+        self.collections_page.setEnabled(not busy)
+        self.navigation.task_status.setText("正在回答问题" if busy else "后台空闲")
+
     def toggle_detail_preference(self) -> None:
         self.set_detail_preference(not self._detail_panel_preference)
 
@@ -184,7 +196,7 @@ class MainWindow(QMainWindow):
         return tuple(shortcuts)
 
     def _can_use_window_shortcut(self) -> bool:
-        return not isinstance(QApplication.focusWidget(), QTextEdit)
+        return not isinstance(QApplication.focusWidget(), (QTextEdit, ConversationView))
 
     def _select_page_from_shortcut(self, index: int) -> None:
         if self._can_use_window_shortcut():
@@ -215,6 +227,12 @@ class MainWindow(QMainWindow):
         self._apply_responsive_layout()
 
     def closeEvent(self, event) -> None:
+        chat_page = getattr(self, "chat_page", None)
+        if chat_page is not None and chat_page.busy:
+            chat_page.cancel()
+            self.statusBar().showMessage("已请求停止问答，请等待操作结束后关闭窗口。")
+            event.ignore()
+            return
         operations_page = getattr(self, "operations_page", None)
         if operations_page is not None and (operations_page.index_maintenance.busy or operations_page.backup.busy):
             self.statusBar().showMessage("索引维护尚未结束，请等待完成后关闭窗口。")

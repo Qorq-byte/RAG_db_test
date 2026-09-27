@@ -43,7 +43,7 @@ def stream_chat(client, url, payload, *, headers=None, timeout=60, ollama=False,
             events = _json_lines(response.iter_lines(), should_cancel) if ollama else _sse_events(response.iter_lines(), should_cancel)
             for raw in events:
                 check_cancel(should_cancel)
-                if raw == "[DONE]" and not ollama:
+                if raw.strip() == "[DONE]" and not ollama:
                     if not content_seen:
                         raise RuntimeError("模型未返回有效回答。")
                     return

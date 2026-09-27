@@ -7,6 +7,7 @@ from PySide6.QtCore import QObject, QRunnable, Signal, Slot
 
 
 class TaskSignals(QObject):
+    progress = Signal(object, str, object)
     succeeded = Signal(object, object)
     failed = Signal(object, str)
     finished = Signal(object)

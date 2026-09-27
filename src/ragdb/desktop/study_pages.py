@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
 
 from ragdb.desktop.components import PageShell, ResultCard, StatusBadge
 from ragdb.desktop.workers import BackgroundTask
+from ragdb.desktop.chat_page import ChatPage
 from ragdb.domain.enums import ArtifactType
 
 
@@ -147,106 +148,6 @@ class SearchPage(AsyncPage):
         self.details_requested.emit(
             f"{hit.source_title}\n{hit.source_uri}\n\n{hit.text}\n\n位置：{hit.position.model_dump(exclude_none=True)}\n评分：{hit.scores.model_dump(exclude_none=True)}"
         )
-
-
-class ChatPage(AsyncPage):
-    def __init__(self, runtime) -> None:
-        super().__init__(runtime, "问答", "让答案引用当前集合中的可核验依据。")
-        self.session_id = None
-        new = QPushButton("新会话")
-        self.actions.addWidget(new)
-        content = QWidget()
-        layout = QVBoxLayout(content)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(12)
-        session_bar = QFrame()
-        session_bar.setProperty("card", True)
-        session_layout = QHBoxLayout(session_bar)
-        session_layout.addWidget(QLabel("会话"))
-        self.sessions = QComboBox()
-        session_layout.addWidget(self.sessions, 1)
-        layout.addWidget(session_bar)
-        self.transcript = QTextBrowser()
-        self.transcript.setPlaceholderText("选择集合并提出问题，回答会在这里出现。")
-        layout.addWidget(self.transcript, 1)
-        composer = QFrame()
-        composer.setProperty("card", True)
-        row = QHBoxLayout(composer)
-        self.question = QLineEdit()
-        self.question.setPlaceholderText("向当前知识集合提问")
-        self.ask_button = QPushButton("发送")
-        self.ask_button.setProperty("primary", True)
-        row.addWidget(self.question, 1)
-        row.addWidget(self.ask_button)
-        layout.addWidget(composer)
-        self.set_content(content)
-        self.sessions.currentIndexChanged.connect(self.select_session)
-        self.ask_button.clicked.connect(self.ask)
-        self.question.returnPressed.connect(self.ask)
-        new.clicked.connect(self.new_session)
-
-    def set_collection(self, collection_id, name: str, generation: int) -> None:
-        super().set_collection(collection_id, name, generation)
-        self.refresh_sessions()
-
-    def refresh_sessions(self) -> None:
-        self.sessions.blockSignals(True)
-        self.sessions.clear()
-        self.sessions.addItem("新会话", None)
-        if self.collection_id:
-            for session in self.runtime.conversations.list_for_collection(
-                self.collection_id
-            ):
-                self.sessions.addItem(session.title or str(session.id), session.id)
-        if self.session_id:
-            index = self.sessions.findData(self.session_id)
-            self.sessions.setCurrentIndex(max(0, index))
-        self.sessions.blockSignals(False)
-
-    def select_session(self, _index: int) -> None:
-        self.session_id = self.sessions.currentData()
-        self.transcript.clear()
-        if self.session_id:
-            for message in self.runtime.conversations.list_messages(self.session_id):
-                self.transcript.append(
-                    f"<b>{message.role.value}</b>：{message.content}"
-                )
-
-    def new_session(self) -> None:
-        self.sessions.setCurrentIndex(0)
-        self.session_id = None
-        self.transcript.clear()
-        self.question.setFocus()
-
-    def ask(self) -> None:
-        if not self.require_collection() or not self.question.text().strip():
-            return
-        question, collection_id, session_id = (
-            self.question.text().strip(),
-            self.collection_id,
-            self.session_id,
-        )
-        self.question.clear()
-        self.run_task(
-            lambda: self.runtime.answer_service().ask(
-                collection_id, question, session_id
-            ),
-            lambda answer: self.show_answer(question, answer),
-            self.ask_button,
-            "已收到回答",
-        )
-
-    def show_answer(self, question, answer) -> None:
-        self.session_id = answer.conversation.id
-        self.transcript.append(f"<p><b>你</b><br>{question}</p>")
-        self.transcript.append(f"<p><b>ragdb</b><br>{answer.content}</p>")
-        self.details_requested.emit(
-            "\n".join(
-                f"[{c.display_index}] {c.source_title}\n{c.source_uri}"
-                for c in answer.citations
-            )
-        )
-        self.refresh_sessions()
 
 
 class ArtifactsPage(AsyncPage):

@@ -314,6 +314,43 @@ def test_window_shortcuts_do_not_override_multiline_editor_focus() -> None:
     window.close()
 
 
+def test_window_chat_blocks_collection_switch_and_defers_close():
+    from types import SimpleNamespace
+    import time
+    started, release = Event(), Event()
+    runtime = _Runtime()
+    def ask(*args, should_cancel, **kwargs):
+        started.set()
+        assert release.wait(5)
+        assert should_cancel()
+        raise RuntimeError("已停止")
+    runtime.answer_service = lambda: SimpleNamespace(ask=ask)
+    window = MainWindow(runtime)
+    window.show()
+    window.collections_page.collections.setCurrentRow(0)
+    page = window.chat_page
+    original = window.collection_context.collection_id
+    page.question.setPlainText("question")
+    page.ask()
+    try:
+        assert started.wait(5)
+        assert window.collection_context.locked
+        assert not window.collections_page.isEnabled()
+        window.collection_context.select(None, "other")
+        assert window.collection_context.collection_id == original
+        assert not window.close()
+        assert page._cancel.is_set()
+    finally:
+        release.set()
+        deadline = time.monotonic() + 5
+        while page.busy and time.monotonic() < deadline:
+            APPLICATION.processEvents()
+            time.sleep(.005)
+        assert not page.busy
+        assert not window.collection_context.locked
+        window.close()
+
+
 def test_shared_visual_components_construct_and_update() -> None:
     shell = PageShell("检索", "查找知识库证据")
     card = StatCard("资料", "12")

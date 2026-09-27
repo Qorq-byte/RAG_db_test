@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from PySide6.QtCore import QSignalBlocker, QThreadPool, Qt, Signal
+from PySide6.QtCore import QSignalBlocker, QThreadPool, QTimer, Qt, Signal
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QFileDialog,
@@ -33,6 +33,7 @@ class OverviewPage(PageShell):
     def __init__(self, runtime) -> None:
         super().__init__("概览", "从资料进入学习，再把证据沉淀为可复用的知识。")
         self.runtime = runtime
+        self.collection_id = None
         content = QWidget()
         layout = QVBoxLayout(content)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -42,7 +43,8 @@ class OverviewPage(PageShell):
         self.source_count = StatCard("资料", "—")
         self.session_count = StatCard("问答会话", "—")
         self.artifact_count = StatCard("学习产物", "—")
-        self.task_count = StatCard("最近任务", "—")
+        self.task_count = StatCard("最近任务（最多 20 条）", "—")
+        self.session_count.setToolTip("当前集合下归档的全部会话；跨集合提问不会移动会话归档。")
         for card in (
             self.source_count,
             self.session_count,
@@ -66,30 +68,63 @@ class OverviewPage(PageShell):
         layout.addWidget(activity)
         layout.addStretch()
         self.set_content(content)
+        self.refresh_timer = QTimer(self)
+        self.refresh_timer.setInterval(2000)
+        self.refresh_timer.timeout.connect(self.refresh)
+
+    def showEvent(self, event) -> None:
+        super().showEvent(event)
+        self.refresh()
+        self.refresh_timer.start()
+
+    def hideEvent(self, event) -> None:
+        self.refresh_timer.stop()
+        super().hideEvent(event)
 
     def show_collection(self, collection_id, name: str, _generation: int) -> None:
-        self.summary.setText(f"当前集合：{name}")
-        self.guidance.setText("资料已成为检索、问答与学习产物的共同证据源。")
-        collections = self.runtime.collection_service().list_all()
+        self.collection_id = collection_id
+        self.refresh()
+
+    def _unavailable(self, summary: str, guidance: str) -> None:
+        self.summary.setText(summary)
+        self.guidance.setText(guidance)
+        for card in (self.source_count, self.session_count, self.artifact_count, self.task_count):
+            card.value.setText("—")
+
+    def refresh(self) -> None:
+        collection_id = self.collection_id
+        if collection_id is None:
+            self._unavailable("请选择或创建知识集合。", "在“集合与资料”中选择集合后，这里会显示它的学习进度。")
+            return
+        try:
+            collections = self.runtime.collection_service().list_all()
+        except Exception:
+            self._unavailable("读取集合失败", "请检查数据目录是否可访问；概览会自动重试。")
+            return
         collection = next(
             (item for item in collections if item.id == collection_id), None
         )
-        sources = (
-            self.runtime.source_service().list_for_collection(collection)
-            if collection
-            else []
+        if collection is None:
+            self._unavailable("当前集合已不存在", "请在“集合与资料”中重新选择知识集合。")
+            return
+        self.summary.setText(f"当前集合：{collection.name}")
+        readers = (
+            (self.source_count, lambda: self.runtime.source_service().list_for_collection(collection)),
+            (self.session_count, lambda: self.runtime.conversations.list_for_collection(collection_id, limit=None)),
+            (self.artifact_count, lambda: self.runtime.artifacts.list_for_collection(collection_id)),
+            (self.task_count, lambda: self.runtime.tasks.list_for_collection(collection_id)),
         )
-        self.source_count.value.setText(str(len(sources)))
-        stores = (
-            (self.session_count, self.runtime.conversations),
-            (self.artifact_count, self.runtime.artifacts),
-            (self.task_count, self.runtime.tasks),
-        )
-        for card, store in stores:
+        failed = False
+        for card, read in readers:
             try:
-                card.value.setText(str(len(store.list_for_collection(collection_id))))
-            except (AttributeError, TypeError):
+                card.value.setText(str(len(read())))
+            except Exception:
                 card.value.setText("—")
+                failed = True
+        self.guidance.setText(
+            "部分统计读取失败，已显示为 —；请检查数据目录，概览会自动重试。"
+            if failed else "显示当前集合的资料、归档会话和学习产物总数，以及最近 20 条任务数量。页面打开时每 2 秒自动刷新。"
+        )
 
 
 class CollectionsPage(PageShell):

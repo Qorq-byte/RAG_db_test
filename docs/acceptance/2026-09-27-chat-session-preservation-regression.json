@@ -1,0 +1,97 @@
+{
+  "date": "2026-09-27",
+  "source_commit": "5d4023771ef15401d2630d87e80ebdde583a2ee0",
+  "total_tests": 452,
+  "passed": 452,
+  "failures": 0,
+  "errors": 0,
+  "skipped": 0,
+  "coverage_matches_full_collection": true,
+  "missing_tests": 0,
+  "extra_tests": 0,
+  "duplicate_tests": 0,
+  "groups": [
+    {
+      "report": "chat-session-preserve-full-core.xml",
+      "tests": 316,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "duration_seconds": 266.029,
+      "sha256": "a9a21f95955fd11ef1b393ecfad3118672ed89f23ef76ffb9cfaee26831cbd3b"
+    },
+    {
+      "report": "chat-session-preserve-desktop.xml",
+      "tests": 54,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "duration_seconds": 34.201,
+      "sha256": "b415d91e05f5c599da669fad97170c6bbbc49e804d69f00990023a25524230c5"
+    },
+    {
+      "report": "chat-session-preserve-full-qt-1.xml",
+      "tests": 6,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "duration_seconds": 7.957,
+      "sha256": "7604e8778f7da10c0a68bbd786be6b4f8c1e9857b1c8a996b337561cf7d0f5f1"
+    },
+    {
+      "report": "chat-session-preserve-full-qt-2.xml",
+      "tests": 6,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "duration_seconds": 8.513,
+      "sha256": "a34acec115e71d395665a72fe46d94e94d02f4ec4f81330de5c14afcaf0879ef"
+    },
+    {
+      "report": "chat-session-preserve-full-qt-3.xml",
+      "tests": 4,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "duration_seconds": 7.931,
+      "sha256": "897da77328465c132b64447774349a9a17a6d333751cefc75c040e8be9842e4e"
+    },
+    {
+      "report": "chat-session-preserve-full-qt-4.xml",
+      "tests": 21,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "duration_seconds": 15.469,
+      "sha256": "3ef93fac82aef50bf48ed1bc9a640d2d9780359ea0027bc1bdd5cdb7d4c056bd"
+    },
+    {
+      "report": "chat-session-preserve-full-qt-5.xml",
+      "tests": 17,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "duration_seconds": 21.049,
+      "sha256": "ba150c2b1e27fa4eca76c3c89c92a6e6dfc057a9f1d4936fca2cddeae7c8ba3f"
+    },
+    {
+      "report": "chat-session-preserve-full-qt-6.xml",
+      "tests": 17,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "duration_seconds": 44.396,
+      "sha256": "e7b0ab749e558d883731e6c292e9df31f61db8631619ab025440e390cac2f5a3"
+    },
+    {
+      "report": "chat-session-preserve-full-qt-7.xml",
+      "tests": 11,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "duration_seconds": 0.65,
+      "sha256": "b0cec9f5a348cdaa710336f3e4c7a6332745a88c0b18ce15cdaa0e54dbe704b7"
+    }
+  ],
+  "installer_rebuilt": false
+}

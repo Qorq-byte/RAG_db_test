@@ -1,0 +1,324 @@
+# RAGDB 进阶使用指南
+
+适用于 v0.1.1。初次使用请先阅读 [README 的桌面入门流程](../README.md#桌面使用教程)。本文保留配置、CLI、桌面交互和索引维护细节。
+
+## 要求与安装
+
+- Python 3.11（项目不支持 3.12+）
+- [uv](https://docs.astral.sh/uv/)
+- Git（仅导入公开 GitHub 仓库时需要）
+
+克隆项目后安装依赖：
+
+```powershell
+uv sync
+```
+
+所有示例均通过 `uv run ragdb` 运行；也可在激活环境后使用 `ragdb`。
+
+## 配置
+
+源码运行使用项目目录下的配置；首次配置可参考 `config.example.toml`。不要把自己的密钥写入 TOML：
+
+```powershell
+if (-not (Test-Path config.toml)) { Copy-Item config.example.toml config.toml }
+```
+
+`config.toml` 可配置以下区域：
+
+- `storage`：数据目录、SQLite 文件名和 Chroma 数据目录。
+- `embedding`：本地或云端嵌入模型、批大小和云端 Base URL。
+- `chunking`：文本切分大小与重叠字符数。
+- `retrieval`：向量、关键词和最终结果的数量，以及 RRF 参数。
+- `crawl`：网页抓取深度、页数、速率、超时和 User-Agent。
+- `rerank`：是否启用重排序、模型与批大小。
+- `ocr`：可选本机 Tesseract OCR 的开关、路径、语言与渲染 DPI。
+- `chat`：本地 Ollama 或 OpenAI 兼容云端问答模型及其上下文预算。
+
+程序的内置默认嵌入模型是 `BAAI/bge-small-zh-v1.5`；安装版初始配置使用 Ollama `embeddinggemma:latest`；实际以配置文件和数据库活动 profile 为准。选择 Sentence Transformers 模型后，首次实际导入或检索时可能下载该模型；`ragdb doctor` 不会下载模型。
+
+如使用 OpenAI 兼容的云端嵌入，在 `config.toml` 中设置：
+
+```toml
+[embedding]
+provider = "cloud"
+cloud_model = "text-embedding-3-small"
+cloud_base_url = "https://api.openai.com/v1"
+```
+
+将密钥放在系统环境变量或项目目录下的 `.env`（不提交到仓库），而不是 TOML 文件；也可以在桌面设置页录入，由系统凭据库保管：
+
+```text
+RAGDB_EMBEDDING__CLOUD_API_KEY=your-secret-key
+RAGDB_CHAT__CLOUD_API_KEY=your-secret-key
+```
+
+可通过全局选项选择另一份配置：
+
+```powershell
+uv run ragdb --config .\my-config.toml doctor
+```
+
+## 快速开始
+
+创建集合：
+
+```powershell
+uv run ragdb collection create ai-notes --description "AI 学习资料"
+```
+
+导入一个文件、整个目录或手工文本：
+
+```powershell
+uv run ragdb ingest file .\notes\attention.md --collection ai-notes --tag transformer --course NLP
+uv run ragdb ingest directory .\papers --collection ai-notes
+uv run ragdb ingest text "RAG 将检索结果注入生成提示词。" --collection ai-notes --title "学习笔记"
+```
+
+检索并按元数据过滤：
+
+```powershell
+uv run ragdb search "注意力机制如何工作？" --collection ai-notes --tag transformer
+uv run ragdb search "向量检索" --collection ai-notes --date-from 2026-01-01
+```
+
+## 检索增强问答
+
+问答将当前集合的检索证据提供给模型，并要求按来源编号引用；仍应核对引用，不能保证模型始终正确。默认调用本机 Ollama；也可将 `chat.provider` 改为 `cloud`，并通过环境变量配置 `RAGDB_CHAT__CLOUD_API_KEY`。
+
+```powershell
+uv run ragdb chat ask "RAG 的检索与生成如何协作？" --collection ai-notes
+uv run ragdb chat ask "请再举一个例子" --collection ai-notes --session <SESSION_ID>
+uv run ragdb chat session list --collection ai-notes
+uv run ragdb chat session show <SESSION_ID> --collection ai-notes
+uv run ragdb chat session delete <SESSION_ID> --collection ai-notes
+```
+
+会话历史按最初创建时的集合归档，同一会话可以切换集合继续提问；每次提问只检索当时所选集合。归档位置不随切换移动，删除归档集合仍会同时删除其会话。没有检索到足够证据时，系统不会调用模型，而会明确说明无法依据知识库回答。
+
+## 学习内容生成
+
+可依据集合内检索证据生成摘要、提纲、学习笔记、练习题或知识卡片；使用 `--source-id` 可限定单一资料。生成结果和来源快照会持久化保存。
+
+```powershell
+uv run ragdb generate summary "Transformer 核心思想" --collection ai-notes
+uv run ragdb generate outline "课程复习提纲" --collection ai-notes
+uv run ragdb generate notes "注意力机制" --collection ai-notes --source-id <SOURCE_ID>
+uv run ragdb generate quiz "RAG 基础" --collection ai-notes
+uv run ragdb generate cards "关键术语" --collection ai-notes
+uv run ragdb artifact list --collection ai-notes
+uv run ragdb artifact show <ARTIFACT_ID> --collection ai-notes
+uv run ragdb artifact delete <ARTIFACT_ID> --collection ai-notes
+```
+
+管理集合和资料来源：
+
+```powershell
+uv run ragdb collection list
+uv run ragdb collection info ai-notes
+uv run ragdb source list --collection ai-notes
+uv run ragdb source show <SOURCE_ID>
+```
+
+删除集合或来源会删除其索引；不使用 `--yes` 时会要求确认：
+
+```powershell
+uv run ragdb source delete <SOURCE_ID>
+uv run ragdb collection delete ai-notes
+```
+
+## 网页、仓库与目录同步
+
+抓取网页并导入指定集合：
+
+```powershell
+uv run ragdb crawl https://example.com/article --collection ai-notes
+```
+
+导入公开 GitHub 仓库：
+
+```powershell
+uv run ragdb repo https://github.com/owner/repository --collection ai-notes
+```
+
+监听本地目录。监听在当前终端前台运行，按 `Ctrl+C` 停止：
+
+```powershell
+uv run ragdb watch start .\notes --collection ai-notes
+```
+
+查看说明或重建某个集合的本地资料索引：
+
+```powershell
+uv run ragdb watch status
+uv run ragdb reindex --collection ai-notes
+```
+
+## 环境诊断
+
+执行：
+
+```powershell
+uv run ragdb doctor
+```
+
+该命令按检查项输出“通过”、“警告”或“失败”，并在警告或失败时给出修复建议。它会检查 Python 版本、配置解析、数据目录权限、SQLite FTS5、ChromaDB、Git、本地嵌入依赖，以及启用云端嵌入时的模型、Base URL 和密钥配置。
+
+诊断不会下载模型、调用云端 API、创建知识库索引或修改已有资料。仅出现“失败”时命令以非零状态退出；只有“警告”时仍以 0 退出。
+
+扫描 PDF 可启用本机 Tesseract；将下面的示例路径替换为自己的安装位置：
+
+```toml
+[ocr]
+enabled = true
+executable_path = "C:/Program Files/Tesseract-OCR/tesseract.exe"
+languages = "chi_sim+eng"
+```
+
+更换嵌入供应商或模型时，请使用桌面端“系统 → 模型设置 → 重建并切换”重建所有集合。`ragdb reindex` 只重新处理指定集合中可访问的本地文件，不能完成全局嵌入模型切换。
+
+桌面选择集合后，在“任务与诊断”查看“最近任务”和“操作日志”。文件、目录、文本、网页、GitHub 仓库导入都会记录开始与结束状态；最近任务显示新增、更新、跳过和失败数量。导入结束立即刷新，页面打开时每 2 秒刷新；也可点击“刷新记录”。记录随知识库保存，重启后仍可查看。
+
+也可通过 CLI 查看历史任务和操作日志：
+
+```powershell
+uv run ragdb task list --collection ai-notes
+uv run ragdb task show <TASK_ID>
+uv run ragdb log list --collection ai-notes
+```
+
+旧版没有写入的导入记录不会自动补齐。本项修复已包含在 v0.1.1 安装包中。见[导入记录修复验收](acceptance/2026-09-27-import-records.md)。
+
+## 数据与隐私
+
+默认数据保存在 `.data/`，其中包含 SQLite、Chroma 索引和仓库导入缓存；该目录已被 Git 忽略。使用云端嵌入时，待嵌入的文本会发送至你配置的服务。请勿将 `.env`、API Key 或本地知识库数据提交到版本控制。
+
+## 桌面工作台
+
+先进入项目目录并同步依赖，再启动 PySide6 桌面应用：
+
+```powershell
+cd <项目目录>
+uv sync
+uv run ragdb-gui
+```
+
+如果当前终端不在项目目录（例如显示 `PS C:\Windows\system32>`），可显式指定项目路径：
+
+```powershell
+uv run --project <项目目录> ragdb-gui
+```
+
+也可使用模块入口启动：
+
+```powershell
+uv run python -m ragdb.desktop.app
+```
+
+工作台采用可折叠的分组导航，并支持跟随系统、浅色和深色主题。它包含概览、集合与资料导入、可追溯检索、持久化问答、学习产物、任务日志、环境诊断和模型设置；检索结果与回答引用可在右侧详情栏核验。耗时导入、检索及模型调用在后台执行。
+
+“概览”在打开时立即刷新，显示期间每 2 秒更新当前集合的资料、归档会话、学习产物总数和最近任务数量。会话总数包含较早历史记录；跨集合续聊仍按原归档集合计数。“最近任务”最多统计最近 20 条，与任务页一致。读取失败时显示 `—` 并自动重试。
+
+启动时先显示原生欢迎页：20 张本地图片卡片从散落聚成横列，再展开圆环。**向下滚动**使圆环变为底部弧带，继续滚动让图片沿弧线依次移出；移动鼠标会带动弧带横向视差，悬停图片可翻转，上滚可返回。图片全部移出后，再向下滚动一下，中央立即出现 **“欢迎使用RAG系统”** 按钮，点击进入导航工作台。支持触控板、触摸滑动，以及方向键 / PageUp / PageDown；`Home` 返回开头，`End` 或 `Esc` 直接到最后，`Enter` 或按钮上的空格进入。“减少动效”偏好直接显示最终状态。
+
+欢迎页图片随程序打包，离线可用；点击进入前不会初始化知识库或调用模型。进入时后台初始化，失败则留在欢迎页并允许检查配置后重试。窗口大小和最大化状态会传递到工作台，内部页面切换不会重播开场。
+
+顶部太阳、月亮、显示器图标分别切换浅色、深色或跟随系统；跟随系统会响应系统配色变化。点击侧边栏功能时，指示线从多种非蓝色配色中随机更换，并适配当前深浅背景。
+
+工作区操作按钮采用参考中的靛蓝色液体涂料样式（固定宽度圆底、连接弧线和错峰渐隐下落）；仅各页面标题操作栏（不含“重新加载”）及顶部“详情”按钮在鼠标进入周围 18 像素范围时显示错峰滴落，移开立即停止。液滴不拦截点击，也避让相邻按钮和文本；启用“减少动效”后关闭滴落。侧边栏保持原有样式；主题图标、“重新加载”、内容区按钮（如“清除已保存密钥”）、欢迎页入口均不应用液滴效果。
+
+侧边栏底部提供参考设计的**扇形图片轮播**：七张卡片错峰入场，悬停时抬升并让相邻卡片让位；将鼠标放在图片区域，向下滚动查看下一张、向上滚动查看上一张；支持触控板及聚焦卡片区域后的左右方向键，循环浏览十张本地图片。连续滚动会立即更新切换目标，中途反向也能平滑衔接，无需等待上一张动画结束。点击底部 **“移除底部卡片”** 隐藏整个组件，点击 **“添加底部卡片”** 恢复，重启后保留选择。折叠导航会暂时隐藏卡片；窗口高度不足时显示调整窗口的提示，空间足够后自动恢复。支持深浅主题与减少动效，运行时无需联网。
+
+侧栏可拖拽调整宽度，宽度、折叠状态和详情栏开合状态会在下次启动时恢复。窗口较窄时会临时收起侧栏和详情栏，并在恢复宽度后回到你的偏好。常用快捷键：`Ctrl+1` 至 `Ctrl+6` 切换页面，`Ctrl+B` 折叠或展开侧栏，`Esc` 关闭详情栏。
+
+### 实时问答
+
+输入框上方会明确显示“当前提问集合：XXX”。点击旁边的“切换集合”即可选择其他知识集合，顶部、侧栏和资料列表会同步更新。切换集合只改变后续问题的检索范围，当前会话、历史消息、引用和未发送草稿保持不变；只有主动选择会话或点击“新会话”才切换会话。失败后的重试使用当前显示的集合。回答生成期间暂时禁用集合切换。尚未选择集合时显示“选择集合”，没有集合时引导创建。
+
+删除会话：点击会话下拉框旁的“管理会话”，勾选要删除的一条或多条记录，点击“删除所选”并确认。可全选、取消全选，也能管理最近20条之外的历史会话。删除会话会一并删除其消息与引用，知识库资料保留；删除当前会话后切回新会话，未发送草稿保留。回答生成期间暂不可删除。此功能已包含在 v0.1.1 安装包。
+
+在“问答”选择集合后，输入问题按Enter发送，Shift+Enter换行。问题靠右立即显示，回答靠左逐步出现；检索、连接模型、生成阶段和耗时实时更新。生成过程中可点“停止生成”；失败或停止后可重试，已显示的部分回答会留在当前页面并标记未保存。
+
+回答支持Markdown、代码块、复制和引用详情；上滚查看历史时不会强制滚回底部，可点“回到最新回答”。历史会话中的引用也能重新查看。完整成功的问答才会保存；部分回答不进入后续模型上下文。服务明确不支持流式时，可手动选择“非流式重试”。停止须等待当前检索或网络操作返回，不会强制终止后台线程。
+
+此交互已随 v0.1.1 发布；详见[问答验收](acceptance/2026-09-27-chat-conversation.md)。
+
+### 模型设置
+
+打开“系统 → 模型设置”。“问答/生成”用于检索增强问答和学习内容生成；“嵌入”用于将资料与查询转换成检索向量。两者可分别选择本地服务或 OpenAI 兼容云端服务。
+
+1. 问答/生成：选择“本地 Ollama”时，先启动 Ollama，在页面刷新已安装模型列表，填写模型名和服务地址（默认 `http://127.0.0.1:11434`）；选择“云端 / OpenAI 兼容”时，填写模型名、Base URL 和 API Key。按“测试连接”，确认成功后按“保存并应用”。保存后，后续问答与学习生成请求使用新设置；重启后仍会读取保存的设置。
+2. 嵌入：可选择“本地 Sentence Transformers”并填写模型名，也可先在 Ollama 安装嵌入模型（如 `ollama pull embeddinggemma`），选择“本地 Ollama”，填写模型名和服务地址（默认 `http://127.0.0.1:11434`），或选择“云端 / OpenAI 兼容”并填写模型名、Base URL 和 API Key。先“测试连接”，再按“重建并切换”。确认对话框会显示需重建的集合数。所有集合重建并验证成功后才启用新模型；单独修改 `config.toml` 不能替换已有索引的活动模型。
+
+云端嵌入必须选择支持 OpenAI 兼容 `/embeddings` 接口的**嵌入模型**，不能直接填写聊天模型。地址可填写 API 基础地址或完整 `/embeddings` 地址。例如，按[硅基流动官方嵌入文档](https://docs.siliconflow.cn/docs/api/embeddings-post)，可填写 `https://api.siliconflow.cn/v1`，模型填写服务商提供的嵌入模型名称（如 `BAAI/bge-m3`）；实际可用性、权限和额度以你的账号为准。
+
+已生效的云端嵌入模型只更换 API Key 时，按钮会显示“保存密钥”：用固定短文本验证成功后保存，无需重建索引；验证失败时保留原密钥。更换服务地址或模型仍需“重建并切换”。连接错误会提示密钥、接口/模型、权限或额度问题，不显示服务商原始错误正文。
+
+本地嵌入模型首次加载可能需要下载；请预留磁盘空间和时间。重建会处理所有集合当前资料切片，期间导入和删除暂停。取消后会等待当前模型请求结束并清理暂存向量；失败或取消时继续使用旧索引，可修复原因后重试。旧向量命名空间会保留，因此重建完成后的磁盘占用可能增加。
+
+写入完成后会显示“验证新索引可查询性”：程序释放自己的写入客户端，再对每个非空集合查询并核对当前资料代次，全部通过后才切换模型。校验复用已有向量，不额外请求嵌入模型；切片进度达到总数时仍可能正在校验。校验失败或取消会保留旧活动模型、旧索引和关键词索引，修复原因后可重新执行。
+
+Chroma 1.5.9 的微型索引曾出现 `Nothing found on disk`。遇到这一特定错误时，程序使用一个独立读取进程重建读取环境（最多一次，30秒超时），不关闭其他使用者、不修改索引、不循环睡眠。固定96轮384次查询全部成功，其中6次通过隔离读取恢复。上游精确根因尚未证明解决；独立读取仍失败时保留原错误并拒绝发布/清理。只有经过校验的新索引才会发布，旧索引清理仍需单独预览和确认。
+
+云端“测试连接”仅发送固定短文本；云端嵌入的“重建并切换”会向所选服务发送**所有集合的当前资料切片**，可能产生费用。执行前核对服务地址和数据使用范围。测试连接不会修改知识库索引。
+
+页面中的 API Key 输入框留空表示沿用该服务地址已保存的密钥；“清除已保存密钥”会从系统凭据库删除所选目标的密钥。更换云端服务地址时需要重新提供密钥。系统凭据库不可用时，无法安全保存或清除密钥；请修复系统凭据服务，或使用环境变量／`.env` 提供密钥，程序不会将其退回写入明文 TOML。
+
+环境变量和 `.env` 中的字段优先于 `config.toml` 与页面设置，页面会标明来源并锁定被接管的字段。例如 `RAGDB_CHAT__CLOUD_API_KEY` 和 `RAGDB_EMBEDDING__CLOUD_API_KEY` 分别设置两类云端密钥。修改这些外部值后重启应用；不要将 `.env`、密钥或实际知识库数据提交到 Git。
+
+问答模型名称与 Base URL 应从服务商控制台获取，并与所选接口匹配。不要把聊天模型填写到嵌入配置中。已有资料库更换嵌入模型时，应在模型设置页执行“重建并切换”。
+
+### 旧向量索引维护
+
+模型重建后，可以在“任务与诊断 → 索引维护”点击“预览旧索引”。页面会列出活动索引、可清理的旧索引和需人工核查的对象；预览本身不删除数据，向量条数也不等于可以释放的磁盘字节数。
+
+确认清单后点击“清理预览中的旧索引”，在确认框中核对目标。清理只作用于已确认归属且已停用的索引；当前活动索引始终保护。清理后的旧模型需要重新生成向量才能再次使用。
+
+CLI 支持相同流程：
+
+```powershell
+uv run ragdb index list-stale
+uv run ragdb index clean-stale --preview-id "<上一步输出的预览标识>" --confirm
+```
+
+执行前会重新核对预览、活动模型和集合身份。期间发生索引或集合变化时，旧预览失效，需要重新预览并确认。已有导入或重建任务时清理会被拒绝；清理执行期间导入、删除和重建暂时互斥，当前索引继续用于检索。
+
+如果当前资料的活动索引缺失、向量条数不足或暂时无法检索，程序会保留旧索引并拒绝清理。归属元数据缺失、名称不符合规则或所属知识集合已经删除的对象仅提示人工核查，不支持强制清理。清理不会调用嵌入或聊天服务，也不需要云端 API Key。
+
+部分清理失败时，界面和 CLI 会显示已清理与未清理的目标；修复问题后重新预览即可重试。操作日志可通过 `ragdb log list` 查看；日志保存开始/结束清单，不包含资料正文或密钥。Chroma 何时实际回收磁盘空间取决于其存储机制。
+
+### 全库备份与恢复
+
+桌面打开“任务与诊断 → 备份与恢复”，可创建 ZIP、校验或恢复。恢复目录必须不存在，原库不会被覆盖。
+
+```powershell
+uv run ragdb backup create D:/backups/library.zip
+uv run ragdb backup verify D:/backups/library.zip
+uv run ragdb backup restore D:/backups/library.zip D:/restored-library
+uv run ragdb-gui --config D:/restored-library/config.toml
+```
+
+备份包含所有已入库正文、向量及旧命名空间、对话、学习产物、业务日志和不含密钥的配置。库外原文件与模型缓存不复制，原始路径/URL仍作为来源引用；换机器后需重新配置密钥和模型服务。创建时暂停资料写入；恢复时逐文件校验SHA256与SQLite完整性，失败不发布新目录。备份文件含资料正文，请保存在你信任的位置。
+
+### 检索质量评估
+
+```powershell
+# 临时合成库，使用当前配置的真实嵌入模型
+uv run ragdb evaluate run report.json
+# 无需模型服务的离线管线冒烟
+uv run ragdb evaluate run offline-report.json --offline
+# 对已有集合使用自己的标注
+uv run ragdb evaluate run my-report.json --dataset labels.json --collection 我的集合 --k 5
+```
+
+自定义标注格式：`{"name":"my-eval","queries":[{"id":"q1","query":"问题","relevant":{"完整资料URI":1}}]}`。每条查询须至少一个正数相关性标注，可附加 `filters`。输出来源级 Recall@K、MRR@K、nDCG@K、延迟及逐题排名。默认 Recall≥0.8、MRR≥0.75；未达标退出码1并保留报告，可用 `--min-recall`、`--min-mrr` 调整。已有报告不覆盖。默认基准只使用内置合成资料；使用云端嵌入时，这些资料和查询会发送给所选服务。内置16题通过不代表全部用户资料质量。
+
+### Windows 安装版
+
+当前版本 **v0.1.1** 已包含模型连接与密钥保存、实时问答、会话管理、集合切换、导入记录、概览刷新和嵌入接口修复。旧版 v0.1.0 的连接测试后密钥草稿丢失问题已修复。
+
+从 [GitHub Release v0.1.1](https://github.com/Qorq-byte/RAG_db_test/releases/tag/v0.1.1) 获取[Windows x64安装包](https://github.com/Qorq-byte/RAG_db_test/releases/download/v0.1.1/RAGDB-0.1.1-windows-x64-setup.exe)和[SHA256校验文件](https://github.com/Qorq-byte/RAG_db_test/releases/download/v0.1.1/SHA256SUMS.txt)。关闭旧版 RAGDB 后运行安装程序，沿用原安装目录，无需先卸载；默认用户配置和知识库目录保留。安装后从开始菜单打开 RAGDB，无需另装Python或项目虚拟环境。安装目录内的 `RAGDB-CLI.exe` 提供同一套CLI命令。文件大小、校验值及验证边界见[v0.1.1安装包验收](acceptance/2026-09-27-windows-installer-v0.1.1.md)。
+
+程序默认安装到 `%LOCALAPPDATA%/Programs/RAGDB`，配置和资料存放在 `%LOCALAPPDATA%/RAGDB`。卸载保留资料目录。初始嵌入配置为 Ollama `embeddinggemma:latest`；需要本机Ollama服务及已安装模型，也可在模型设置页选择其他本地模型或云端服务。模型权重、OCR程序和API密钥不随安装包分发。恢复库可用 `RAGDB.exe --config D:/restored-library/config.toml` 打开。
+
+复现构建：安装Inno Setup后执行 `./scripts/build_windows.ps1 -InnoCompiler "完整ISCC.exe路径"`。开发环境正在使用时，可加 `-EnvironmentPath "独立构建环境目录"`。生成安装程序及 `SHA256SUMS.txt`；细节和安装/卸载证据见验收记录。

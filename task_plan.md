@@ -15,7 +15,7 @@
 - 当前收尾版本全量 **374 passed in 352.69s**（2026-09-27），涵盖索引恢复、备份恢复、评估与安装版启动逻辑。此前342项及历史失败记录保留，不混用为本次结果。
 - 已有模型配置：Ollama `embeddinggemma:latest` 嵌入、DeepSeek `deepseek-flash` 问答/学习生成；本轮新增Ollama固定检索评估和独立EXE缓存BGE模型验收，不新增DeepSeek联调。
 
-## 未完成事项与后续安排
+## 本轮收尾完成情况
 
 用户已授权全部完成并逐步上传（2026-09-27）；范围与验收见[收尾设计](docs/superpowers/specs/2026-09-27-completion-design.md)。
 
@@ -24,13 +24,13 @@
 - [x] 8.2 全库备份恢复服务、CLI及桌面入口：`6a78a17`已推送；独立复核补强`bceee26`已推送，最终20项备份专项通过。
 - [x] 8.3 固定12资料/16题评估集、指标、CLI与报告：`2fffe16`已推送；8项测试通过，Ollama真实模型Recall@3=1、MRR@3=1。
 - [x] 8.4a Windows EXE安装包构建、独立运行、实际安装/卸载验收完成，见安装包验收。
-- [ ] 8.4b GitHub Release安装包资产上传：等待GitHub CLI官方设备登录授权。
+- [x] 8.4b [GitHub Release v0.1.0](https://github.com/Qorq-byte/RAG_db_test/releases/tag/v0.1.0)安装包与校验文件已上传发布，远端大小与SHA256均核验一致。
 - [x] 8.5 最终374项全量通过，文档及构建脚本整理完成。
 
 | 事项 | 当前边界 |
 | --- | --- |
 | Chroma 上游根因 | 已交付特定错误的隔离读取恢复并通过固定复现对照；上游 Rust 精确根因仍未证实，不影响应用层已验证恢复交付。 |
-| GitHub Release资产上传 | 本地388.4MiB安装包已构建并通过实际安装/卸载；GitHub CLI设备登录尚待授权。源码推送不受影响。 |
+| GitHub Release资产上传 | 已完成，388.4MiB安装包及SHA256SUMS.txt均已发布；版本标签指向构建源码提交`1bcd53e`。 |
 
 ## 文档导航
 

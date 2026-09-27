@@ -47,7 +47,7 @@ python -m pytest tests/unit/test_desktop.py tests/unit/test_desktop_theme.py tes
 ## 已知限制与后续候选
 
 - Chroma特定读取错误已增加隔离进程恢复，固定384次查询通过；恢复仍失败时拒绝不安全发布/清理，上游根因未宣称修复。
-- 全库备份恢复、检索评估及Windows安装包本地构建验收已完成；GitHub Release资产上传等待CLI官方登录授权。
+- 全库备份恢复、检索评估及Windows安装包验收已完成；[GitHub Release v0.1.0](https://github.com/Qorq-byte/RAG_db_test/releases/tag/v0.1.0)已发布安装包及校验文件，远端大小与SHA256核验一致。
 
 ## 文档索引
 

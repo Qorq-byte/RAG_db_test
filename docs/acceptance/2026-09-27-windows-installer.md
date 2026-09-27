@@ -37,4 +37,9 @@
 
 ## 上传状态
 
-安装包本地交付和验收完成；源码与脚本按步骤推送。GitHub CLI的官方设备登录尚待用户授权，Release资产上传未完成，不能将本地安装包描述为已发布到GitHub Release。
+已发布 [v0.1.0 GitHub Release](https://github.com/Qorq-byte/RAG_db_test/releases/tag/v0.1.0)，标签对应构建源码提交 `1bcd53ecffcf992602b4bcd8ebe53b026f98d5f9`。用户完成官方设备登录后，使用GitHub CLI上传并发布，Release不是草稿。
+
+- [下载Windows安装包](https://github.com/Qorq-byte/RAG_db_test/releases/download/v0.1.0/RAGDB-0.1.0-windows-x64-setup.exe)：远端状态 `uploaded`，大小407,221,776字节，GitHub返回的SHA256与上方本地产物一致。
+- [下载SHA256SUMS.txt](https://github.com/Qorq-byte/RAG_db_test/releases/download/v0.1.0/SHA256SUMS.txt)：远端状态 `uploaded`，大小101字节，文件自身SHA256为 `a1b72ce6880886e3e7534b8fea13e15fa26eaa92cefd7cfb2e3f6dcdc2145ac4`，与本地一致。
+
+安装包作为Release资产发布，不提交二进制到Git源码历史。全部本轮收尾事项已交付，历史等待授权记录保留在进度日志中。

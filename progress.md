@@ -1,5 +1,11 @@
 # 项目交付记录
 
+## 2026-09-27 GitHub Release发布完成
+
+用户完成GitHub官方设备授权后，已发布 [v0.1.0](https://github.com/Qorq-byte/RAG_db_test/releases/tag/v0.1.0)。安装包407,221,776字节及SHA256SUMS.txt均为uploaded状态；GitHub API返回的两份资产SHA256与本地一致。远端标签指向构建源码提交`1bcd53ecffcf992602b4bcd8ebe53b026f98d5f9`，Release已公开发布，不是草稿。
+
+本轮索引恢复、全库备份恢复、检索质量评估、Windows安装包及发布均完成。最终374项全量测试与安装/启动/卸载证据见专项验收；此次只更新发布文档，未修改产品代码。下方等待登录与上传条目为历史过程记录。
+
 ## 2026-09-27 最终回归与Windows安装包
 
 最终全量374项通过（352.69秒），无失败或跳过；一条警告来自故意构造重复ZIP的负向测试。Windows安装包407,221,776字节，独立EXE集成自检、缓存BGE模型真实检索、实际安装、无项目Python路径下自检、原生Qt启动及卸载均通过；卸载保留测试用户配置。产物与SHA256见[安装包验收](docs/acceptance/2026-09-27-windows-installer.md)。

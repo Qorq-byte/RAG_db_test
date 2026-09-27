@@ -36,3 +36,12 @@ class OpenAICompatibleChatModel:
         if not isinstance(content, str) or not content.strip():
             raise RuntimeError("云端问答响应不包含有效文本")
         return ChatCompletion(content=content)
+
+    def stream(self, messages, *, should_cancel=None):
+        from .streaming import stream_chat
+        if not self.api_key:
+            raise RuntimeError("请在模型设置中填写云端 API Key 并保存。")
+        yield from stream_chat(self._client, f"{self.base_url}/chat/completions",
+                               {"model": self.model_name, "messages": [m.model_dump() for m in messages]},
+                               headers={"Authorization": f"Bearer {self.api_key}"},
+                               timeout=self.timeout_seconds, should_cancel=should_cancel)

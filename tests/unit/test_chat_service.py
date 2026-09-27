@@ -78,3 +78,36 @@ def test_session_cannot_cross_collection_boundaries(setup) -> None:
 
     with pytest.raises(Exception, match="指定会话不存在于该知识集合"):
         service.ask(uuid4(), "另一个集合", session_id=session.id)
+
+
+@pytest.mark.parametrize('outcome', ['success', 'failure', 'cancel'])
+def test_stream_progress_and_only_complete_turns_persist(setup, outcome):
+    from threading import Event
+    from ragdb.infrastructure.chat.streaming import ChatCancelled
+    collection, repository = setup
+    cancelled = Event()
+    events = []
+    class StreamingModel(FakeChatModel):
+        def stream(self, messages, **kwargs):
+            assert not repository.list_for_collection(collection.id)
+            yield 'first'
+            assert ('delta', 'first') in events
+            if outcome == 'failure':
+                raise RuntimeError('disconnected')
+            if outcome == 'cancel':
+                cancelled.set()
+            yield 'second'
+    service = AnswerService(FakeSearch([hit()]), StreamingModel(), repository,
+                            evidence_limit=6, evidence_character_budget=1000, history_character_budget=500)
+    def ask():
+        return service.ask(collection.id, 'question', stream=True,
+                           on_event=lambda *event: events.append(event), should_cancel=cancelled.is_set)
+    if outcome == 'success':
+        result = ask()
+        assert result.content == 'firstsecond'
+        assert len(repository.list_messages(result.conversation.id)) == 2
+        assert events[0] == ('stage', '正在检索知识库')
+    else:
+        with pytest.raises(ChatCancelled if outcome == 'cancel' else RuntimeError):
+            ask()
+        assert not repository.list_for_collection(collection.id)

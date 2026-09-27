@@ -50,6 +50,12 @@ class OllamaChatModel:
             raise RuntimeError("本地问答响应不包含有效文本")
         return ChatCompletion(content=content)
 
+    def stream(self, messages, *, should_cancel=None):
+        from .streaming import stream_chat
+        yield from stream_chat(self._client, f"{self.base_url}/api/chat",
+                               {"model": self.model_name, "messages": [m.model_dump() for m in messages]},
+                               timeout=self.timeout_seconds, ollama=True, should_cancel=should_cancel)
+
 
 def list_ollama_models(base_url: str, timeout_seconds: float = 10.0) -> list[str]:
     """Return installed Ollama model names from its local tags endpoint."""

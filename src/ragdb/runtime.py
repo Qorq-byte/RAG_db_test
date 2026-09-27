@@ -115,6 +115,22 @@ class ApplicationRuntime:
             ocr = TesseractOcr(settings.ocr.executable_path, settings.ocr.languages, settings.ocr.dpi)
         return LocalIngestionService(SQLiteSourceRepository(self.database), SQLiteChunkRepository(self.database), SQLiteTaskRepository(self.database), ParserRegistry(ocr=ocr), StructuredChunker(settings.chunking), SQLiteKeywordIndex(self.database), create_embedding_provider(embedding), store, SQLiteGenerationRepository(self.database), operation_gate=gate, import_recorder=self.import_recorder)
 
+    def update_embedding_credential(self, settings: EmbeddingSettings) -> None:
+        """Validate a replacement key without rebuilding or changing the profile."""
+        service = ModelSettingsService(self.config_path)
+        service.validate_candidate(settings)
+        if settings.provider != "cloud":
+            raise ValueError("只有云端嵌入模型需要保存 API Key。")
+        fingerprint = embedding_profile_fingerprint(settings)
+        # Prevent another process switching the active profile during validation.
+        with self.embedding_gate.ingestion():
+            active, current, _ = SQLiteEmbeddingProfileRepository(self.database).get()
+            if fingerprint != current:
+                raise ValueError("嵌入模型已变化，请重新加载后重试。")
+            service.test_embedding(settings)
+            service.store_embedding_credential(settings)
+            self.settings.embedding = active.model_copy(update={"cloud_api_key": settings.cloud_api_key})
+
     def rebuild_embeddings(self, settings: EmbeddingSettings, *, on_progress=None, should_cancel=None) -> EmbeddingRebuildResult:
         ModelSettingsService(self.config_path).store_embedding_credential(settings)
         service = EmbeddingRebuildService(

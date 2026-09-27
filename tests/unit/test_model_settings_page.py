@@ -350,6 +350,63 @@ def test_real_empty_rebuild_updates_active_model_and_persisted_config(page, monk
     assert not page.embedding.apply.isEnabled()
 
 
+def test_embedding_test_apply_restart_and_key_rotation(page, monkeypatch):
+    import json
+    from io import BytesIO
+    from urllib.error import HTTPError
+    from ragdb.infrastructure.embeddings.factory import create_embedding_provider
+    from ragdb.infrastructure.database.repository import embedding_profile_fingerprint
+
+    calls = []
+    def respond(request, timeout):
+        body = json.loads(request.data)
+        calls.append((request.full_url, request.headers["Authorization"], body["model"]))
+        if request.headers["Authorization"] == "Bearer invalid-key":
+            raise HTTPError(request.full_url, 401, "private-response", {}, BytesIO())
+        return BytesIO(json.dumps({"data": [{"index": i, "embedding": [0.1, 0.2]} for i, _ in enumerate(body["input"])]}).encode())
+    monkeypatch.setattr("ragdb.infrastructure.embeddings.openai_compatible.urlopen", respond)
+    monkeypatch.setattr(page, "confirm", lambda *args: True)
+    form = page.embedding
+    form.provider.setCurrentIndex(form.provider.findData("cloud"))
+    form.fields["cloud_base_url"].setText("https://embedding.example/v1")
+    form.fields["cloud_model"].setText("test-vector")
+    form.key.setText("first-key")
+    page.test_connection(form)
+    finish(page)
+    assert "成功" in page.feedback.text()
+    assert form.key.text() == "first-key"
+    assert not page.service.credentials.values
+    form.apply.click()
+    finish(page)
+    assert page.active_embedding.provider == "cloud"
+    assert form.key.text() == ""
+    restarted = ApplicationRuntime.from_config(page.service.config_path)
+    active, _, _ = restarted._embedding_context()
+    assert create_embedding_provider(active).embed_texts(["query"]) == [[0.1, 0.2]]
+    assert calls[-1] == ("https://embedding.example/v1/embeddings", "Bearer first-key", "test-vector")
+    fingerprint = embedding_profile_fingerprint(active)
+    before_config = page.service.config_path.read_bytes()
+    before_namespace = page.runtime.embedding_namespace
+    for key in ("invalid-key", "rotated-key"):
+        form.key.setText(key)
+        assert form.apply.isEnabled()
+        assert form.apply.text() == "保存密钥"
+        form.apply.click()
+        finish(page)
+        if key == "invalid-key":
+            assert "失败" in page.feedback.text()
+            assert page.service.credentials.get(f"embedding.{fingerprint}.cloud_api_key") == "first-key"
+            assert form.key.text() == key
+    assert page.service.credentials.get(f"embedding.{fingerprint}.cloud_api_key") == "rotated-key"
+    assert page.runtime.embedding_namespace == before_namespace
+    assert page.service.config_path.read_bytes() == before_config
+    restarted = ApplicationRuntime.from_config(page.service.config_path)
+    active, _, _ = restarted._embedding_context()
+    create_embedding_provider(active).embed_texts(["query after restart"])
+    assert calls[-1][1] == "Bearer rotated-key"
+    assert form.key.text() == ""
+
+
 def test_failed_rebuild_can_retry_without_applying_candidate(page, monkeypatch):
     monkeypatch.setattr(page, "confirm", lambda *args: True)
     def fail(*args, **kwargs):

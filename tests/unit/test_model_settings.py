@@ -110,6 +110,18 @@ def test_chat_candidate_cannot_reuse_another_endpoint_key(tmp_path):
     assert service.prepare("chat", second).cloud_api_key.get_secret_value() == "second-key"
 
 
+def test_embedding_candidate_keys_are_isolated_between_services(tmp_path):
+    service = ModelSettingsService(tmp_path / "config.toml", tmp_path / ".env", MemoryCredentials())
+    first = EmbeddingSettings(provider="cloud", cloud_base_url="https://first.example/v1")
+    second = first.model_copy(update={"cloud_base_url": "https://second.example/v1"})
+    service.save_embedding(first, "first-key")
+    with pytest.raises(ValueError, match="API Key"):
+        service.prepare("embedding", second)
+    service.save_embedding(second, "second-key")
+    assert service.prepare("embedding", first).cloud_api_key.get_secret_value() == "first-key"
+    assert service.prepare("embedding", second).cloud_api_key.get_secret_value() == "second-key"
+
+
 def test_local_save_does_not_require_available_credential_backend(tmp_path):
     class UnavailableCredentials:
         def get(self, name):

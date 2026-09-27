@@ -15,6 +15,7 @@ from ragdb.config import load_settings
 from ragdb.desktop.components import PageShell
 from ragdb.desktop.workers import BackgroundTask
 from ragdb.infrastructure.database.repository import embedding_profile_fingerprint
+from ragdb.infrastructure.embeddings.openai_compatible import EmbeddingConnectionError
 
 
 def label(text):
@@ -94,6 +95,8 @@ class ModelForm(QFrame):
         self.clear_key = QPushButton("清除已保存密钥")
         cloud.addRow("", self.clear_key)
         cloud.addRow(label("密钥保存在系统凭据库，页面不回显。云端连接测试会发送固定短文本，可能计费。"))
+        if section == "embedding":
+            cloud.addRow(label("请填写支持 OpenAI 兼容 /embeddings 接口的嵌入模型；聊天模型不能用于向量化。地址可填 API 基础地址或完整 /embeddings 地址。"))
         layout.addWidget(self.local_panel)
         if section == "embedding":
             layout.addWidget(self.ollama_panel)
@@ -251,12 +254,14 @@ class ModelSettingsPage(PageShell):
         self.embedding.active.setText("当前生效：" + model_caption(self.active_embedding))
         candidate = self.embedding.draft()
         changed = embedding_profile_fingerprint(candidate) != embedding_profile_fingerprint(self.active_embedding)
+        key_changed = candidate.provider == "cloud" and bool(self.embedding.key.text().strip())
         count = len(self.runtime.collections.list_all())
         self.embedding.note.setText(
             f"待应用：{model_caption(candidate)}。需要重建 {count} 个集合；完成前继续使用旧索引。"
-            if changed else "配置与当前生效模型一致。"
+            if changed else "仅更新 API Key：验证成功后保存，现有向量索引保持不变。" if key_changed else "配置与当前生效模型一致。"
         )
-        self.embedding.apply.setEnabled(changed)
+        self.embedding.apply.setText("保存密钥" if not changed and key_changed else "重建并切换")
+        self.embedding.apply.setEnabled(changed or key_changed)
 
     def snapshot(self, form):
         try:
@@ -289,6 +294,8 @@ class ModelSettingsPage(PageShell):
                 return function()
             except EmbeddingRebuildCancelled:
                 raise RuntimeError("重建已取消，旧索引继续生效。") from None
+            except EmbeddingConnectionError as error:
+                raise RuntimeError(f"{failure}\n{error}") from None
             except Exception:
                 # Provider exceptions can contain response bodies, URLs or API keys.
                 raise RuntimeError(failure) from None
@@ -381,6 +388,20 @@ class ModelSettingsPage(PageShell):
         if snapshot is None:
             return
         draft, key = snapshot
+        if embedding_profile_fingerprint(draft) == embedding_profile_fingerprint(self.active_embedding):
+            if draft.provider != "cloud" or key is None:
+                return
+            if not self.confirm("更新嵌入模型密钥", "将发送固定短文本验证新密钥；成功后保存，不重建索引。是否继续？"):
+                return
+            def save_key():
+                candidate = self.service.prepare("embedding", draft, key)
+                self._check_confirmed_target(draft, candidate)
+                self.runtime.update_embedding_credential(candidate)
+            def key_saved(_):
+                self.embedding.reset(self.active_embedding, self.service.field_sources("embedding"))
+                self.feedback.setText("嵌入模型密钥已验证并保存，现有索引保持不变。")
+            self._run("embedding_key", save_key, key_saved, "密钥保存失败，原配置保持不变。请检查 API Key、服务连接和系统凭据库。")
+            return
         count = len(self.runtime.collections.list_all())
         if not self.confirm("重建并切换嵌入模型", f"将重建 {count} 个集合，期间暂停导入和删除。完成后切换；失败或取消时继续使用旧索引。\n"
                             + ("所有当前资料切片将发送给配置的云端嵌入服务，可能计费。" if draft.provider == "cloud" else "本地模型首次加载可能需要下载。" if draft.provider == "local" else "Ollama 服务须已启动，且嵌入模型须已安装。") + "\n是否继续？"):

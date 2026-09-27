@@ -26,7 +26,7 @@ def read_collection(collection, directory: Path, method: str, args: dict):
     except InternalError as error:
         if "Nothing found on disk" not in str(error):
             raise
-        command = ([sys.executable, "--index-reader"] if getattr(sys, "frozen", False)
+        command = ([str(Path(sys.executable).with_name("RAGDB-CLI.exe")), "--index-reader"] if getattr(sys, "frozen", False)
                    else [sys.executable, "-m", "ragdb.infrastructure.vectorstore.query"])
         try:
             process = subprocess.run(command, input=json.dumps({

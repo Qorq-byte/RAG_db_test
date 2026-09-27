@@ -301,3 +301,11 @@ uv run ragdb evaluate run my-report.json --dataset labels.json --collection 我�
 ```
 
 自定义标注格式：`{"name":"my-eval","queries":[{"id":"q1","query":"问题","relevant":{"完整资料URI":1}}]}`。每条查询须至少一个正数相关性标注，可附加 `filters`。输出来源级 Recall@K、MRR@K、nDCG@K、延迟及逐题排名。默认 Recall≥0.8、MRR≥0.75；未达标退出码1并保留报告，可用 `--min-recall`、`--min-mrr` 调整。已有报告不覆盖。默认基准只使用内置合成资料；使用云端嵌入时，这些资料和查询会发送给所选服务。内置16题通过不代表全部用户资料质量。
+
+### Windows 安装版
+
+已构建并验证 `RAGDB-0.1.0-windows-x64-setup.exe`。本地位于 `dist/`，GitHub Release上传状态见[安装包验收](docs/acceptance/2026-09-27-windows-installer.md)。运行安装程序后，从开始菜单打开 RAGDB；无需另装Python或项目虚拟环境。安装目录内的 `RAGDB-CLI.exe` 提供同一套CLI命令。
+
+程序默认安装到 `%LOCALAPPDATA%/Programs/RAGDB`，配置和资料存放在 `%LOCALAPPDATA%/RAGDB`。卸载保留资料目录。初始嵌入配置为 Ollama `embeddinggemma:latest`；需要本机Ollama服务及已安装模型，也可在模型设置页选择其他本地模型或云端服务。模型权重、OCR程序和API密钥不随安装包分发。恢复库可用 `RAGDB.exe --config D:/restored-library/config.toml` 打开。
+
+复现构建：安装Inno Setup后执行 `./scripts/build_windows.ps1 -InnoCompiler "完整ISCC.exe路径"`。生成安装程序及 `SHA256SUMS.txt`；细节和实际安装/卸载证据见验收记录。

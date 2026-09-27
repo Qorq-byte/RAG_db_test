@@ -34,6 +34,7 @@ packages = ["src/ragdb"]
 
 [dependency-groups]
 dev = [
+    "pyinstaller>=6.16,<7",
     "pytest",
 ]
 

@@ -12,29 +12,31 @@
 - 侧边栏：保留原功能键与随机指示线；底部图片连续滚轮切换，支持添加/移除并保存偏好。
 - 主题：太阳/月亮/显示器图标切换浅色/深色/跟随系统。
 - 液滴：仅标题操作栏（排除“重新加载”）和顶部“详情”启用；主题、内容区、侧边栏和欢迎入口无液滴。
-- 当前主线 `31347c5` 全量复验 **342 passed in 314.90s**（2026-09-27）。合并时69项定向回归及按钮初版335通过、1失败为历史结果；本轮未复现 Chroma 异常，但不代表底层根因已解决。
-- 已有模型配置：Ollama `embeddinggemma:latest` 嵌入、DeepSeek `deepseek-flash` 问答/学习生成；真实模型联调证据来自阶段5，本轮UI回归不新增真实服务验收。
+- 当前收尾版本全量 **374 passed in 352.69s**（2026-09-27），涵盖索引恢复、备份恢复、评估与安装版启动逻辑。此前342项及历史失败记录保留，不混用为本次结果。
+- 已有模型配置：Ollama `embeddinggemma:latest` 嵌入、DeepSeek `deepseek-flash` 问答/学习生成；本轮新增Ollama固定检索评估和独立EXE缓存BGE模型验收，不新增DeepSeek联调。
 
 ## 未完成事项与后续安排
 
 用户已授权全部完成并逐步上传（2026-09-27）；范围与验收见[收尾设计](docs/superpowers/specs/2026-09-27-completion-design.md)。
 
 - [x] 8.0 当前主线342项全量验收记录提交并推送：`9c2499b`。
-- [x] 8.1 Chroma复现及隔离读取恢复：86项定向通过，96轮384次查询通过（6次恢复），提交推送；上游根因未宣称修复。
-- [x] 8.2 全库备份恢复服务、CLI及桌面入口；30项桌面联合回归、补充后8项备份专项通过，提交推送。
-- [x] 8.3 固定12资料/16题评估集、指标、CLI与报告；8项测试通过，Ollama真实模型Recall@3=1、MRR@3=1，提交推送。
-- [ ] 8.4 Windows EXE安装包构建、独立启动及Release上传。
-- [ ] 8.5 最终全量验收和文档，提交推送。
+- [x] 8.1 Chroma复现及隔离读取恢复：86项定向通过，96轮384次查询通过（6次恢复），`2beb4f6`已推送；上游根因未宣称修复。
+- [x] 8.2 全库备份恢复服务、CLI及桌面入口：`6a78a17`已推送；独立复核补强`bceee26`已推送，最终20项备份专项通过。
+- [x] 8.3 固定12资料/16题评估集、指标、CLI与报告：`2fffe16`已推送；8项测试通过，Ollama真实模型Recall@3=1、MRR@3=1。
+- [x] 8.4a Windows EXE安装包构建、独立运行、实际安装/卸载验收完成，见安装包验收。
+- [ ] 8.4b GitHub Release安装包资产上传：等待GitHub CLI官方设备登录授权。
+- [x] 8.5 最终374项全量通过，文档及构建脚本整理完成。
 
 | 事项 | 当前边界 |
 | --- | --- |
 | Chroma 上游根因 | 已交付特定错误的隔离读取恢复并通过固定复现对照；上游 Rust 精确根因仍未证实，不影响应用层已验证恢复交付。 |
-| 桌面 EXE 安装包 | 本轮交付原生桌面源码及离线资源；已有 Python wheel 打包证据，未交付 EXE 安装包。 |
+| GitHub Release资产上传 | 本地388.4MiB安装包已构建并通过实际安装/卸载；GitHub CLI设备登录尚待授权。源码推送不受影响。 |
 
 ## 文档导航
 
 | 文档 | 用途 |
 | --- | --- |
+| [Windows安装包验收](docs/acceptance/2026-09-27-windows-installer.md) / [备份验收](docs/acceptance/2026-09-27-library-backup.md) / [检索评估](docs/acceptance/2026-09-27-retrieval-evaluation.md) | 本轮功能、安装包、校验值及测试证据 |
 | [桌面主线交付摘要](docs/acceptance/2026-09-27-desktop-delivery.md) / [按钮与主题图标](docs/acceptance/2026-09-27-desktop-buttons.md) | 当前功能、动效范围、合并状态与测试边界 |
 | [侧边栏底部卡片计划](docs/superpowers/plans/2026-09-26-sidebar-fan-implementation.md) / [验收](docs/acceptance/2026-09-26-sidebar-fan.md) | 参考扇形轮播、增删偏好及最新回归 |
 | [桌面欢迎页计划](docs/superpowers/plans/2026-09-26-desktop-welcome-implementation.md) / [验收](docs/acceptance/2026-09-26-desktop-welcome.md) | 新增原生启动页、入口交互和最新回归结果 |

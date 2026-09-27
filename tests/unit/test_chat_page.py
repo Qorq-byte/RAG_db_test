@@ -71,6 +71,8 @@ def test_immediate_question_stream_progress_and_history_citations(chat):
     page.ask()
     assert page.transcript.messages[0].body.toPlainText() == "<b>用户问题</b>"
     assert not page.sessions.isEnabled() and not page.new.isEnabled()
+    assert not page.manage_sessions.isEnabled()
+    page.manage_conversations()  # Direct calls are also blocked while generating.
     assert page.ask_button.text() == "停止生成"
     until(lambda: "第一段" in page.transcript.toPlainText())
     assert page.busy
@@ -82,6 +84,7 @@ def test_immediate_question_stream_progress_and_history_citations(chat):
     until(lambda: not page.busy)
     assert page.transcript.messages[-1].content == "第一段，第二段 [1]"
     assert len(chat.repo.list_messages(page.session_id)) == 2
+    assert page.manage_sessions.isEnabled()
     page.select_session(page.sessions.currentIndex())
     until(lambda: page.transcript.messages[-1].references.isVisible())
     evidence = []

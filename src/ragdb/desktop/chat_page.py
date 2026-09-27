@@ -9,6 +9,7 @@ from PySide6.QtWidgets import QComboBox, QFrame, QHBoxLayout, QLabel, QPushButto
 
 from ragdb.desktop.components import PageShell
 from ragdb.desktop.chat_widgets import ConversationView, QuestionEditor
+from ragdb.desktop.conversation_manager import ConversationManagerDialog
 from ragdb.desktop.workers import BackgroundTask
 from ragdb.infrastructure.chat.streaming import StreamingUnsupported
 
@@ -42,6 +43,10 @@ class ChatPage(PageShell):
         self.sessions.setMinimumWidth(180)
         self.sessions.currentIndexChanged.connect(self.select_session)
         bar.addWidget(self.sessions, 1)
+        self.manage_sessions = QPushButton("管理会话")
+        self.manage_sessions.setEnabled(False)
+        self.manage_sessions.clicked.connect(self.manage_conversations)
+        bar.addWidget(self.manage_sessions)
         layout.addLayout(bar)
         self.transcript = ConversationView()
         layout.addWidget(self.transcript, 1)
@@ -87,6 +92,7 @@ class ChatPage(PageShell):
             return
         changed = collection_id != self.collection_id
         self.collection_id, self.generation = collection_id, generation
+        self.manage_sessions.setEnabled(collection_id is not None)
         if changed:
             self.session_id = None
             self.transcript.clear()
@@ -130,6 +136,28 @@ class ChatPage(PageShell):
         self.sessions.setCurrentIndex(0)
         self.transcript.clear()
         self.question.setFocus()
+
+    def manage_conversations(self):
+        if self.busy or self.collection_id is None:
+            return
+        dialog = ConversationManagerDialog(
+            self.runtime.conversations, self.collection_id, self.session_id, self,
+        )
+        dialog.conversations_deleted.connect(self._conversations_deleted)
+        dialog.exec()
+        dialog.deleteLater()
+
+    def _conversations_deleted(self, collection_id, session_ids):
+        if collection_id != self.collection_id or self.busy:
+            return
+        if self.session_id in session_ids:
+            self.generation += 1
+            self.new_session()
+            self._bubble = None
+            self._buffer = ""
+            self.details_requested.emit("")
+            self.feedback.setText("当前会话已删除，可开始新会话")
+        self.refresh_sessions()
 
     def send_or_stop(self):
         self.cancel() if self.busy else self.ask()
@@ -197,6 +225,7 @@ class ChatPage(PageShell):
         task.signals.failed.connect(self._failed)
         task.signals.finished.connect(self._finished)
         self.sessions.setEnabled(False)
+        self.manage_sessions.setEnabled(False)
         self.new.setEnabled(False)
         self.question.setEnabled(False)
         self.ask_button.setText("停止生成")
@@ -260,6 +289,7 @@ class ChatPage(PageShell):
         self._task = None
         self._token = None
         self.sessions.setEnabled(True)
+        self.manage_sessions.setEnabled(self.collection_id is not None)
         self.new.setEnabled(True)
         self.question.setEnabled(True)
         self.ask_button.setEnabled(True)

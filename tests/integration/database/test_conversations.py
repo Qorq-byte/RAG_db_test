@@ -84,3 +84,76 @@ def test_record_turn_is_atomic_when_citation_is_invalid(database: SQLiteDatabase
         repository.record_turn(user, assistant, [invalid])
 
     assert repository.list_messages(conversation.id) == []
+
+
+def test_delete_selected_conversations_cascades_only_selected_history(database):
+    from ragdb.domain.enums import SourceType
+    from ragdb.domain.models import Source
+    from ragdb.infrastructure.database import SQLiteSourceRepository
+    collection = SQLiteCollectionRepository(database).create(Collection(name="可选删除"))
+    other = SQLiteCollectionRepository(database).create(Collection(name="另一个集合"))
+    sources = SQLiteSourceRepository(database)
+    source = sources.create(Source(collection_id=collection.id, source_type=SourceType.TEXT,
+        title="保留资料", uri="manual://retained", content_hash="a" * 64))
+    repo = SQLiteConversationRepository(database)
+    conversations = [repo.create(Conversation(collection_id=owner.id, provider="test", model="test"))
+                     for owner in (collection, collection, collection, other)]
+    assistants = []
+    for conversation in conversations:
+        user = ConversationMessage(conversation_id=conversation.id, sequence=0, role=MessageRole.USER, content="问题")
+        assistant = ConversationMessage(conversation_id=conversation.id, sequence=1, role=MessageRole.ASSISTANT, content="回答")
+        assistants.append(assistant)
+        repo.record_turn(user, assistant, [MessageCitation(assistant_message_id=assistant.id,
+            display_index=1, chunk_id="retained", source_id=source.id, source_generation=1,
+            source_title=source.title, source_uri=source.uri)])
+    ids = [conversations[0].id, conversations[2].id]
+    assert repo.delete_many(collection.id, ids + [ids[0], uuid4()]) == 2
+    reopened = SQLiteConversationRepository(SQLiteDatabase(database.path))
+    for index in (0, 2):
+        assert reopened.get(conversations[index].id) is None
+        assert reopened.list_messages(conversations[index].id) == []
+        assert reopened.list_citations(assistants[index].id) == []
+    for index in (1, 3):
+        assert reopened.get(conversations[index].id) is not None
+        assert len(reopened.list_messages(conversations[index].id)) == 2
+        assert len(reopened.list_citations(assistants[index].id)) == 1
+    assert sources.get(source.id) == source
+    assert repo.delete_many(collection.id, ids) == 0
+    assert repo.delete_many(collection.id, []) == 0
+
+
+def test_batch_deletion_rolls_back_on_cross_collection_selection(database):
+    from ragdb.domain.errors import StorageError
+    collections = SQLiteCollectionRepository(database)
+    first, second = [collections.create(Collection(name=name)) for name in ("一", "二")]
+    repo = SQLiteConversationRepository(database)
+    ours = repo.create(Conversation(collection_id=first.id, provider="test", model="test"))
+    theirs = repo.create(Conversation(collection_id=second.id, provider="test", model="test"))
+    with pytest.raises(StorageError, match="不属于"):
+        repo.delete_many(first.id, [ours.id, theirs.id])
+    assert repo.get(ours.id) is not None
+    assert repo.get(theirs.id) is not None
+
+
+def test_batch_deletion_rolls_back_on_database_error(database):
+    from ragdb.domain.errors import StorageError
+    collection = SQLiteCollectionRepository(database).create(Collection(name="回滚"))
+    repo = SQLiteConversationRepository(database)
+    first, second = [repo.create(Conversation(collection_id=collection.id, title=title, provider="test", model="test"))
+                     for title in ("first", "blocked")]
+    with database.connect() as connection:
+        connection.execute("CREATE TRIGGER fail_delete BEFORE DELETE ON conversations "
+            "WHEN OLD.title = 'blocked' BEGIN SELECT RAISE(ABORT, 'blocked'); END")
+    with pytest.raises(StorageError, match="均未删除"):
+        repo.delete_many(collection.id, [first.id, second.id])
+    assert repo.get(first.id) is not None
+    assert repo.get(second.id) is not None
+
+
+def test_manager_can_list_conversations_beyond_recent_twenty(database):
+    collection = SQLiteCollectionRepository(database).create(Collection(name="完整历史"))
+    repo = SQLiteConversationRepository(database)
+    for index in range(25):
+        repo.create(Conversation(collection_id=collection.id, title=f"会话{index}", provider="test", model="test"))
+    assert len(repo.list_for_collection(collection.id)) == 20
+    assert len(repo.list_for_collection(collection.id, limit=None)) == 25

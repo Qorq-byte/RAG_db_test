@@ -471,13 +471,14 @@ class SQLiteConversationRepository:
             ).fetchone()
         return _conversation_from_row(row) if row is not None else None
 
-    def list_for_collection(self, collection_id: UUID, limit: int = 20) -> Sequence[Conversation]:
+    def list_for_collection(self, collection_id: UUID, limit: int | None = 20) -> Sequence[Conversation]:
+        query = "SELECT * FROM conversations WHERE collection_id = ? ORDER BY updated_at DESC, id DESC"
+        values: tuple[object, ...] = (str(collection_id),)
+        if limit is not None:
+            query += " LIMIT ?"
+            values += (limit,)
         with self.database.connect() as connection:
-            rows = connection.execute(
-                "SELECT * FROM conversations WHERE collection_id = ? "
-                "ORDER BY updated_at DESC, id DESC LIMIT ?",
-                (str(collection_id), limit),
-            ).fetchall()
+            rows = connection.execute(query, values).fetchall()
         return [_conversation_from_row(row) for row in rows]
 
     def list_messages(self, conversation_id: UUID) -> Sequence[ConversationMessage]:
@@ -557,6 +558,32 @@ class SQLiteConversationRepository:
                 "DELETE FROM conversations WHERE id = ?", (str(conversation_id),)
             )
         return cursor.rowcount > 0
+
+    def delete_many(self, collection_id: UUID, conversation_ids: Sequence[UUID]) -> int:
+        """Delete exactly the requested conversations, atomically and within one collection."""
+        ids = tuple(dict.fromkeys(conversation_ids))
+        if not ids:
+            return 0
+        try:
+            with self.database.connect() as connection:
+                connection.execute("BEGIN IMMEDIATE")
+                deleted = 0
+                for conversation_id in ids:
+                    row = connection.execute(
+                        "SELECT collection_id FROM conversations WHERE id = ?", (str(conversation_id),),
+                    ).fetchone()
+                    if row is None:
+                        continue
+                    if row["collection_id"] != str(collection_id):
+                        raise StorageError("所选会话不属于当前知识集合，未删除任何会话")
+                    cursor = connection.execute(
+                        "DELETE FROM conversations WHERE id = ? AND collection_id = ?",
+                        (str(conversation_id), str(collection_id)),
+                    )
+                    deleted += cursor.rowcount
+            return deleted
+        except sqlite3.Error as error:
+            raise StorageError("删除会话失败，所选会话均未删除") from error
 
 
 class SQLiteSourceRepository:

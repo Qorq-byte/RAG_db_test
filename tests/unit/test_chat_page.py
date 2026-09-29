@@ -14,7 +14,7 @@ from PySide6.QtWidgets import QApplication
 
 from ragdb.application.chat import AnswerService
 from ragdb.desktop.chat_page import ChatPage
-from ragdb.desktop.chat_widgets import MessageBubble, QuestionEditor
+from ragdb.desktop.chat_widgets import ConversationView, MessageBubble, QuestionEditor
 from ragdb.domain.models import Collection, SearchHit
 from ragdb.infrastructure.database import SQLiteDatabase, SQLiteCollectionRepository, SQLiteConversationRepository
 from ragdb.infrastructure.chat.streaming import StreamingUnsupported
@@ -270,6 +270,30 @@ def test_safe_markdown_and_copy():
     assert not bubble.body.openLinks()
     bubble.copy_button.click()
     assert APP.clipboard().text() == bubble.content
+
+
+def test_user_bubbles_grow_leftward_and_wrap_without_reversing_text():
+    view = ConversationView()
+    view.resize(800, 600)
+    view.show()
+    short = view.add_message("user", "你好")
+    medium = view.add_message("user", "请解释检索增强生成的基本步骤")
+    long = view.add_message("user", "请结合来源详细说明检索增强生成的基本步骤、资料导入和引用核验。" * 8)
+    APP.processEvents()
+
+    assert short.width() < medium.width() < long.width()
+    assert long.width() <= int((view.viewport().width() - 24) * .72) + 1
+    assert all(abs(bubble.geometry().right() - medium.geometry().right()) <= 1
+               for bubble in (short, long))
+    assert long.body.height() > medium.body.height()
+    assert medium.body.toPlainText() == "请解释检索增强生成的基本步骤"
+    assert medium.body.layoutDirection() == Qt.LayoutDirection.LeftToRight
+
+    view.resize(520, 600)
+    APP.processEvents()
+    assert long.width() <= int((view.viewport().width() - 24) * .72) + 1
+    assert long.body.height() > medium.body.height()
+    view.close()
 
 
 def test_scrolling_up_is_not_overridden_by_new_content(chat):

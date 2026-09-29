@@ -1,7 +1,7 @@
 """Native conversation widgets with safe text rendering and scroll following."""
 
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QTextDocument
+from PySide6.QtGui import QFontMetrics, QTextDocument, QTextOption
 from PySide6.QtWidgets import (
     QApplication, QFrame, QHBoxLayout, QLabel, QPushButton, QScrollArea,
     QSizePolicy, QTextBrowser, QTextEdit, QVBoxLayout, QWidget,
@@ -78,6 +78,12 @@ class MessageBubble(QFrame):
         self.caption.setVisible(role != "user")
         layout.addWidget(self.caption)
         self.body = MessageText()
+        if role == "user":
+            self.body.setLayoutDirection(Qt.LayoutDirection.LeftToRight)
+            self.body.setAlignment(Qt.AlignmentFlag.AlignLeft)
+            self.body.document().setDefaultTextOption(
+                QTextOption(Qt.AlignmentFlag.AlignLeft)
+            )
         layout.addWidget(self.body)
         self.state = QLabel()
         self.state.setTextFormat(Qt.TextFormat.PlainText)
@@ -111,6 +117,19 @@ class MessageBubble(QFrame):
             self.body.document().setMarkdown(content, QTextDocument.MarkdownFeature.MarkdownNoHTML)
         self.body.fit_height()
         self.copy_button.setEnabled(bool(content))
+
+    def fit_user_width(self, available_width: int):
+        """Keep the right edge fixed while text grows up to a readable limit."""
+        if self.role != "user":
+            return
+        margins = self.layout().contentsMargins()
+        padding = margins.left() + margins.right() + 12
+        metrics = QFontMetrics(self.body.font())
+        natural = max((metrics.horizontalAdvance(line) for line in self.content.splitlines()), default=0)
+        maximum = max(96, int(available_width * .72))
+        self.setFixedWidth(min(maximum, max(72, natural + padding)))
+        self.body.document().setTextWidth(max(40, self.width() - padding))
+        self.body.fit_height()
 
     def set_citations(self, citations):
         self._citations = "\n\n".join(f"[{c.display_index}] {c.source_title}\n{c.source_uri}" for c in citations)
@@ -150,13 +169,20 @@ class ConversationView(QScrollArea):
         row_layout.setContentsMargins(0, 0, 0, 0)
         if role == "user":
             row_layout.addStretch(1)
-            row_layout.addWidget(bubble, 4)
+            row_layout.addWidget(bubble)
         else:
             row_layout.addWidget(bubble, 9)
             row_layout.addStretch(1)
         self.layout.insertWidget(self.layout.count() - 1, row)
         self.messages.append(bubble)
+        bubble.fit_user_width(self.viewport().width() - 24)
         return bubble
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        available = self.viewport().width() - 24
+        for bubble in self.messages:
+            bubble.fit_user_width(available)
 
     def clear(self):
         for bubble in self.messages:

@@ -151,6 +151,8 @@ class SearchPage(AsyncPage):
 
 
 class ArtifactsPage(AsyncPage):
+    count_changed = Signal()
+
     def __init__(self, runtime) -> None:
         super().__init__(runtime, "学习产物", "把检索证据整理为提纲、卡片和复习材料。")
         self.kind = QComboBox()
@@ -203,6 +205,7 @@ class ArtifactsPage(AsyncPage):
                 )
                 item.setData(Qt.ItemDataRole.UserRole, artifact)
                 self.items.addItem(item)
+        self.count_changed.emit()
 
     def generate(self) -> None:
         if not self.require_collection() or not self.topic.text().strip():

@@ -46,6 +46,29 @@ class NavButton(QPushButton):
         self.setAccessibleDescription(f"切换到{label}页面")
         self.setFixedHeight(40)
         self.setProperty("navItem", True)
+        self.count_badge = QLabel(self)
+        self.count_badge.setProperty("navCount", True)
+        self.count_badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.count_badge.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        self.count_badge.hide()
+
+    def set_count(self, count: int | None) -> None:
+        if count is None:
+            self.count_badge.hide()
+            return
+        self.count_badge.setText(str(count))
+        self.count_badge.adjustSize()
+        self.count_badge.setFixedSize(max(24, self.count_badge.width() + 8), 22)
+        self._place_count_badge()
+        self.count_badge.show()
+
+    def _place_count_badge(self) -> None:
+        self.count_badge.move(self.width() - self.count_badge.width() - 9,
+                              (self.height() - self.count_badge.height()) // 2)
+
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        self._place_count_badge()
 
     def randomize_indicator(self):
         self._line_index = choice([i for i in range(len(self.LINE_COLORS)) if i != self._line_index])
@@ -173,12 +196,18 @@ class SidebarWidget(QWidget):
         self.brand.setStyleSheet(
             "font-size: 17px; font-weight: 700; letter-spacing: 1px;"
         )
+        self.collection_count = QLabel("0")
+        self.collection_count.setProperty("navCount", True)
+        self.collection_count.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.collection_count.setMinimumSize(24, 22)
+        self.collection_count.setToolTip("知识集合总数")
         self.toggle = QToolButton()
         self.toggle.setText("‹")
         self.toggle.setToolTip("折叠导航")
         self.toggle.setAccessibleName("折叠导航栏")
         self.toggle.clicked.connect(self.toggle_collapsed)
         top.addWidget(self.brand)
+        top.addWidget(self.collection_count)
         top.addStretch()
         top.addWidget(self.toggle)
         layout.addLayout(top)
@@ -201,6 +230,7 @@ class SidebarWidget(QWidget):
                 self.buttons.append(button)
                 layout.addWidget(button)
             layout.addSpacing(8)
+        self.buttons[4].count_badge.setToolTip("当前集合的学习产物数量")
         layout.addStretch(1)
         self.footer = FanCarousel(self, reduce_motion=reduce_motion)
         layout.addWidget(self.footer, 3)
@@ -278,6 +308,7 @@ class SidebarWidget(QWidget):
         self._update_footer()
         target = 68 if collapsed else self._expanded_width
         self.brand.setText("R" if collapsed else "RAG DB")
+        self.collection_count.setVisible(not collapsed)
         self.collection.setVisible(not collapsed)
         self.resize_handle.setVisible(not collapsed)
         self.toggle.setText("›" if collapsed else "‹")

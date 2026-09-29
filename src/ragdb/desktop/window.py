@@ -1,6 +1,6 @@
 """Main desktop workbench window."""
 
-from PySide6.QtCore import QThreadPool, Qt, Signal
+from PySide6.QtCore import QThreadPool, QTimer, Qt, Signal
 from PySide6.QtGui import QKeyEvent, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QApplication,
@@ -70,6 +70,7 @@ class MainWindow(QMainWindow):
             lambda _id, name, _generation: self.navigation.collection.setText(name)
         )
         self.collection_context.changed.connect(self.top_bar.set_collection)
+        self.collection_context.changed.connect(lambda *_: self.refresh_navigation_counts())
         for index, name in enumerate(PAGES):
             if runtime is not None and index == 0:
                 page = OverviewPage(runtime)
@@ -90,6 +91,9 @@ class MainWindow(QMainWindow):
                     self.chat_page = page
                     page.busy_changed.connect(self._chat_busy_changed)
                     page.collection_switch_requested.connect(self.choose_chat_collection)
+                if index == 4:
+                    self.artifacts_page = page
+                    page.count_changed.connect(self.refresh_navigation_counts)
                 self.collection_context.changed.connect(page.set_collection)
                 page.details_requested.connect(self.detail_panel.show_text)
                 self.pages.addWidget(page)
@@ -143,6 +147,10 @@ class MainWindow(QMainWindow):
         self.detail_panel.closed.connect(self.close_detail_preference)
         self._shortcuts = self._create_shortcuts()
         self.navigation.select_page(0)
+        self.navigation_count_timer = QTimer(self)
+        self.navigation_count_timer.setInterval(2000)
+        self.navigation_count_timer.timeout.connect(self.refresh_navigation_counts)
+        self.refresh_navigation_counts()
         self._apply_responsive_layout()
         self.statusBar().showMessage("就绪")
 
@@ -150,6 +158,37 @@ class MainWindow(QMainWindow):
         self.pages.setCurrentIndex(index)
         self.top_bar.set_page(PAGES[index])
         self._apply_detail_visibility(index in (2, 3, 4))
+        self.refresh_navigation_counts()
+
+    def refresh_navigation_counts(self) -> None:
+        if self.runtime is None:
+            return
+        try:
+            total = len(self.runtime.collections.list_all())
+            self.navigation.collection_count.setText(str(total))
+            self.navigation.collection_count.setToolTip(f"知识集合总数：{total}")
+        except Exception:
+            self.navigation.collection_count.setText("—")
+            self.navigation.collection_count.setToolTip("知识集合数量暂不可用")
+        collection_id = self.collection_context.collection_id
+        if collection_id is None:
+            self.navigation.buttons[4].set_count(None)
+            return
+        try:
+            self.navigation.buttons[4].set_count(
+                len(self.runtime.artifacts.list_for_collection(collection_id))
+            )
+        except Exception:
+            self.navigation.buttons[4].set_count(None)
+
+    def showEvent(self, event) -> None:
+        super().showEvent(event)
+        self.refresh_navigation_counts()
+        self.navigation_count_timer.start()
+
+    def hideEvent(self, event) -> None:
+        self.navigation_count_timer.stop()
+        super().hideEvent(event)
 
     def _chat_busy_changed(self, busy):
         self.collection_context.locked = busy

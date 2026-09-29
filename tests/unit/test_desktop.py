@@ -1,6 +1,7 @@
 import os
 from pathlib import Path
 from threading import Event
+from types import SimpleNamespace
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
@@ -64,6 +65,30 @@ def test_narrow_window_collapses_navigation_and_details() -> None:
     assert window.navigation.collapsed is True
     assert window.detail_panel.isHidden()
     window.close()
+
+
+def test_navigation_counts_follow_collections_and_learning_artifacts() -> None:
+    runtime = _Runtime()
+    window = MainWindow(runtime)
+    window.show()
+    window.collections_page.collections.setCurrentRow(0)
+    APPLICATION.processEvents()
+    badge = window.navigation.buttons[4].count_badge
+    assert window.navigation.collection_count.text() == "1"
+    assert badge.text() == "0"
+    assert badge.isVisible()
+
+    records = [SimpleNamespace(artifact_type=SimpleNamespace(value="摘要"), title="演示")]
+    runtime.artifacts = SimpleNamespace(list_for_collection=lambda _id: records)
+    window.artifacts_page.refresh()
+    assert badge.text() == "1"
+    runtime.collection_api.items.append(Collection(name="第二集合"))
+    window.refresh_navigation_counts()
+    assert window.navigation.collection_count.text() == "2"
+    window.collection_context.select(None, "未选择集合")
+    assert badge.isHidden()
+    window.close()
+    APPLICATION.processEvents()
 
 
 def test_collection_context_invalidates_previous_generation() -> None:

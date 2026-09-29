@@ -1,0 +1,44 @@
+{
+  "name": "ragdb-structured-documents-v1",
+  "documents": [
+    {
+      "id": "markdown_recovery",
+      "format": "markdown",
+      "text": "# 索引恢复操作手册\n\n## 故障现象\n检索出现 Nothing found on disk 时，先检查活动索引是否可查询。\n\n## 处理步骤\n使用独立读取进程重建读取环境，最多恢复一次；仍失败时保留旧索引并停止发布。",
+      "metadata": {"course": "运维"}
+    },
+    {
+      "id": "word_schedule",
+      "format": "docx",
+      "text": "课程复习安排：第一周学习向量检索，第二周学习关键词全文检索。",
+      "table": [["周次", "学习主题", "验收任务"], ["第一周", "向量检索", "核对语义相近资料"], ["第二周", "全文检索", "核对错误码与专有名词"]],
+      "metadata": {"course": "学习计划"}
+    },
+    {
+      "id": "pdf_backup",
+      "format": "pdf",
+      "text": "Backup restoration verifies SHA256 checksums and SQLite integrity before publishing into a new directory. Existing user data remains untouched and API credentials must be configured again.",
+      "metadata": {"course": "运维"}
+    },
+    {
+      "id": "plain_keys",
+      "text": "云端问答模型的 API Key 保存在系统凭据库。不要把密钥写入 TOML 配置文件或日志。",
+      "metadata": {"course": "安全"}
+    },
+    {
+      "id": "plain_chunking",
+      "text": "资料导入时先解析文档，再切分为较短的片段；相邻片段设置重叠区域，避免重要上下文在边界处丢失。",
+      "metadata": {"course": "检索"}
+    }
+  ],
+  "queries": [
+    {"id": "markdown_heading", "query": "Nothing found on disk 出现后索引怎样恢复？", "relevant": {"markdown_recovery": 1}},
+    {"id": "markdown_failure", "query": "独立读取进程失败时是否会继续发布新索引？", "relevant": {"markdown_recovery": 1}},
+    {"id": "word_paragraph", "query": "课程第一周学习什么检索方法？", "relevant": {"word_schedule": 1}},
+    {"id": "word_table", "query": "第二周怎样核对错误码与专有名词？", "relevant": {"word_schedule": 1}},
+    {"id": "pdf_checksum", "query": "Backup restoration verifies SHA256 and SQLite integrity before publishing where?", "relevant": {"pdf_backup": 1}},
+    {"id": "pdf_credential", "query": "After restoring a backup, what happens to API credentials?", "relevant": {"pdf_backup": 1}},
+    {"id": "secret_storage", "query": "云端问答 API Key 应存放哪里？", "relevant": {"plain_keys": 1}},
+    {"id": "chunk_overlap", "query": "资料切分为什么要设置相邻片段重叠？", "relevant": {"plain_chunking": 1}}
+  ]
+}

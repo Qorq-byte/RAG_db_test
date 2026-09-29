@@ -3,7 +3,8 @@ from types import SimpleNamespace
 
 import pytest
 
-from ragdb.application.evaluation import ranking_metrics, evaluate
+from ragdb.application.evaluation import ranking_metrics, evaluate, benchmark
+from ragdb.config import AppSettings
 
 
 def test_metrics_match_hand_calculated_ranking():
@@ -29,3 +30,12 @@ def test_threshold_failure_and_per_query_evidence():
     result = evaluate(dataset, lambda *_: [SimpleNamespace(metadata={}, source_uri="wrong")])
     assert not result["passed"]
     assert result["queries"][0]["ranked_sources"] == ["wrong"]
+
+
+@pytest.mark.parametrize("format_name", ["unknown", "../../private"])
+def test_benchmark_rejects_unsupported_format_before_creating_library(tmp_path, format_name):
+    dataset = {"documents": [{"id": "one", "format": format_name, "text": "test"}],
+               "queries": [{"id": "q", "query": "test", "relevant": {"one": 1}}]}
+    with pytest.raises(ValueError, match="格式"):
+        benchmark(dataset, AppSettings(_env_file=None), tmp_path, offline=True)
+    assert list(tmp_path.iterdir()) == []

@@ -235,7 +235,7 @@ uv run ragdb --help
 | Windows 安装交付 | 已发布 | 独立安装、启动、自检、隔离覆盖安装 / 卸载及远端 SHA256 校验 |
 | 侧栏数量显示 | 源码已完成 | RAG DB 旁显示集合总数，学习产物旁显示当前集合产物数；尚未更新安装包 |
 | 更多服务商真实账号验证 | 后续候选 | 扩展模型兼容性记录；目前不能宣称所有云端模型都已实测 |
-| 检索质量与复杂文档 | 后续候选 | 扩充评估资料与标注、根据实际案例优化解析和召回 |
+| 复杂文档离线评估 | 源码已完成 | 新增 Markdown、Word 表格、文本层 PDF 的 5 资料 / 8 查询隔离样本；真实资料优化仍需具体案例 |
 | 索引底层可靠性 | 持续跟踪 | 保留已验证恢复机制，继续跟踪 Chroma 上游问题 |
 
 v0.1.1 发布前的功能回归 **475 项通过**；版本与入口另有 **4 项检查通过**。冻结程序自检、安装与素材演示检查是不同验证范围，不把它们合并成同一次全量测试。云端嵌入通过隔离 HTTP 场景验证，本机 Ollama 有实测；未逐一使用其他服务商真实账号验证。
@@ -293,6 +293,8 @@ docs/              使用指南、设计计划、验收及演示素材
 uv run pytest
 uv run ragdb evaluate run offline-report.json --offline
 ```
+
+复杂文档离线评估可运行 `uv run ragdb --config config.example.toml evaluate run .data/complex-report.json --dataset src/ragdb/evaluation_data/complex_documents.json --offline`；结果与适用边界见[验收记录](docs/acceptance/2026-09-29-complex-documents.md)。
 
 完整测试可能需要较长时间；模型下载、真实云端账号验证与离线测试不是同一件事。Windows 构建使用 PyInstaller 和 Inno Setup，见[构建方法](docs/user-guide.md#windows-安装版)。
 

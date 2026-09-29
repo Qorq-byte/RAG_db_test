@@ -4,6 +4,7 @@ import hashlib
 import json
 import math
 from pathlib import Path
+import re
 import statistics
 import time
 
@@ -69,6 +70,42 @@ class OfflineEmbedding:
         return result
 
 
+def _ingest_benchmark_document(ingestion, collection, directory: Path, document: dict) -> None:
+    """Materialize only synthetic benchmark content inside its isolated library."""
+    kind = document.get("format", "text")
+    metadata = {**document.get("metadata", {}), "evaluation_id": document["id"]}
+    if kind == "text":
+        ingestion.ingest_text(collection, document["text"], title=document["id"], metadata=metadata)
+        return
+    if not re.fullmatch(r"[A-Za-z0-9_-]+", document["id"]):
+        raise ValueError("文件评估资料 ID 只能包含字母、数字、下划线和连字符。")
+    extension = {"markdown": ".md", "docx": ".docx", "pdf": ".pdf"}[kind]
+    path = directory / f"{document['id']}{extension}"
+    if kind == "markdown":
+        path.write_text(document["text"], encoding="utf-8")
+    elif kind == "docx":
+        from docx import Document
+        word = Document()
+        word.add_heading(document["id"], level=1)
+        for paragraph in document.get("paragraphs", [document["text"]]):
+            word.add_paragraph(paragraph)
+        if rows := document.get("table"):
+            table = word.add_table(rows=0, cols=len(rows[0]))
+            for values in rows:
+                cells = table.add_row().cells
+                for cell, value in zip(cells, values):
+                    cell.text = value
+        word.save(path)
+    else:
+        import pymupdf
+        with pymupdf.open() as pdf:
+            for text in document.get("pages", [document["text"]]):
+                page = pdf.new_page()
+                page.insert_text((72, 72), text)
+            pdf.save(path)
+    ingestion.ingest_file(collection, path, metadata=metadata)
+
+
 def benchmark(dataset, settings, directory: Path, *, offline=False, k=3, min_recall=.8, min_mrr=.75):
     from ragdb.application.ingestion import LocalIngestionService
     from ragdb.application.search import SearchService
@@ -84,6 +121,8 @@ def benchmark(dataset, settings, directory: Path, *, offline=False, k=3, min_rec
     identifiers = {item["id"] for item in documents}
     if not documents or len(identifiers) != len(documents):
         raise ValueError("基准评估需要唯一的非空资料集。")
+    if any(item.get("format", "text") not in {"text", "markdown", "docx", "pdf"} for item in documents):
+        raise ValueError("评估资料格式只支持 text、markdown、docx 或 pdf。")
     if any(not set(item["relevant"]) <= identifiers for item in dataset["queries"]):
         raise ValueError("查询标注引用了不存在的资料。")
     provider = OfflineEmbedding() if offline else create_embedding_provider(settings.embedding)
@@ -96,8 +135,7 @@ def benchmark(dataset, settings, directory: Path, *, offline=False, k=3, min_rec
         ingestion = LocalIngestionService(sources, SQLiteChunkRepository(database), SQLiteTaskRepository(database),
             ParserRegistry(), StructuredChunker(settings.chunking), keyword, provider, vectors)
         for document in documents:
-            ingestion.ingest_text(collection, document["text"], title=document["id"],
-                                  metadata={"evaluation_id": document["id"], **document.get("metadata", {})})
+            _ingest_benchmark_document(ingestion, collection, directory, document)
         search = SearchService(provider, vectors, keyword, sources, result_top_k=max(k, settings.retrieval.result_top_k),
             vector_top_k=settings.retrieval.vector_top_k, keyword_top_k=settings.retrieval.keyword_top_k,
             rrf_k=settings.retrieval.rrf_k)

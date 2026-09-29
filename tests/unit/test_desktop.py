@@ -85,6 +85,9 @@ def test_navigation_counts_follow_collections_and_learning_artifacts() -> None:
     runtime.collection_api.items.append(Collection(name="第二集合"))
     window.refresh_navigation_counts()
     assert window.navigation.collection_count.text() == "2"
+    window.navigation.buttons[4].set_count(1000)
+    assert badge.text() == "1000"
+    assert badge.width() >= badge.fontMetrics().horizontalAdvance("1000")
     window.collection_context.select(None, "未选择集合")
     assert badge.isHidden()
     window.close()

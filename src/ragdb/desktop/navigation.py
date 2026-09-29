@@ -56,7 +56,12 @@ class NavButton(QPushButton):
         if count is None:
             self.count_badge.hide()
             return
-        self.count_badge.setText(str(count))
+        value = str(count)
+        if self.count_badge.text() == value and not self.count_badge.isHidden():
+            return
+        self.count_badge.setMinimumWidth(0)
+        self.count_badge.setMaximumWidth(16777215)
+        self.count_badge.setText(value)
         self.count_badge.adjustSize()
         self.count_badge.setFixedSize(max(24, self.count_badge.width() + 8), 22)
         self._place_count_badge()

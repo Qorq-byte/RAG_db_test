@@ -27,7 +27,7 @@ def main():
     if not config.exists():
         try:
             with config.open("x", encoding="utf-8") as stream:
-                stream.write('[storage]\ndata_dir = ' + json.dumps(str(location / ".data")) + '\n\n[embedding]\nprovider = "ollama"\nollama_model = "embeddinggemma:latest"\n\n[chat]\nprovider = "local"\n')
+                stream.write('[auth]\nurl = ""\npublishable_key = ""\n\n[storage]\ndata_dir = ' + json.dumps(str(location / ".data")) + '\n\n[embedding]\nprovider = "ollama"\nollama_model = "embeddinggemma:latest"\n\n[chat]\nprovider = "local"\n')
         except FileExistsError:
             pass
     if "--config" not in sys.argv:

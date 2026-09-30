@@ -1,5 +1,12 @@
 log_level = "INFO"
 
+[auth]
+# 在 Supabase 创建项目，启用 Authentication → Providers → Email → Confirm email。
+# 只填写 Project URL 和公开的 publishable / anon Key；绝不要填写 service_role / secret Key。
+# 留空时桌面与知识库 CLI 命令会拒绝访问。
+url = ""
+publishable_key = ""
+
 [storage]
 data_dir = ".data"
 sqlite_filename = "ragdb.sqlite3"

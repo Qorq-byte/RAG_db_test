@@ -17,6 +17,7 @@ from ragdb.application.search import SearchService
 from ragdb.application.chat import AnswerService
 from ragdb.application.generation import GenerationService, NO_EVIDENCE_ARTIFACT
 from ragdb.config import load_settings
+from ragdb.auth import AuthError, AuthService, account_settings
 from ragdb.diagnostics import DiagnosticStatus, has_failures, run_diagnostics
 from ragdb.domain.errors import ConflictError, NotFoundError, RagdbError, StorageError
 from ragdb.infrastructure.chunking import StructuredChunker
@@ -73,6 +74,7 @@ chat_session_app = typer.Typer(help="管理持久化问答会话。", no_args_is
 generate_app = typer.Typer(help="生成有来源依据的学习内容。", no_args_is_help=True)
 artifact_app = typer.Typer(help="管理已生成的学习产物。", no_args_is_help=True)
 index_app = typer.Typer(help="盘点和维护旧向量索引。", no_args_is_help=True)
+auth_app = typer.Typer(help="邮箱注册、登录和退出。", no_args_is_help=True)
 
 app.add_typer(collection_app, name="collection")
 app.add_typer(ingest_app, name="ingest")
@@ -85,6 +87,7 @@ chat_app.add_typer(chat_session_app, name="session")
 app.add_typer(generate_app, name="generate")
 app.add_typer(artifact_app, name="artifact")
 app.add_typer(index_app, name="index")
+app.add_typer(auth_app, name="auth")
 from ragdb.backup_cli import app as backup_app
 app.add_typer(backup_app, name="backup")
 from ragdb.evaluation_cli import app as evaluation_app
@@ -95,7 +98,7 @@ def _index_maintenance_service(ctx: typer.Context):
     from ragdb.application.index_maintenance import IndexMaintenanceService
 
     # Maintenance preview must not initialize storage, credentials or model clients.
-    settings = load_settings(config_path=ctx.find_root().obj.get("config_path", Path("config.toml")))
+    settings = ctx.find_root().obj["settings"]
     database = SQLiteDatabase(settings.storage.data_dir / settings.storage.sqlite_filename)
     return IndexMaintenanceService(database, settings.storage.data_dir / settings.storage.chroma_directory)
 
@@ -157,8 +160,7 @@ def _collection_service(ctx: typer.Context) -> CollectionService:
 
 def _runtime(ctx: typer.Context):
     root = ctx.find_root()
-    config_path = root.obj.get("config_path", Path("config.toml"))
-    settings = load_settings(config_path=config_path)
+    settings = root.obj["settings"]
     sensitive_values = []
     if settings.embedding.cloud_api_key is not None:
         sensitive_values.append(settings.embedding.cloud_api_key.get_secret_value())
@@ -260,6 +262,86 @@ def main(
 
     ctx.ensure_object(dict)
     ctx.obj.update(config_path=config, verbose=verbose)
+    if ctx.invoked_subcommand in ("auth", "version", "doctor"):
+        return
+    try:
+        settings = load_settings(config_path=config)
+        auth = AuthService(settings.auth)
+        try:
+            session = auth.restore()
+        finally:
+            auth.close()
+        ctx.obj.update(session=session, settings=account_settings(settings, session.user_id))
+    except AuthError as error:
+        typer.echo(f"登录要求：{error}", err=True)
+        raise typer.Exit(ExitCode.USAGE_ERROR) from error
+
+
+def _auth_service(ctx: typer.Context) -> AuthService:
+    settings = load_settings(config_path=ctx.find_root().obj["config_path"])
+    return AuthService(settings.auth)
+
+
+@auth_app.command("register")
+def auth_register(ctx: typer.Context, email: str) -> None:
+    """交互式密码注册；请先配置 Supabase 邮箱确认。"""
+    password = typer.prompt("密码（至少 8 位）", hide_input=True, confirmation_prompt=True)
+    try:
+        auth = _auth_service(ctx)
+        try:
+            auth.sign_up(email, password)
+        finally:
+            auth.close()
+    except AuthError as error:
+        typer.echo(str(error), err=True)
+        raise typer.Exit(ExitCode.USAGE_ERROR) from error
+    typer.echo("如邮箱可注册，验证邮件已发送。请先确认邮件，再执行 ragdb auth login。")
+
+
+@auth_app.command("login")
+def auth_login(ctx: typer.Context, email: str) -> None:
+    """登录已完成邮箱确认的账号。"""
+    password = typer.prompt("密码", hide_input=True)
+    try:
+        auth = _auth_service(ctx)
+        try:
+            session = auth.sign_in(email, password)
+        finally:
+            auth.close()
+    except AuthError as error:
+        typer.echo(str(error), err=True)
+        raise typer.Exit(ExitCode.USAGE_ERROR) from error
+    typer.echo(f"已登录：{session.email}")
+
+
+@auth_app.command("logout")
+def auth_logout(ctx: typer.Context) -> None:
+    """清除本机登录凭据。"""
+    try:
+        auth = _auth_service(ctx)
+        try:
+            auth.sign_out()
+        finally:
+            auth.close()
+    except AuthError as error:
+        typer.echo(str(error), err=True)
+        raise typer.Exit(ExitCode.USAGE_ERROR) from error
+    typer.echo("已退出登录。")
+
+
+@auth_app.command("status")
+def auth_status(ctx: typer.Context) -> None:
+    """在线验证当前本机登录状态。"""
+    try:
+        auth = _auth_service(ctx)
+        try:
+            session = auth.restore()
+        finally:
+            auth.close()
+    except AuthError as error:
+        typer.echo(str(error), err=True)
+        raise typer.Exit(ExitCode.USAGE_ERROR) from error
+    typer.echo(f"已登录：{session.email}")
 
 
 @app.command()
@@ -274,7 +356,7 @@ def init_project(ctx: typer.Context) -> None:
     """初始化本地知识库数据目录。"""
     root = ctx.find_root()
     config_path = root.obj.get("config_path", Path("config.toml"))
-    settings = load_settings(config_path=config_path)
+    settings = root.obj["settings"]
     was_initialized = settings.storage.data_dir.exists()
     _, database = _runtime(ctx)
     (settings.storage.data_dir / settings.storage.chroma_directory).mkdir(parents=True, exist_ok=True)

@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import base64
+import hashlib
 import time
 from dataclasses import dataclass
 from urllib.parse import urlparse
@@ -51,10 +53,18 @@ class AuthService:
         key = settings.publishable_key.strip()
         if not key or key.startswith("sb_secret_"):
             raise AuthError("请配置 Supabase 公开客户端 Key，不能使用服务端密钥。")
+        if key.count(".") == 2:
+            try:
+                payload = key.split(".")[1]
+                role = json.loads(base64.urlsafe_b64decode(payload + "=" * (-len(payload) % 4))).get("role")
+            except (ValueError, UnicodeDecodeError, AttributeError):
+                role = None
+            if role == "service_role":
+                raise AuthError("不能在桌面客户端配置 service_role 服务端密钥。")
         self.url = url
         self.key = key
         self.credentials = credentials or SystemCredentialStore()
-        self.credential_name = f"auth.refresh.{parsed.hostname}"
+        self.credential_name = f"auth.refresh.{hashlib.sha256(url.encode('utf-8')).hexdigest()[:24]}"
         self.client = httpx.Client(
             base_url=f"{url}/auth/v1/",
             headers={"apikey": key, "Content-Type": "application/json"},
@@ -89,7 +99,10 @@ class AuthService:
         if not isinstance(user, dict) or not user.get("email_confirmed_at"):
             raise AuthError("请先点击邮箱中的验证链接，完成邮箱确认后再登录。")
         try:
-            return UUID(user["id"]), user["email"]
+            user_id, email = UUID(user["id"]), user["email"]
+            if not isinstance(email, str) or not email:
+                raise ValueError
+            return user_id, email
         except (KeyError, ValueError, TypeError) as exc:
             raise AuthError("认证服务返回了无效账号信息。") from exc
 
@@ -100,7 +113,13 @@ class AuthService:
             raise AuthError("认证服务没有返回有效会话。")
         # Verify the returned access token with the server rather than trusting a cached identity.
         user_id, email = self._verified_user(self._request("GET", "user", token=access))
-        session = AuthSession(user_id, email, access, refresh, int(time.time()) + int(data.get("expires_in", 3600)))
+        try:
+            expires_in = int(data.get("expires_in", 3600))
+            if expires_in <= 0:
+                raise ValueError
+        except (ValueError, TypeError) as exc:
+            raise AuthError("认证服务返回了无效会话。") from exc
+        session = AuthSession(user_id, email, access, refresh, int(time.time()) + expires_in)
         try:
             self.credentials.set(self.credential_name, json.dumps({"refresh_token": refresh}))
         except RuntimeError as exc:

@@ -1,6 +1,7 @@
 """Authentication must fail closed before opening any knowledgebase."""
 
 import json
+import base64
 from pathlib import Path
 from uuid import UUID
 
@@ -100,6 +101,9 @@ def test_missing_configuration_or_session_fails_closed():
         AuthService(AuthSettings(url="http://localhost:54321", publishable_key="public"))
     with pytest.raises(AuthError, match="服务端密钥"):
         AuthService(AuthSettings(url="https://example.supabase.co", publishable_key="sb_secret_test"))
+    role = base64.urlsafe_b64encode(b'{"role":"service_role"}').decode().rstrip("=")
+    with pytest.raises(AuthError, match="service_role"):
+        AuthService(AuthSettings(url="https://example.supabase.co", publishable_key=f"header.{role}.signature"))
     with pytest.raises(AuthError, match="先登录"):
         service(lambda _: httpx.Response(500)).restore()
 

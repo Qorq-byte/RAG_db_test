@@ -9,6 +9,7 @@ from PySide6.QtWidgets import (
     QInputDialog,
     QLabel,
     QMainWindow,
+    QPushButton,
     QSplitter,
     QStackedWidget,
     QTextEdit,
@@ -47,6 +48,8 @@ class CollectionContext(QWidget):
 
 
 class MainWindow(QMainWindow):
+    logout_requested = Signal()
+
     def __init__(self, runtime=None, theme_manager: ThemeManager | None = None) -> None:
         super().__init__()
         self.runtime = runtime
@@ -153,6 +156,10 @@ class MainWindow(QMainWindow):
         self.refresh_navigation_counts()
         self._apply_responsive_layout()
         self.statusBar().showMessage("就绪")
+        self.logout_button = QPushButton("退出登录")
+        self.logout_button.setAccessibleName("退出当前账号")
+        self.logout_button.clicked.connect(self.logout_requested.emit)
+        self.statusBar().addPermanentWidget(self.logout_button)
 
     def select_page(self, index: int) -> None:
         self.pages.setCurrentIndex(index)

@@ -7,7 +7,6 @@ from zipfile import BadZipFile
 import typer
 
 from ragdb.application.backup import BackupService
-from ragdb.config import load_settings
 from ragdb.domain.errors import RagdbError
 
 
@@ -25,7 +24,7 @@ def _run(function):
 
 @app.command("create")
 def create(ctx: typer.Context, output: Path):
-    settings = load_settings(config_path=ctx.find_root().obj["config_path"])
+    settings = ctx.find_root().obj["settings"]
     _run(lambda: BackupService(settings).create(output))
 
 

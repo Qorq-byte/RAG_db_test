@@ -41,3 +41,4 @@ dev = [
 [tool.pytest.ini_options]
 addopts = "-ra"
 testpaths = ["tests"]
+markers = ["real_auth: exercise the actual CLI authentication gate"]

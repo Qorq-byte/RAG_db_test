@@ -1,6 +1,6 @@
 # RAGDB 进阶使用指南
 
-适用于 v0.1.1。初次使用请先阅读 [README 的桌面入门流程](../README.md#桌面使用教程)。本文保留配置、CLI、桌面交互和索引维护细节。
+适用于 v0.1.1 安装版及后续源码；邮箱认证仅在后续源码中，尚未更新安装包。初次使用请先阅读 [README 的桌面入门流程](../README.md#桌面使用教程)。本文保留配置、CLI、桌面交互和索引维护细节。
 
 ## 要求与安装
 
@@ -27,6 +27,7 @@ if (-not (Test-Path config.toml)) { Copy-Item config.example.toml config.toml }
 `config.toml` 可配置以下区域：
 
 - `storage`：数据目录、SQLite 文件名和 Chroma 数据目录。
+- `auth`：Supabase Project URL 和公开客户端 Key；当前源码必须配置，邮箱确认后才可使用工作台与知识库 CLI。
 - `embedding`：本地或云端嵌入模型、批大小和云端 Base URL。
 - `chunking`：文本切分大小与重叠字符数。
 - `retrieval`：向量、关键词和最终结果的数量，以及 RRF 参数。
@@ -60,6 +61,17 @@ uv run ragdb --config .\my-config.toml doctor
 ```
 
 ## 快速开始
+
+当前源码先按 [邮箱账号配置说明](../README.md#邮箱账号与首次配置当前源码) 配置项目，再注册、验证邮箱并登录：
+
+```powershell
+uv run ragdb auth register you@example.com
+# 点击收到的邮箱确认链接
+uv run ragdb auth login you@example.com
+uv run ragdb auth status
+```
+
+CLI 密码在终端隐藏输入。每条知识库命令都在线检查账号；`auth logout` 清除本机登录状态。不同账号的数据库分别位于 `<storage.data_dir>/accounts/<账号 UUID>/`；旧库不会自动迁移。
 
 创建集合：
 

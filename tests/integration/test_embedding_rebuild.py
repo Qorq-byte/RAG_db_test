@@ -503,7 +503,24 @@ def test_rebuild_process_reopen_cli_cleanup_and_search_keeps_sqlite(tmp_path, mo
     environment = dict(os.environ, PYTHONIOENCODING="utf-8")
 
     def cli(*args):
-        return subprocess.run([sys.executable, "-m", "ragdb", "--config", str(config), *args],
+        # This test checks a reopened Chroma process, not the Supabase gateway.
+        # Give the child CLI a verified fixture identity while retaining its
+        # real command dispatch and storage operations.
+        child_entry = """
+from ragdb import cli
+from ragdb.auth import AuthSession
+from uuid import UUID
+class VerifiedFixtureAuth:
+    def __init__(self, settings): pass
+    def restore(self):
+        return AuthSession(UUID('adad7c76-3f69-4c47-a9bb-1b03fef6653c'),
+                           'fixture@example.test', 'access', 'refresh', 2**31)
+    def close(self): pass
+cli.AuthService = VerifiedFixtureAuth
+cli.account_settings = lambda settings, user_id: settings
+cli.app()
+"""
+        return subprocess.run([sys.executable, "-c", child_entry, "--config", str(config), *args],
                               capture_output=True, text=True, encoding="utf-8", env=environment, timeout=30)
 
     def search_in_fresh_process():

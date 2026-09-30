@@ -77,8 +77,8 @@ class ApplicationRuntime:
         return SQLiteEmbeddingProfileRepository(self.database).get()[0]
 
     @classmethod
-    def from_config(cls, config_path: Path = Path("config.toml")) -> "ApplicationRuntime":
-        settings = load_settings(config_path=config_path)
+    def from_config(cls, config_path: Path = Path("config.toml"), *, settings: AppSettings | None = None) -> "ApplicationRuntime":
+        settings = settings or load_settings(config_path=config_path)
         configured_fingerprint = embedding_profile_fingerprint(settings.embedding)
         database = SQLiteDatabase(settings.storage.data_dir / settings.storage.sqlite_filename)
         database.initialize()

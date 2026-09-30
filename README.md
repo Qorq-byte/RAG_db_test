@@ -92,11 +92,27 @@ uv run ragdb-gui --config C:/RAGDB-demo/config.toml
 uv run ragdb --config C:/RAGDB-demo/config.toml doctor
 ```
 
+## 邮箱账号与首次配置（当前源码）
+
+当前源码新增了注册、邮箱确认和登录门禁：桌面工作台及知识库命令必须使用已验证账号，两个账号在同一电脑上也分别使用自己的数据目录。**v0.1.1 安装包尚不包含此功能**；需待认证服务实际配置、邮件与安装版验收完成后再更新安装包。没有配置认证项目时，当前源码会停留在登录页，CLI 知识库命令会拒绝访问。
+
+项目使用 [Supabase Auth 邮箱密码认证](https://supabase.com/docs/guides/auth/passwords)。项目管理员需先创建 Supabase 项目，在 **Authentication → Providers → Email** 启用 **Confirm email**，设置合适的 **Site URL**（邮件确认后跳转的 HTTPS 页面），并为真实用户邮件配置 [自定义 SMTP](https://supabase.com/docs/guides/auth/auth-smtp)。默认发信服务仅适合初期测试。然后把项目的 **Project URL** 和 **publishable key**（或旧版 anon key）填入本机 `config.toml` 的 `[auth]`；也可通过 `RAGDB_AUTH__URL` 与 `RAGDB_AUTH__PUBLISHABLE_KEY` 环境变量设置。公开客户端 Key 可以放在配置中；**service_role / secret Key 和 SMTP 凭据绝不能放进客户端、配置样例或仓库**。目前仓库没有部署认证项目，所以实际邮件投递与在线登录仍需项目管理员完成配置后验证。
+
+```toml
+[auth]
+url = "https://YOUR-PROJECT.supabase.co"
+publishable_key = "sb_publishable_..."
+```
+
+桌面端启动后先输入邮箱、密码和确认密码，点击“注册并发送验证邮件”；点开邮件中的确认链接后返回应用登录。已有账号输入邮箱和密码直接登录。状态栏提供“退出登录”。CLI 可执行 `ragdb auth register you@example.com`、`ragdb auth login you@example.com`、`ragdb auth status`、`ragdb auth logout`；密码通过终端隐蔽输入。密码不会保存在本机，刷新令牌存于系统凭据库；启动和 CLI 每次执行知识库命令都会在线验证。网络或认证服务不可用时，会拒绝打开知识库。
+
+登录后的数据保存在 `<storage.data_dir>/accounts/<账号 UUID>/`。原有 `<storage.data_dir>` 下的旧库保持原状，**不会自动迁移或合并到任一新账号**。如需迁移旧资料，先备份旧库，确认所属账号后再由管理员安排导入；更换账号也不会自动共享本机知识库。登录保护并不加密磁盘文件，本机操作系统用户仍须妥善保护数据目录。
+
 ## 桌面使用教程
 
 ### 1. 从欢迎页进入工作台
 
-启动后先播放图片卡片聚合动画。向下滚动，图片从圆环变为弧带并依次移出；继续滚动出现 **“欢迎使用RAG系统”**，点击进入导航工作台。
+完成邮箱登录后播放图片卡片聚合动画。向下滚动，图片从圆环变为弧带并依次移出；继续滚动出现 **“欢迎使用RAG系统”**，点击进入导航工作台。
 
 也可按 `End` 或 `Esc` 直接到入口，再按 `Enter` 进入。启用“减少动效”后直接显示最终状态。欢迎页图片为离线资源；点击进入前不会初始化知识库或调用模型。
 
@@ -261,6 +277,7 @@ uv run ragdb --help
 
 | 操作 | 数据流向 |
 | --- | --- |
+| 注册 / 登录（后续源码） | 邮箱、密码及登录令牌发送给所配置的 Supabase Auth 项目；密码不写入本机配置，刷新令牌放在系统凭据库 |
 | 本地解析与索引存储 | 本机 SQLite / Chroma 数据目录 |
 | 云端嵌入 | 将待嵌入资料切片或检索问题发送到配置的服务；全库重建涉及所有集合当前切片 |
 | 云端问答 / 学习生成 | 将问题或主题、检索证据等上下文发送到配置的聊天服务；问答还可能包含会话历史 |

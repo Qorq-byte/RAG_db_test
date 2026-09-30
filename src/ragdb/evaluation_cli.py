@@ -8,7 +8,6 @@ import tempfile
 import typer
 
 from ragdb.application.evaluation import benchmark, evaluate
-from ragdb.config import load_settings
 
 
 app = typer.Typer(help="运行检索质量评估并导出JSON报告。", no_args_is_help=True)
@@ -26,10 +25,10 @@ def run(ctx: typer.Context, output: Path, dataset: Path | None = None,
         raise typer.BadParameter("现有集合评估需要 --dataset，且不能使用 --offline。")
     data = json.loads(dataset.read_text(encoding="utf-8") if dataset else
                       files("ragdb").joinpath("evaluation_data/benchmark.json").read_text(encoding="utf-8"))
-    settings = load_settings(config_path=ctx.find_root().obj["config_path"])
+    settings = ctx.find_root().obj["settings"]
     if collection:
         from ragdb.runtime import ApplicationRuntime
-        runtime = ApplicationRuntime.from_config(ctx.find_root().obj["config_path"])
+        runtime = ApplicationRuntime.from_config(ctx.find_root().obj["config_path"], settings=settings)
         stored = runtime.collections.get_by_name(collection)
         if stored is None:
             raise typer.BadParameter("集合不存在。")

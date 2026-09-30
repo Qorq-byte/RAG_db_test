@@ -24,6 +24,13 @@ class StorageSettings(ConfigSection):
     chroma_directory: str = "chroma"
 
 
+class AuthSettings(ConfigSection):
+    """Public Supabase Auth client configuration (never a service-role key)."""
+
+    url: str = ""
+    publishable_key: str = ""
+
+
 class EmbeddingSettings(ConfigSection):
     provider: Literal["local", "ollama", "cloud"] = "local"
     local_model: str = "BAAI/bge-small-zh-v1.5"
@@ -103,6 +110,7 @@ class AppSettings(BaseSettings):
     )
 
     storage: StorageSettings = Field(default_factory=StorageSettings)
+    auth: AuthSettings = Field(default_factory=AuthSettings)
     embedding: EmbeddingSettings = Field(default_factory=EmbeddingSettings)
     chunking: ChunkingSettings = Field(default_factory=ChunkingSettings)
     retrieval: RetrievalSettings = Field(default_factory=RetrievalSettings)

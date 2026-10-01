@@ -46,10 +46,40 @@ def test_registration_shows_email_confirmation_and_does_not_open_workbench():
     dialog.password.setText("abcdefgh")
     dialog.confirm.setText("abcdefgh")
     dialog._register()
-    wait_until(lambda: "验证邮件已发送" in dialog.status.text())
+    wait_until(lambda: "验证码邮件已发送" in dialog.status.text())
     assert calls == [("a@example.com", "abcdefgh")]
     assert dialog.session is None
     assert dialog.result() != QDialog.DialogCode.Accepted
+    dialog.close()
+
+
+def test_code_verification_and_resend_do_not_open_workbench():
+    calls = []
+
+    class FakeAuth:
+        def __init__(self, _settings):
+            pass
+
+        def verify_email_code(self, email, code):
+            calls.append(("verify", email, code))
+
+        def resend_confirmation(self, email):
+            calls.append(("resend", email))
+
+        def close(self):
+            pass
+
+    dialog = AuthDialog(SETTINGS, auth_factory=FakeAuth, restore_on_open=False)
+    dialog.email.setText("a@example.com")
+    dialog.code.setText("123456")
+    dialog._verify()
+    wait_until(lambda: "邮箱验证成功" in dialog.status.text())
+    assert dialog.result() != QDialog.DialogCode.Accepted
+    assert dialog.session is None
+    assert dialog.code.text() == ""
+    dialog._resend()
+    wait_until(lambda: "新的验证码已发送" in dialog.status.text())
+    assert calls == [("verify", "a@example.com", "123456"), ("resend", "a@example.com")]
     dialog.close()
 
 

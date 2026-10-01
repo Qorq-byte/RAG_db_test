@@ -24,7 +24,7 @@ class AuthDialog(QDialog):
         self._task = None
         title = QLabel("登录知识库")
         title.setStyleSheet("font-size: 23px; font-weight: 700")
-        description = QLabel("请先注册并确认邮箱，再登录使用桌面工作台。")
+        description = QLabel("请先注册，在邮箱中查看 6 位验证码并在这里验证，然后登录使用桌面工作台。")
         description.setWordWrap(True)
         self.email = QLineEdit()
         self.email.setPlaceholderText("you@example.com")
@@ -36,18 +36,28 @@ class AuthDialog(QDialog):
         self.confirm = QLineEdit()
         self.confirm.setEchoMode(QLineEdit.EchoMode.Password)
         self.confirm.setAccessibleName("确认密码，仅注册时填写")
+        self.code = QLineEdit()
+        self.code.setMaxLength(6)
+        self.code.setPlaceholderText("邮件中的 6 位数字")
+        self.code.setAccessibleName("邮箱验证码")
         form = QFormLayout()
         form.addRow("邮箱", self.email)
         form.addRow("密码", self.password)
         form.addRow("确认密码", self.confirm)
-        self.status = QLabel("注册后请查收验证邮件。")
+        form.addRow("验证码", self.code)
+        self.status = QLabel("注册后请查收验证码邮件。")
         self.status.setWordWrap(True)
-        self.register_button = QPushButton("注册并发送验证邮件")
+        self.register_button = QPushButton("注册并发送验证码")
         self.login_button = QPushButton("登录")
+        self.verify_button = QPushButton("验证邮箱")
+        self.resend_button = QPushButton("重发验证码")
         self.login_button.setDefault(True)
         buttons = QHBoxLayout()
         buttons.addWidget(self.register_button)
         buttons.addWidget(self.login_button)
+        verification_buttons = QHBoxLayout()
+        verification_buttons.addWidget(self.verify_button)
+        verification_buttons.addWidget(self.resend_button)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(28, 28, 28, 28)
         layout.setSpacing(16)
@@ -56,17 +66,22 @@ class AuthDialog(QDialog):
         layout.addLayout(form)
         layout.addWidget(self.status)
         layout.addLayout(buttons)
+        layout.addLayout(verification_buttons)
         self.register_button.clicked.connect(self._register)
         self.login_button.clicked.connect(self._login)
+        self.verify_button.clicked.connect(self._verify)
+        self.resend_button.clicked.connect(self._resend)
         if restore_on_open:
             QTimer.singleShot(0, self._restore)
 
-    def _run(self, mode: str, email: str = "", password: str = "") -> None:
+    def _run(self, mode: str, email: str = "", password: str = "", code: str = "") -> None:
         if self._task is not None:
             return
         self.status.setText("正在联系认证服务…")
         self.login_button.setEnabled(False)
         self.register_button.setEnabled(False)
+        self.verify_button.setEnabled(False)
+        self.resend_button.setEnabled(False)
 
         def request():
             try:
@@ -74,6 +89,12 @@ class AuthDialog(QDialog):
                 try:
                     if mode == "register":
                         auth.sign_up(email, password)
+                        return None
+                    if mode == "verify":
+                        auth.verify_email_code(email, code)
+                        return None
+                    if mode == "resend":
+                        auth.resend_confirmation(email)
                         return None
                     if mode == "login":
                         return auth.sign_in(email, password)
@@ -102,6 +123,14 @@ class AuthDialog(QDialog):
     def _login(self) -> None:
         self._run("login", self.email.text(), self.password.text())
 
+    @Slot()
+    def _verify(self) -> None:
+        self._run("verify", self.email.text(), code=self.code.text())
+
+    @Slot()
+    def _resend(self) -> None:
+        self._run("resend", self.email.text())
+
     def _restore(self) -> None:
         if self.settings.url and self.settings.publishable_key:
             self._run("restore")
@@ -111,9 +140,19 @@ class AuthDialog(QDialog):
     @Slot(object, object)
     def _succeeded(self, mode, result) -> None:
         if mode == "register":
-            self.status.setText("如邮箱可注册，验证邮件已发送。请确认邮件后登录。")
+            self.status.setText("如邮箱可注册，验证码邮件已发送。请输入邮件中的 6 位数字。")
             self.password.clear()
             self.confirm.clear()
+            self.code.setFocus()
+            return
+        if mode == "verify":
+            self.status.setText("邮箱验证成功。请输入邮箱和密码登录。")
+            self.code.clear()
+            self.password.clear()
+            self.confirm.clear()
+            return
+        if mode == "resend":
+            self.status.setText("如邮箱尚未验证，新的验证码已发送。请使用最新邮件中的验证码。")
             return
         self.session = result
         self.accept()
@@ -130,6 +169,8 @@ class AuthDialog(QDialog):
         self._task = None
         self.login_button.setEnabled(True)
         self.register_button.setEnabled(True)
+        self.verify_button.setEnabled(True)
+        self.resend_button.setEnabled(True)
 
     def reject(self) -> None:
         if self._task is not None:

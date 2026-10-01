@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import base64
 import hashlib
+import re
 import time
 from dataclasses import dataclass
 from urllib.parse import urlparse
@@ -75,15 +76,18 @@ class AuthService:
     def close(self) -> None:
         self.client.close()
 
-    def _request(self, method: str, path: str, *, token: str | None = None, **kwargs) -> dict:
+    def _request(self, method: str, path: str, *, token: str | None = None,
+                 invalid_message: str | None = None, **kwargs) -> dict:
         headers = {"Authorization": f"Bearer {token}"} if token else None
         try:
             response = self.client.request(method, path, headers=headers, **kwargs)
         except httpx.RequestError as exc:
             raise AuthError("认证服务暂时无法连接，请检查网络后重试。") from exc
         if response.is_error:
+            if response.status_code == 429:
+                raise AuthError("请求过于频繁，请稍后重试。")
             if response.status_code in (400, 401, 403, 422):
-                raise AuthError("邮箱、密码或认证状态无效，请确认邮箱验证后重试。")
+                raise AuthError(invalid_message or "邮箱、密码或认证状态无效，请确认邮箱验证后重试。")
             raise AuthError("认证服务暂时不可用，请稍后重试。")
         try:
             result = response.json()
@@ -97,7 +101,7 @@ class AuthService:
     def _verified_user(data: dict) -> tuple[UUID, str]:
         user = data.get("user", data)
         if not isinstance(user, dict) or not user.get("email_confirmed_at"):
-            raise AuthError("请先点击邮箱中的验证链接，完成邮箱确认后再登录。")
+            raise AuthError("请先输入邮件中的验证码，完成邮箱确认后再登录。")
         try:
             user_id, email = UUID(user["id"]), user["email"]
             if not isinstance(email, str) or not email:
@@ -137,6 +141,35 @@ class AuthService:
             except AuthError:
                 pass
             raise AuthError("认证项目尚未启用邮箱确认。请管理员启用 Confirm email 后再注册。")
+
+    def verify_email_code(self, email: str, code: str) -> None:
+        """Confirm a signup code without creating a saved login session."""
+        address = email.strip()
+        token = code.strip()
+        if not address or not re.fullmatch(r"[0-9]{6}", token):
+            raise AuthError("请输入邮箱和邮件中的 6 位数字验证码。")
+        data = self._request(
+            "POST", "verify", json={"email": address, "token": token, "type": "email"},
+            invalid_message="验证码错误或已过期，请重新输入或重发验证码。",
+        )
+        access = data.get("access_token")
+        if not isinstance(access, str) or not access:
+            raise AuthError("认证服务没有返回有效的邮箱验证结果。")
+        try:
+            _, confirmed_email = self._verified_user(self._request("GET", "user", token=access))
+            if confirmed_email.casefold() != address.casefold():
+                raise AuthError("认证服务返回的邮箱与当前注册邮箱不一致。")
+        finally:
+            try:
+                self._request("POST", "logout", token=access)
+            except AuthError:
+                pass
+
+    def resend_confirmation(self, email: str) -> None:
+        address = email.strip()
+        if not address:
+            raise AuthError("请输入需要验证的邮箱。")
+        self._request("POST", "resend", json={"email": address, "type": "signup"})
 
     def sign_in(self, email: str, password: str) -> AuthSession:
         if not email.strip() or not password:

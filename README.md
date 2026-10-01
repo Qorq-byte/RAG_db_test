@@ -96,7 +96,17 @@ uv run ragdb --config C:/RAGDB-demo/config.toml doctor
 
 当前源码新增了注册、邮箱确认和登录门禁：桌面工作台及知识库命令必须使用已验证账号，两个账号在同一电脑上也分别使用自己的数据目录。**v0.1.1 安装包尚不包含此功能**；需待认证服务实际配置、邮件与安装版验收完成后再更新安装包。没有配置认证项目时，当前源码会停留在登录页，CLI 知识库命令会拒绝访问。
 
-项目使用 [Supabase Auth 邮箱密码认证](https://supabase.com/docs/guides/auth/passwords)。Supabase 项目已创建，本机已验证 Project URL 与 publishable key 能连接认证设置接口，且邮箱注册与邮箱确认已启用；**任意用户的验证邮件投递及完整注册登录流程仍待自定义 SMTP 配置后验收**。项目管理员还需设置合适的 **Site URL**（邮件确认后跳转的 HTTPS 页面），并按 [自定义 SMTP 指南](https://supabase.com/docs/guides/auth/auth-smtp)配置发信。Supabase 默认发信服务只允许组织成员邮箱，不能用于开放注册。把项目的 **Project URL** 和 **publishable key**（或旧版 anon key）填入本机 `config.toml` 的 `[auth]`；也可通过本机 `.env` 中的 `RAGDB_AUTH__URL` 与 `RAGDB_AUTH__PUBLISHABLE_KEY` 设置。**service_role / secret Key 和 SMTP 凭据绝不能放进客户端、配置样例或仓库**。
+项目使用 [Supabase Auth 邮箱密码认证](https://supabase.com/docs/guides/auth/passwords)。Supabase 项目已创建，本机已验证 Project URL 与 publishable key 能连接认证设置接口，且邮箱注册与邮箱确认已启用。管理员已在控制台保存自定义 SMTP；**任意用户的实际邮件投递及完整注册登录流程仍待验收**。Supabase 默认发信服务只允许组织成员邮箱，不能用于开放注册。把项目的 **Project URL** 和 **publishable key**（或旧版 anon key）填入本机 `config.toml` 的 `[auth]`；也可通过本机 `.env` 中的 `RAGDB_AUTH__URL` 与 `RAGDB_AUTH__PUBLISHABLE_KEY` 设置。**service_role / secret Key 和 SMTP 凭据绝不能放进客户端、配置样例或仓库**。
+
+管理员需在 Supabase **Authentication → Email Templates → Confirm sign up** 中将确认邮件改为显示验证码，例如：
+
+```html
+<h2>RAG DB 邮箱验证码</h2>
+<p>你的注册验证码是：<strong>{{ .Token }}</strong></p>
+<p>请在 RAG DB 中输入此验证码；不要转发给他人。</p>
+```
+
+代码验证使用 Supabase 官方的 [邮件 OTP 流程](https://supabase.com/docs/guides/auth/auth-email-templates)；验证码发送、验证和登录仍需联网。邮件投递由[自定义 SMTP](https://supabase.com/docs/guides/auth/auth-smtp)承担。
 
 ```toml
 [auth]
@@ -104,7 +114,7 @@ url = "https://YOUR-PROJECT.supabase.co"
 publishable_key = "sb_publishable_..."
 ```
 
-桌面端启动后先输入邮箱、密码和确认密码，点击“注册并发送验证邮件”；点开邮件中的确认链接后返回应用登录。已有账号输入邮箱和密码直接登录。状态栏提供“退出登录”。CLI 可执行 `ragdb auth register you@example.com`、`ragdb auth login you@example.com`、`ragdb auth status`、`ragdb auth logout`；密码通过终端隐蔽输入。密码不会保存在本机，刷新令牌存于系统凭据库；启动和 CLI 每次执行知识库命令都会在线验证。网络或认证服务不可用时，会拒绝打开知识库。
+桌面端启动后先输入邮箱、密码和确认密码，点击“注册并发送验证码”；把邮件中的 6 位数字填入“验证码”并点击“验证邮箱”，然后用邮箱和密码登录。验证码过期或未收到时点击“重发验证码”。已有账号输入邮箱和密码直接登录。状态栏提供“退出登录”。CLI 依次执行 `ragdb auth register you@example.com`、`ragdb auth verify you@example.com`、`ragdb auth login you@example.com`；可用 `ragdb auth resend you@example.com` 重发，`ragdb auth status` 查看状态，`ragdb auth logout` 退出。密码和验证码通过终端隐蔽输入。密码不会保存在本机，刷新令牌存于系统凭据库；启动和 CLI 每次执行知识库命令都会在线验证。网络或认证服务不可用时，会拒绝打开知识库。
 
 登录后的数据保存在 `<storage.data_dir>/accounts/<账号 UUID>/`。原有 `<storage.data_dir>` 下的旧库保持原状，**不会自动迁移或合并到任一新账号**。如需迁移旧资料，先备份旧库，确认所属账号后再由管理员安排导入；更换账号也不会自动共享本机知识库。登录保护并不加密磁盘文件，本机操作系统用户仍须妥善保护数据目录。
 

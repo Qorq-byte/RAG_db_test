@@ -67,3 +67,31 @@ def test_verified_account_scopes_cli_settings(monkeypatch):
     result = runner.invoke(cli.app, ["collection", "list"])
     assert result.exit_code == 0, result.output
     assert observed == [Path("private-library") / "accounts" / str(user_id)]
+
+
+def test_cli_verifies_and_resends_code_without_logging_in(monkeypatch):
+    calls = []
+
+    class CodeAuth:
+        def __init__(self, _settings):
+            pass
+
+        def verify_email_code(self, email, code):
+            calls.append(("verify", email, code))
+
+        def resend_confirmation(self, email):
+            calls.append(("resend", email))
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(cli, "load_settings", lambda **_: AppSettings(auth=AuthSettings(
+        url="https://example.supabase.co", publishable_key="sb_publishable_test"
+    )))
+    monkeypatch.setattr(cli, "AuthService", CodeAuth)
+    verified = runner.invoke(cli.app, ["auth", "verify", "a@example.com"], input="123456\n")
+    assert verified.exit_code == 0, verified.output
+    assert "邮箱验证成功" in verified.output
+    resent = runner.invoke(cli.app, ["auth", "resend", "a@example.com"])
+    assert resent.exit_code == 0, resent.output
+    assert calls == [("verify", "a@example.com", "123456"), ("resend", "a@example.com")]

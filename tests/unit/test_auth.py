@@ -60,6 +60,60 @@ def test_signup_rejects_project_without_email_confirmation():
         service(handler).sign_up("a@example.com", "abcdefgh")
 
 
+def test_email_code_confirms_server_identity_without_saving_login():
+    credentials = MemoryCredentials()
+    paths = []
+
+    def handler(request):
+        paths.append(request.url.path)
+        if request.url.path.endswith("/verify"):
+            assert json.loads(request.content) == {
+                "email": "a@example.com", "token": "123456", "type": "email"
+            }
+            return httpx.Response(200, json={"access_token": "temporary", "refresh_token": "unused"})
+        if request.url.path.endswith("/user"):
+            assert request.headers["authorization"] == "Bearer temporary"
+            return httpx.Response(200, json={
+                "id": USER_ID, "email": "a@example.com", "email_confirmed_at": "2026-10-01T00:00:00Z"
+            })
+        assert request.headers["authorization"] == "Bearer temporary"
+        return httpx.Response(204)
+
+    service(handler, credentials).verify_email_code(" a@example.com ", "123456")
+    assert paths == ["/auth/v1/verify", "/auth/v1/user", "/auth/v1/logout"]
+    assert credentials.values == {}
+
+
+def test_email_code_rejects_invalid_or_expired_token():
+    requests = []
+
+    def handler(request):
+        requests.append(request.url.path)
+        return httpx.Response(403, json={"msg": "invalid token"})
+
+    auth = service(handler)
+    with pytest.raises(AuthError, match="6 位"):
+        auth.verify_email_code("a@example.com", "12345")
+    assert requests == []
+    with pytest.raises(AuthError, match="验证码错误或已过期"):
+        auth.verify_email_code("a@example.com", "123456")
+    assert requests == ["/auth/v1/verify"]
+
+
+def test_resend_signup_code_and_rate_limit():
+    calls = []
+
+    def handler(request):
+        calls.append(json.loads(request.content))
+        return httpx.Response(200 if len(calls) == 1 else 429, json={})
+
+    auth = service(handler)
+    auth.resend_confirmation(" a@example.com ")
+    assert calls == [{"email": "a@example.com", "type": "signup"}]
+    with pytest.raises(AuthError, match="过于频繁"):
+        auth.resend_confirmation("a@example.com")
+
+
 def test_signin_and_restore_verify_email_server_side_and_rotate_refresh_token():
     credentials = MemoryCredentials()
     refreshes = []

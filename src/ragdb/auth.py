@@ -30,6 +30,16 @@ class AuthSession:
     expires_at: int
 
 
+@dataclass(frozen=True)
+class PendingRegistration:
+    """Short-lived, unpersisted session allowed only to set an email-verified password."""
+
+    user_id: UUID
+    email: str
+    access_token: str
+    expires_at: int
+
+
 def account_settings(settings: AppSettings, user_id: UUID) -> AppSettings:
     """Keep pre-registration data untouched and isolate each account on disk."""
 
@@ -130,20 +140,15 @@ class AuthService:
             raise AuthError("系统凭据库不可用，无法安全保存登录状态。") from exc
         return session
 
-    def sign_up(self, email: str, password: str) -> None:
-        if not email.strip() or len(password) < 8:
-            raise AuthError("请输入邮箱及至少 8 位的密码。")
-        data = self._request("POST", "signup", json={"email": email.strip(), "password": password})
-        # A session on signup means Confirm email is disabled on the Supabase project.
-        if data.get("access_token"):
-            try:
-                self._request("POST", "logout", token=data["access_token"])
-            except AuthError:
-                pass
-            raise AuthError("认证项目尚未启用邮箱确认。请管理员启用 Confirm email 后再注册。")
+    def request_email_code(self, email: str) -> None:
+        """Send an email OTP without collecting a password first."""
+        address = email.strip()
+        if not address or "@" not in address:
+            raise AuthError("请输入有效的邮箱地址。")
+        self._request("POST", "otp", json={"email": address, "create_user": True})
 
-    def verify_email_code(self, email: str, code: str) -> None:
-        """Confirm a signup code without creating a saved login session."""
+    def verify_email_code(self, email: str, code: str) -> PendingRegistration:
+        """Verify the OTP, keeping its short-lived token only in memory until password setup."""
         address = email.strip()
         token = code.strip()
         if not address or not re.fullmatch(r"[0-9]{6,32}", token):
@@ -155,21 +160,34 @@ class AuthService:
         access = data.get("access_token")
         if not isinstance(access, str) or not access:
             raise AuthError("认证服务没有返回有效的邮箱验证结果。")
+        user_id, confirmed_email = self._verified_user(self._request("GET", "user", token=access))
+        if confirmed_email.casefold() != address.casefold():
+            raise AuthError("认证服务返回的邮箱与当前注册邮箱不一致。")
         try:
-            _, confirmed_email = self._verified_user(self._request("GET", "user", token=access))
-            if confirmed_email.casefold() != address.casefold():
-                raise AuthError("认证服务返回的邮箱与当前注册邮箱不一致。")
-        finally:
-            try:
-                self._request("POST", "logout", token=access)
-            except AuthError:
-                pass
+            expires_in = int(data.get("expires_in", 3600))
+            if expires_in <= 0:
+                raise ValueError
+        except (ValueError, TypeError) as exc:
+            raise AuthError("认证服务返回了无效的邮箱验证状态。") from exc
+        return PendingRegistration(user_id, confirmed_email, access, int(time.time()) + expires_in)
 
-    def resend_confirmation(self, email: str) -> None:
-        address = email.strip()
-        if not address:
-            raise AuthError("请输入需要验证的邮箱。")
-        self._request("POST", "resend", json={"email": address, "type": "signup"})
+    def set_registration_password(self, pending: PendingRegistration, password: str) -> None:
+        """Finish registration after OTP verification; leave login as an explicit next step."""
+        if len(password) < 8:
+            raise AuthError("请设置至少 8 位的密码。")
+        if pending.expires_at <= int(time.time()):
+            raise AuthError("邮箱验证状态已过期，请重新获取验证码。")
+        result = self._request(
+            "PUT", "user", token=pending.access_token, json={"password": password},
+            invalid_message="密码未被接受或邮箱验证状态已失效，请重试或重新获取验证码。",
+        )
+        user_id, email = self._verified_user(result)
+        if user_id != pending.user_id or email.casefold() != pending.email.casefold():
+            raise AuthError("认证服务返回的账号与当前注册邮箱不一致。")
+        try:
+            self._request("POST", "logout", token=pending.access_token)
+        except AuthError:
+            pass
 
     def sign_in(self, email: str, password: str) -> AuthSession:
         if not email.strip() or not password:

@@ -6,11 +6,11 @@ from pathlib import Path
 import argparse
 
 from PySide6.QtCore import QThreadPool, QTimer
-from PySide6.QtWidgets import QApplication, QDialog
+from PySide6.QtWidgets import QApplication
 
 from ragdb.auth import AuthService, account_settings
 from ragdb.config import load_settings
-from ragdb.desktop.auth_dialog import AuthDialog
+from ragdb.desktop.auth_page import AuthPage
 from ragdb.desktop.startup import WelcomeWindow
 from ragdb.desktop.theme import ThemeManager
 from ragdb.desktop.workers import BackgroundTask
@@ -27,17 +27,10 @@ def main() -> int:
     settings = load_settings(config_path=options.config)
     application.setQuitOnLastWindowClosed(False)
     while True:
-        dialog = AuthDialog(settings.auth)
-        if exit_after_ms:
-            # The smoke timer must end the dialog's nested event loop too.
-            QTimer.singleShot(
-                int(exit_after_ms),
-                lambda: dialog.done(QDialog.DialogCode.Rejected) if dialog.isVisible() else application.quit(),
-            )
-        if dialog.exec() != QDialog.DialogCode.Accepted or dialog.session is None:
-            return 0
-        account = account_settings(settings, dialog.session.user_id)
-        state = {"again": False, "session": dialog.session, "task": None}
+        state = {"again": False, "session": None, "task": None}
+
+        def accepted(session):
+            state["session"] = session
 
         def create_runtime():
             from ragdb.runtime import ApplicationRuntime
@@ -50,7 +43,9 @@ def main() -> int:
             if verified.user_id != state["session"].user_id:
                 raise RuntimeError("登录账号已变更，请重新打开工作台。")
             state["session"] = verified
-            return ApplicationRuntime.from_config(options.config, settings=account)
+            return ApplicationRuntime.from_config(
+                options.config, settings=account_settings(settings, verified.user_id)
+            )
 
         def create_workbench(runtime, manager):
             from ragdb.desktop.window import MainWindow
@@ -130,8 +125,14 @@ def main() -> int:
         window = WelcomeWindow(
             theme_manager, runtime_factory=create_runtime,
             workbench_factory=create_workbench,
+            auth_page_factory=lambda: AuthPage(
+                settings.auth, reduce_motion=theme_manager.reduce_motion
+            ),
+            on_authenticated=accepted,
         )
         window.show()
+        if exit_after_ms:
+            QTimer.singleShot(int(exit_after_ms), application.quit)
         application.setQuitOnLastWindowClosed(True)
         result = application.exec()
         application.setQuitOnLastWindowClosed(False)

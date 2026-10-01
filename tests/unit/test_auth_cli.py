@@ -15,7 +15,8 @@ pytestmark = pytest.mark.real_auth
 runner = CliRunner()
 
 
-def test_unconfigured_cli_cannot_open_library():
+def test_unconfigured_cli_cannot_open_library(monkeypatch):
+    monkeypatch.setattr(cli, "load_settings", lambda **_: AppSettings())
     result = runner.invoke(cli.app, ["collection", "list"])
     assert result.exit_code == cli.ExitCode.USAGE_ERROR
     assert "登录要求" in result.output
@@ -69,7 +70,7 @@ def test_verified_account_scopes_cli_settings(monkeypatch):
     assert observed == [Path("private-library") / "accounts" / str(user_id)]
 
 
-def test_cli_verifies_and_resends_code_without_logging_in(monkeypatch):
+def test_cli_registers_email_first_then_verifies_and_sets_password(monkeypatch):
     calls = []
 
     class CodeAuth:
@@ -78,9 +79,13 @@ def test_cli_verifies_and_resends_code_without_logging_in(monkeypatch):
 
         def verify_email_code(self, email, code):
             calls.append(("verify", email, code))
+            return "pending"
 
-        def resend_confirmation(self, email):
-            calls.append(("resend", email))
+        def request_email_code(self, email):
+            calls.append(("send", email))
+
+        def set_registration_password(self, pending, password):
+            calls.append(("password", pending, password))
 
         def close(self):
             pass
@@ -89,9 +94,13 @@ def test_cli_verifies_and_resends_code_without_logging_in(monkeypatch):
         url="https://example.supabase.co", publishable_key="sb_publishable_test"
     )))
     monkeypatch.setattr(cli, "AuthService", CodeAuth)
-    verified = runner.invoke(cli.app, ["auth", "verify", "a@example.com"], input="12345678\n")
+    registered = runner.invoke(cli.app, ["auth", "register", "a@example.com"])
+    assert registered.exit_code == 0, registered.output
+    verified = runner.invoke(cli.app, ["auth", "verify", "a@example.com"],
+                             input="12345678\nabcdefgh\nabcdefgh\n")
     assert verified.exit_code == 0, verified.output
     assert "邮箱验证成功" in verified.output
     resent = runner.invoke(cli.app, ["auth", "resend", "a@example.com"])
     assert resent.exit_code == 0, resent.output
-    assert calls == [("verify", "a@example.com", "12345678"), ("resend", "a@example.com")]
+    assert calls == [("send", "a@example.com"), ("verify", "a@example.com", "12345678"),
+                     ("password", "pending", "abcdefgh"), ("send", "a@example.com")]

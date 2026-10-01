@@ -2,7 +2,7 @@
 
 from collections.abc import Callable
 
-from PySide6.QtCore import QThreadPool, Slot
+from PySide6.QtCore import QThreadPool, QTimer, Slot
 from PySide6.QtWidgets import QMainWindow
 
 from ragdb.desktop.theme import ThemeManager
@@ -34,13 +34,18 @@ class WelcomeWindow(QMainWindow):
         *,
         runtime_factory: Callable = _create_runtime,
         workbench_factory: Callable = _create_workbench,
+        auth_page_factory: Callable | None = None,
+        on_authenticated: Callable | None = None,
     ) -> None:
         super().__init__()
         self.setWindowTitle("RAG · 欢迎")
         self.resize(1280, 800)
         self.theme_manager = theme_manager
-        self.page = WelcomePage(theme_manager)
+        self.page = WelcomePage(theme_manager, auth_at_end=auth_page_factory is not None)
         self.setCentralWidget(self.page)
+        self.auth_page_factory = auth_page_factory
+        self.on_authenticated = on_authenticated
+        self.auth_page = None
         self.runtime_factory = runtime_factory
         self.workbench_factory = workbench_factory
         self.workbench = None
@@ -48,6 +53,26 @@ class WelcomeWindow(QMainWindow):
         self._pending_runtime = None
         self._result_received = False
         self.page.enter_requested.connect(self._start)
+        self.page.auth_requested.connect(self._show_auth)
+        if auth_page_factory is not None and self.page.ready:
+            QTimer.singleShot(0, self._show_auth)
+
+    @Slot()
+    def _show_auth(self) -> None:
+        if self.auth_page is not None or self.auth_page_factory is None:
+            return
+        self.auth_page = self.auth_page_factory()
+        self.auth_page.authenticated.connect(self._authenticated)
+        self.setCentralWidget(self.auth_page)
+        self.setWindowTitle("RAG DB · 登录 / 注册")
+
+    @Slot(object)
+    def _authenticated(self, session) -> None:
+        if self.busy or self.workbench is not None:
+            return
+        if self.on_authenticated is not None:
+            self.on_authenticated(session)
+        self._start()
 
     @property
     def busy(self) -> bool:
@@ -81,7 +106,7 @@ class WelcomeWindow(QMainWindow):
     def _finished(self, _token) -> None:
         self._task = None
         if not self._result_received:
-            self.page.show_error(STARTUP_ERROR)
+            (self.auth_page or self.page).show_error(STARTUP_ERROR)
             return
         runtime, self._pending_runtime = self._pending_runtime, None
         workbench = None
@@ -96,7 +121,7 @@ class WelcomeWindow(QMainWindow):
             if workbench is not None:
                 workbench.close()
                 workbench.deleteLater()
-            self.page.show_error(STARTUP_ERROR)
+            (self.auth_page or self.page).show_error(STARTUP_ERROR)
             return
         # Keep the new top-level window alive and show it before closing the last
         # visible welcome window, so Qt does not quit during the handoff.
@@ -105,7 +130,7 @@ class WelcomeWindow(QMainWindow):
 
     def closeEvent(self, event) -> None:
         if self.busy:
-            self.page.feedback.setText("正在打开工作台，请等待完成后关闭。")
+            (self.auth_page or self.page).show_error("正在打开工作台，请等待完成后关闭。")
             event.ignore()
             return
         super().closeEvent(event)

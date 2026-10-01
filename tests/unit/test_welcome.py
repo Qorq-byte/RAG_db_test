@@ -4,13 +4,14 @@ import time
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 import pytest
-from PySide6.QtCore import QAbstractAnimation, QSettings, Qt, QPoint, QPointF
+from PySide6.QtCore import QAbstractAnimation, QSettings, Qt, QPoint, QPointF, Signal
 from PySide6.QtTest import QTest
 from PySide6.QtGui import QWheelEvent, QMouseEvent
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QMainWindow, QWidget
 
 from ragdb.desktop.theme import ThemeManager, ThemeMode
 from ragdb.desktop.welcome import WelcomePage
+from ragdb.desktop.startup import WelcomeWindow
 from ragdb.desktop.welcome_scene import WelcomeScene, card_poses
 
 
@@ -44,6 +45,48 @@ def wait_until(predicate, timeout=10):
     assert predicate()
 
 
+def test_animation_opens_auth_before_runtime(theme):
+    events = []
+
+    class FakeAuth(QWidget):
+        authenticated = Signal(object)
+
+        def show_error(self, message):
+            events.append(("error", message))
+
+    auth = FakeAuth()
+    window = WelcomeWindow(
+        theme,
+        auth_page_factory=lambda: auth,
+        on_authenticated=lambda session: events.append(("login", session)),
+        runtime_factory=lambda: events.append("runtime") or object(),
+        workbench_factory=lambda _runtime, _theme: QMainWindow(),
+    )
+    window.show()
+    window.page.finish_animation()
+    wait_until(lambda: window.auth_page is auth)
+    assert events == []
+    assert window.workbench is None
+    auth.authenticated.emit("verified")
+    wait_until(lambda: window.workbench is not None)
+    assert events == [("login", "verified"), "runtime"]
+    window.workbench.close()
+
+
+def test_reduced_motion_still_opens_auth(theme):
+    theme.set_reduce_motion(True)
+
+    class FakeAuth(QWidget):
+        authenticated = Signal(object)
+
+    auth = FakeAuth()
+    window = WelcomeWindow(theme, auth_page_factory=lambda: auth)
+    window.show()
+    wait_until(lambda: window.auth_page is auth)
+    assert window.workbench is None
+    window.close()
+
+
 def test_intro_blocks_entry_until_completed_then_requires_click(page):
     entered = []
     page.enter_requested.connect(lambda: entered.append(True))
@@ -61,7 +104,7 @@ def test_intro_blocks_entry_until_completed_then_requires_click(page):
     wheel(page, -120)
     assert page.ready
     assert page.enter_button.isVisible()
-    assert page.enter_button.text() == "欢迎使用RAG系统"
+    assert page.enter_button.text() == "进入知识工作台"
     assert not entered
     page.enter_button.click()
     page.enter_button.click()
@@ -154,7 +197,7 @@ def test_error_restores_same_entry_button(page):
     assert not page.enter_button.isEnabled()
     page.show_error("无法打开知识库，请检查配置后重试。")
     assert page.enter_button.isEnabled()
-    assert page.enter_button.text() == "欢迎使用RAG系统"
+    assert page.enter_button.text() == "进入知识工作台"
     assert "重试" in page.feedback.text()
 
 

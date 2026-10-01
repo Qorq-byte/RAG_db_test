@@ -94,15 +94,15 @@ uv run ragdb --config C:/RAGDB-demo/config.toml doctor
 
 ## 邮箱账号与首次配置（当前源码）
 
-当前源码新增了注册、邮箱确认和登录门禁：桌面工作台及知识库命令必须使用已验证账号，两个账号在同一电脑上也分别使用自己的数据目录。**v0.1.1 安装包尚不包含此功能**；需待认证服务实际配置、邮件与安装版验收完成后再更新安装包。没有配置认证项目时，当前源码会停留在登录页，CLI 知识库命令会拒绝访问。
+当前源码新增了注册、邮箱确认和登录门禁：桌面工作台及知识库命令必须使用已验证账号，两个账号在同一电脑上也分别使用自己的数据目录。**v0.1.1 安装包尚不包含此功能**；需待单独同意后再更新安装包。没有配置认证项目时，当前源码会在欢迎动画后停留在登录 / 注册页，CLI 知识库命令会拒绝访问。
 
-项目使用 [Supabase Auth 邮箱密码认证](https://supabase.com/docs/guides/auth/passwords)。Supabase 项目已创建，本机已验证 Project URL 与 publishable key 能连接认证设置接口，且邮箱注册与邮箱确认已启用。管理员已在控制台保存自定义 SMTP；**一次真实邮箱注册、8 位验证码投递与确认、桌面登录，以及同机 CLI 在线登录检查和集合访问均已通过**。其他邮箱的投递和安装版仍待单独验收。Supabase 默认发信服务只允许组织成员邮箱，不能用于开放注册。把项目的 **Project URL** 和 **publishable key**（或旧版 anon key）填入本机 `config.toml` 的 `[auth]`；也可通过本机 `.env` 中的 `RAGDB_AUTH__URL` 与 `RAGDB_AUTH__PUBLISHABLE_KEY` 设置。**service_role / secret Key 和 SMTP 凭据绝不能放进客户端、配置样例或仓库**。
+项目使用 [Supabase Auth 邮箱密码认证](https://supabase.com/docs/guides/auth/passwords)。Supabase 项目已创建，本机已验证 Project URL 与 publishable key 能连接认证设置接口，且邮箱注册与邮箱确认已启用。管理员已在控制台保存自定义 SMTP 和 Magic Link 验证码模板；旧版注册流程中，**一次真实邮箱注册、8 位验证码投递与确认、桌面登录，以及同机 CLI 在线登录检查和集合访问均已通过**。新版“先验证码后密码”流程仍需真实邮箱验收。其他邮箱的投递和安装版也待单独验收。Supabase 默认发信服务只允许组织成员邮箱，不能用于开放注册。把项目的 **Project URL** 和 **publishable key**（或旧版 anon key）填入本机 `config.toml` 的 `[auth]`；也可通过本机 `.env` 中的 `RAGDB_AUTH__URL` 与 `RAGDB_AUTH__PUBLISHABLE_KEY` 设置。**service_role / secret Key 和 SMTP 凭据绝不能放进客户端、配置样例或仓库**。
 
-管理员需在 Supabase **Authentication → Email Templates → Confirm sign up** 中将确认邮件改为显示验证码，例如：
+管理员需在 Supabase **Authentication → Email Templates → Magic Link** 中将邮件改为显示验证码，例如：
 
 ```html
 <h2>RAG DB 邮箱验证码</h2>
-<p>你的注册验证码是：<strong>{{ .Token }}</strong></p>
+<p>你的验证码是：<strong>{{ .Token }}</strong></p>
 <p>请在 RAG DB 中输入此验证码；不要转发给他人。</p>
 ```
 
@@ -114,7 +114,7 @@ url = "https://YOUR-PROJECT.supabase.co"
 publishable_key = "sb_publishable_..."
 ```
 
-桌面端启动后先输入邮箱、密码和确认密码，点击“注册并发送验证码”；把邮件中的数字验证码完整填入“验证码”并点击“验证邮箱”，然后用邮箱和密码登录。验证码长度由 Supabase 项目设置决定，当前项目发送 8 位数字。验证码过期或未收到时点击“重发验证码”。已有账号输入邮箱和密码直接登录。状态栏提供“退出登录”。CLI 依次执行 `ragdb auth register you@example.com`、`ragdb auth verify you@example.com`、`ragdb auth login you@example.com`；可用 `ragdb auth resend you@example.com` 重发，`ragdb auth status` 查看状态，`ragdb auth logout` 退出。密码和验证码通过终端隐蔽输入。密码不会保存在本机，刷新令牌存于系统凭据库；启动和 CLI 每次执行知识库命令都会在线验证。网络或认证服务不可用时，会拒绝打开知识库。
+桌面端先播放欢迎动画，结束后显示登录 / 注册页面。注册按“输入邮箱 → 获取并验证邮件中的完整数字验证码 → 设置密码 → 登录”的顺序进行；获取验证码前无需输入密码。验证码长度由 Supabase 项目设置决定。验证码过期或未收到时可重新发送。已有账号输入邮箱和密码直接登录，也可用本机已保存的登录状态继续。忘记密码时也可通过邮箱验证码重新设置。状态栏提供“退出登录”。CLI 依次执行 `ragdb auth register you@example.com`、`ragdb auth verify you@example.com`（验证后交互式设置密码）、`ragdb auth login you@example.com`；可用 `ragdb auth resend you@example.com` 重发，`ragdb auth status` 查看状态，`ragdb auth logout` 退出。密码和验证码通过终端隐蔽输入。密码不会保存在本机，刷新令牌存于系统凭据库；启动和 CLI 每次执行知识库命令都会在线验证。网络或认证服务不可用时，会拒绝打开知识库。
 
 登录后的数据保存在 `<storage.data_dir>/accounts/<账号 UUID>/`。原有 `<storage.data_dir>` 下的旧库保持原状，**不会自动迁移或合并到任一新账号**。如需迁移旧资料，先备份旧库，确认所属账号后再由管理员安排导入；更换账号也不会自动共享本机知识库。登录保护并不加密磁盘文件，本机操作系统用户仍须妥善保护数据目录。
 
@@ -122,9 +122,9 @@ publishable_key = "sb_publishable_..."
 
 ### 1. 从欢迎页进入工作台
 
-完成邮箱登录后播放图片卡片聚合动画。向下滚动，图片从圆环变为弧带并依次移出；继续滚动出现 **“欢迎使用RAG系统”**，点击进入导航工作台。
+启动时播放图片卡片聚合动画。向下滚动，图片从圆环变为弧带并依次移出；继续滚动直接进入登录 / 注册页面。认证成功后才打开导航工作台。
 
-也可按 `End` 或 `Esc` 直接到入口，再按 `Enter` 进入。启用“减少动效”后直接显示最终状态。欢迎页图片为离线资源；点击进入前不会初始化知识库或调用模型。
+也可按 `End` 或 `Esc` 直接到登录 / 注册页面。启用“减少动效”后直接显示认证页。欢迎页图片为离线资源；认证成功前不会初始化知识库或调用模型。
 
 ### 2. 配置嵌入模型和问答模型
 

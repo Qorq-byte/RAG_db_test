@@ -33,13 +33,16 @@ class IntroTextEffect(QGraphicsBlurEffect):
 
 class WelcomePage(QWidget):
     enter_requested = Signal()
+    auth_requested = Signal()
 
-    def __init__(self, theme_manager: ThemeManager, parent=None, *, duration_ms: int = 4000) -> None:
+    def __init__(self, theme_manager: ThemeManager, parent=None, *, duration_ms: int = 4000,
+                 auth_at_end: bool = False) -> None:
         super().__init__(parent)
         self.theme_manager = theme_manager
         self.setObjectName("welcomePage")
         self.setMinimumSize(640, 480)
         self.ready = self._started = self._busy = False
+        self.auth_at_end = auth_at_end
         self.scene = WelcomeScene(self)
         self.intro = QWidget(self)
         self.arc = QWidget(self)
@@ -59,7 +62,7 @@ class WelcomePage(QWidget):
         self.arc_opacity = QGraphicsOpacityEffect(self.arc)
         self.arc.setGraphicsEffect(self.arc_opacity)
         self.content = QWidget(self)
-        self.enter_button = QPushButton("欢迎使用RAG系统", self.content)
+        self.enter_button = QPushButton("进入知识工作台", self.content)
         self.enter_button.setObjectName("welcomeEnter")
         self.enter_button.setAccessibleDescription("进入带侧边导航的知识工作台")
         self.enter_button.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -144,6 +147,11 @@ class WelcomePage(QWidget):
         ready = self.scene.entry_revealed
         if ready and not self.ready:
             self.ready = True
+            if self.auth_at_end:
+                self._busy = True
+                self.scene.locked = True
+                self.auth_requested.emit()
+                return
             self.content.show()
             self.content.raise_()
             self.enter_button.setEnabled(not self._busy)

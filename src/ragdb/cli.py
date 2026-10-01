@@ -284,12 +284,11 @@ def _auth_service(ctx: typer.Context) -> AuthService:
 
 @auth_app.command("register")
 def auth_register(ctx: typer.Context, email: str) -> None:
-    """交互式密码注册，并发送邮箱验证码。"""
-    password = typer.prompt("密码（至少 8 位）", hide_input=True, confirmation_prompt=True)
+    """先发送邮箱验证码，验证后再设置密码。"""
     try:
         auth = _auth_service(ctx)
         try:
-            auth.sign_up(email, password)
+            auth.request_email_code(email)
         finally:
             auth.close()
     except AuthError as error:
@@ -300,18 +299,21 @@ def auth_register(ctx: typer.Context, email: str) -> None:
 
 @auth_app.command("verify")
 def auth_verify(ctx: typer.Context, email: str) -> None:
-    """输入邮件中的数字验证码，确认注册邮箱。"""
+    """验证邮箱，然后设置密码完成注册。"""
     code = typer.prompt("邮箱验证码", hide_input=True)
     try:
         auth = _auth_service(ctx)
         try:
-            auth.verify_email_code(email, code)
+            pending = auth.verify_email_code(email, code)
+            typer.echo("邮箱验证成功。现在设置密码。")
+            password = typer.prompt("密码（至少 8 位）", hide_input=True, confirmation_prompt=True)
+            auth.set_registration_password(pending, password)
         finally:
             auth.close()
     except AuthError as error:
         typer.echo(str(error), err=True)
         raise typer.Exit(ExitCode.USAGE_ERROR) from error
-    typer.echo("邮箱验证成功。请使用 ragdb auth login 登录。")
+    typer.echo("密码设置成功。请使用 ragdb auth login 登录。")
 
 
 @auth_app.command("resend")
@@ -320,13 +322,13 @@ def auth_resend(ctx: typer.Context, email: str) -> None:
     try:
         auth = _auth_service(ctx)
         try:
-            auth.resend_confirmation(email)
+            auth.request_email_code(email)
         finally:
             auth.close()
     except AuthError as error:
         typer.echo(str(error), err=True)
         raise typer.Exit(ExitCode.USAGE_ERROR) from error
-    typer.echo("如邮箱尚未验证，新的验证码已发送。请使用最新邮件中的验证码。")
+    typer.echo("验证码邮件已发送。请使用最新邮件中的验证码。")
 
 
 @auth_app.command("login")

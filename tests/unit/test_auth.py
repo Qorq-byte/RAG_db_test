@@ -37,27 +37,17 @@ def service(handler, credentials=None):
     )
 
 
-def test_signup_requires_confirmation_and_never_stores_password():
+def test_registration_sends_code_before_password_and_never_stores_it():
     credentials = MemoryCredentials()
 
     def handler(request):
-        assert request.url.path == "/auth/v1/signup"
+        assert request.url.path == "/auth/v1/otp"
         assert request.headers["apikey"] == "sb_publishable_test"
-        assert json.loads(request.content) == {"email": "a@example.com", "password": "abcdefgh"}
-        return httpx.Response(200, json={"user": {"id": USER_ID}, "session": None})
+        assert json.loads(request.content) == {"email": "a@example.com", "create_user": True}
+        return httpx.Response(200, json={})
 
-    service(handler, credentials).sign_up("a@example.com", "abcdefgh")
+    service(handler, credentials).request_email_code("a@example.com")
     assert credentials.values == {}
-
-
-def test_signup_rejects_project_without_email_confirmation():
-    def handler(request):
-        if request.url.path.endswith("/logout"):
-            return httpx.Response(204)
-        return httpx.Response(200, json={"access_token": "acc", "refresh_token": "ref"})
-
-    with pytest.raises(AuthError, match="Confirm email"):
-        service(handler).sign_up("a@example.com", "abcdefgh")
 
 
 def test_email_code_confirms_server_identity_without_saving_login():
@@ -79,8 +69,34 @@ def test_email_code_confirms_server_identity_without_saving_login():
         assert request.headers["authorization"] == "Bearer temporary"
         return httpx.Response(204)
 
-    service(handler, credentials).verify_email_code(" a@example.com ", "12345678")
-    assert paths == ["/auth/v1/verify", "/auth/v1/user", "/auth/v1/logout"]
+    pending = service(handler, credentials).verify_email_code(" a@example.com ", "12345678")
+    assert pending.user_id == UUID(USER_ID)
+    assert paths == ["/auth/v1/verify", "/auth/v1/user"]
+    assert credentials.values == {}
+
+
+def test_password_can_only_be_set_after_verification_and_does_not_save_session():
+    credentials = MemoryCredentials()
+    paths = []
+
+    def handler(request):
+        paths.append(request.url.path)
+        if request.url.path.endswith("/verify"):
+            return httpx.Response(200, json={"access_token": "temporary", "expires_in": 3600})
+        if request.url.path.endswith("/user"):
+            if request.method == "PUT":
+                assert request.headers["authorization"] == "Bearer temporary"
+                assert json.loads(request.content) == {"password": "abcdefgh"}
+            return httpx.Response(200, json={"id": USER_ID, "email": "a@example.com",
+                                             "email_confirmed_at": "2026-10-01T00:00:00Z"})
+        return httpx.Response(200, json={})
+
+    auth = service(handler, credentials)
+    pending = auth.verify_email_code("a@example.com", "12345678")
+    with pytest.raises(AuthError, match="至少 8 位"):
+        auth.set_registration_password(pending, "short")
+    auth.set_registration_password(pending, "abcdefgh")
+    assert paths == ["/auth/v1/verify", "/auth/v1/user", "/auth/v1/user", "/auth/v1/logout"]
     assert credentials.values == {}
 
 
@@ -100,7 +116,7 @@ def test_email_code_rejects_invalid_or_expired_token():
     assert requests == ["/auth/v1/verify"]
 
 
-def test_resend_signup_code_and_rate_limit():
+def test_resend_code_and_rate_limit():
     calls = []
 
     def handler(request):
@@ -108,10 +124,10 @@ def test_resend_signup_code_and_rate_limit():
         return httpx.Response(200 if len(calls) == 1 else 429, json={})
 
     auth = service(handler)
-    auth.resend_confirmation(" a@example.com ")
-    assert calls == [{"email": "a@example.com", "type": "signup"}]
+    auth.request_email_code(" a@example.com ")
+    assert calls == [{"email": "a@example.com", "create_user": True}]
     with pytest.raises(AuthError, match="过于频繁"):
-        auth.resend_confirmation("a@example.com")
+        auth.request_email_code("a@example.com")
 
 
 def test_signin_and_restore_verify_email_server_side_and_rotate_refresh_token():

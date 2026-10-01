@@ -1,6 +1,6 @@
 """Main desktop workbench window."""
 
-from PySide6.QtCore import QThreadPool, QTimer, Qt, Signal
+from PySide6.QtCore import QPoint, QThreadPool, QTimer, Qt, Signal
 from PySide6.QtGui import QKeyEvent, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QApplication,
@@ -25,7 +25,7 @@ from ragdb.desktop.components import DetailPanel
 from ragdb.desktop.navigation import SidebarWidget, TopBar
 from ragdb.desktop.theme import ThemeManager
 from ragdb.desktop.chat_widgets import ConversationView
-from ragdb.desktop.profile import ProfileDialog, ProfileStore
+from ragdb.desktop.profile import ProfileDialog, ProfileStore, add_profile_menu_row
 
 
 PAGES = ("概览", "集合与资料", "检索", "问答", "学习产物", "任务与诊断", "模型设置")
@@ -173,19 +173,31 @@ class MainWindow(QMainWindow):
     def _create_profile_menu(self) -> None:
         self.profile_menu = QMenu(self)
         self.profile_menu.setObjectName("profileMenu")
-        self.profile_menu.setMinimumWidth(270)
-        self.profile_action = self.profile_menu.addAction("个人资料")
-        self.model_action = self.profile_menu.addAction("模型")
-        self.settings_action = self.profile_menu.addAction("设置")
+        self.profile_menu.setMinimumWidth(284)
+        self.profile_action, self.profile_row = add_profile_menu_row(
+            self.profile_menu, "个人资料", "profile"
+        )
+        self.model_action, self.model_row = add_profile_menu_row(
+            self.profile_menu, "模型", "model"
+        )
+        self.settings_action, self.settings_row = add_profile_menu_row(
+            self.profile_menu, "设置", "settings"
+        )
         self.profile_menu.addSeparator()
-        self.signout_action = self.profile_menu.addAction("退出登录")
+        self.signout_action, self.signout_row = add_profile_menu_row(
+            self.profile_menu, "退出登录", "logout", danger=True
+        )
         self.profile_action.triggered.connect(self.open_profile)
         self.model_action.triggered.connect(lambda: self.navigation.select_page(6))
         self.settings_action.triggered.connect(self.open_account_settings)
         self.signout_action.triggered.connect(self.logout_requested.emit)
         self.profile_menu.aboutToShow.connect(self._refresh_profile_menu)
+        self.profile_menu.aboutToShow.connect(lambda: self.navigation.profile_button.set_menu_open(True))
+        self.profile_menu.aboutToHide.connect(lambda: self.navigation.profile_button.set_menu_open(False))
+        self.theme_manager.changed.connect(lambda *_: self._refresh_profile_menu())
         self.navigation.profile_requested.connect(self._show_profile_menu)
         self._refresh_profile_button()
+        self._refresh_profile_menu()
 
     def _refresh_profile_button(self) -> None:
         self.navigation.profile_button.set_profile(
@@ -193,16 +205,28 @@ class MainWindow(QMainWindow):
         )
 
     def _refresh_profile_menu(self) -> None:
+        dark = self.theme_manager.resolved_mode().value == "dark"
+        for row in (self.profile_row, self.model_row, self.settings_row, self.signout_row):
+            row.set_dark_mode(dark)
         settings = getattr(self.runtime, "settings", None)
         if settings is not None:
             from ragdb.desktop.model_settings_page import model_caption
-            self.model_action.setText(f"模型   ·   {model_caption(settings.chat)}")
+            self.model_row.set_value(model_caption(settings.chat))
         else:
-            self.model_action.setText("模型")
+            self.model_row.set_value("")
 
     def _show_profile_menu(self) -> None:
         button = self.navigation.profile_button
-        self.profile_menu.popup(button.mapToGlobal(button.rect().bottomLeft()))
+        point = button.mapToGlobal(QPoint(0, button.height() + 4))
+        screen = QApplication.screenAt(point) or QApplication.primaryScreen()
+        if screen is not None:
+            bounds = screen.availableGeometry()
+            width = self.profile_menu.sizeHint().width()
+            height = self.profile_menu.sizeHint().height()
+            point.setX(max(bounds.left() + 8, min(point.x(), bounds.right() - width - 8)))
+            if point.y() + height > bounds.bottom() - 8:
+                point.setY(button.mapToGlobal(QPoint(0, 0)).y() - height - 4)
+        self.profile_menu.popup(point)
 
     def open_profile(self) -> None:
         dialog = ProfileDialog(self.profile_store, self.account_email, self)

@@ -7,11 +7,11 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
-from PySide6.QtCore import QPoint, QRectF, Qt, Signal
-from PySide6.QtGui import QColor, QFont, QImage, QImageReader, QPainter, QPainterPath, QPixmap
+from PySide6.QtCore import QPointF, QRectF, Qt, Signal
+from PySide6.QtGui import QColor, QFont, QImage, QImageReader, QLinearGradient, QPainter, QPainterPath, QPen, QPixmap
 from PySide6.QtWidgets import (
-    QDialog, QFileDialog, QFormLayout, QHBoxLayout, QLabel, QLineEdit,
-    QMessageBox, QPushButton, QTextEdit, QVBoxLayout,
+    QDialog, QFileDialog, QFormLayout, QHBoxLayout, QLabel, QLineEdit, QMenu,
+    QMessageBox, QPushButton, QTextEdit, QVBoxLayout, QWidget, QWidgetAction,
 )
 
 
@@ -85,11 +85,13 @@ class ProfileButton(QPushButton):
         self.avatar = QPixmap()
         self.collapsed = False
         self.dark = False
+        self.menu_open = False
         self.setObjectName("profileTrigger")
         self.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.setFixedHeight(68)
+        self.setFixedHeight(66)
         self.setAccessibleName("打开个人资料菜单")
         self.setToolTip("个人资料、模型和设置")
+        self.setStyleSheet("QPushButton#profileTrigger { background: transparent; border: none; padding: 0; }")
 
     def set_profile(self, profile: ProfileData, email: str, avatar: QPixmap):
         self.name = profile.name.strip() or (email.split("@", 1)[0] if email else "个人账号")
@@ -99,8 +101,87 @@ class ProfileButton(QPushButton):
 
     def set_collapsed(self, collapsed: bool):
         self.collapsed = collapsed
-        self.setFixedHeight(48 if collapsed else 68)
+        self.setFixedHeight(44 if collapsed else 66)
         self.update()
+
+    def set_dark_mode(self, dark: bool):
+        self.dark = dark
+        self.update()
+
+    def set_menu_open(self, open_: bool):
+        self.menu_open = open_
+        self.update()
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        hovered = self.underMouse() or self.hasFocus() or self.menu_open
+        card = self.rect().adjusted(1, 1, -1 if self.collapsed else -12, -1)
+        surface = QColor("#24272d" if hovered and self.dark else
+                         "#1b1e24" if self.dark else
+                         "#fafbfc" if hovered else "#ffffff")
+        border = QColor("#5d6674" if hovered and self.dark else
+                        "#bfc7d2" if hovered else "#373c45" if self.dark else "#d9dde3")
+        painter.setBrush(surface)
+        painter.setPen(QPen(border, 1))
+        painter.drawRoundedRect(card, 15, 15)
+        avatar_size = 40 if not self.collapsed else 34
+        avatar_x = (card.width() - avatar_size) // 2 if self.collapsed else card.right() - avatar_size - 10
+        avatar_y = (self.height() - avatar_size) // 2
+        avatar_rect = QRectF(avatar_x, avatar_y, avatar_size, avatar_size)
+        gradient = QLinearGradient(avatar_rect.topLeft(), avatar_rect.bottomRight())
+        gradient.setColorAt(0, QColor("#9b5de5"))
+        gradient.setColorAt(0.52, QColor("#ee6eaa"))
+        gradient.setColorAt(1, QColor("#f6a44d"))
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(gradient)
+        painter.drawEllipse(avatar_rect)
+        inset = avatar_rect.adjusted(2.5, 2.5, -2.5, -2.5)
+        painter.setBrush(QColor("#1b1e24" if self.dark else "#ffffff"))
+        painter.drawEllipse(inset)
+        if not self.avatar.isNull():
+            path = QPainterPath()
+            path.addEllipse(inset.adjusted(1, 1, -1, -1))
+            painter.save()
+            painter.setClipPath(path)
+            painter.drawPixmap(inset.toRect(), self.avatar)
+            painter.restore()
+        else:
+            painter.setPen(QColor("#efdaff" if self.dark else "#7854a4"))
+            font = QFont("Microsoft YaHei UI", 10)
+            font.setBold(True)
+            painter.setFont(font)
+            painter.drawText(inset, Qt.AlignmentFlag.AlignCenter, self.name[:1].upper())
+        if not self.collapsed:
+            name_font = QFont("Microsoft YaHei UI", 10)
+            name_font.setBold(True)
+            painter.setFont(name_font)
+            painter.setPen(QColor("#f0f0f1" if self.dark else "#20232b"))
+            available = max(30, avatar_x - 24)
+            painter.drawText(13, 15, available, 18, Qt.AlignmentFlag.AlignVCenter,
+                             painter.fontMetrics().elidedText(self.name, Qt.TextElideMode.ElideRight, available))
+            painter.setPen(QColor("#a8aab1" if self.dark else "#717780"))
+            painter.setFont(QFont("Microsoft YaHei UI", 8))
+            painter.drawText(13, 35, available, 17, Qt.AlignmentFlag.AlignVCenter,
+                             painter.fontMetrics().elidedText(self.email, Qt.TextElideMode.ElideRight, available))
+            curve = QPainterPath(QPointF(self.width() - 9, self.height() / 2 - 9))
+            curve.cubicTo(self.width() - 3, self.height() / 2 - 4,
+                          self.width() - 3, self.height() / 2 + 4,
+                          self.width() - 9, self.height() / 2 + 9)
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            painter.setPen(QPen(QColor("#5b8ff2" if self.menu_open else
+                                    "#8f95a0" if self.dark else "#a3aab4"), 1.6))
+            painter.drawPath(curve)
+
+
+class ProfileMenuIcon(QWidget):
+    """Small line icons sized and colored like the reference dropdown."""
+
+    def __init__(self, kind: str, *, dark: bool = False, danger: bool = False, parent=None):
+        super().__init__(parent)
+        self.kind, self.dark, self.danger = kind, dark, danger
+        self.setFixedSize(18, 18)
+        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
 
     def set_dark_mode(self, dark: bool):
         self.dark = dark
@@ -109,46 +190,94 @@ class ProfileButton(QPushButton):
     def paintEvent(self, event):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        hovered = self.underMouse() or self.hasFocus()
-        surface = QColor("#263342" if self.dark else "#ffffff")
-        border = QColor("#52758d" if hovered and self.dark else
-                        "#8ac2d0" if hovered else "#364456" if self.dark else "#d9e3ec")
-        painter.setBrush(surface)
-        painter.setPen(border)
-        painter.drawRoundedRect(self.rect().adjusted(1, 1, -1, -1), 13, 13)
-        avatar_size = 34
-        avatar_x = (self.width() - avatar_size) // 2 if self.collapsed else self.width() - avatar_size - 11
-        avatar_y = (self.height() - avatar_size) // 2
-        avatar_rect = QRectF(avatar_x, avatar_y, avatar_size, avatar_size)
-        gradient = QColor("#6958c7" if self.dark else "#5572d7")
-        painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(gradient)
-        painter.drawEllipse(avatar_rect)
-        if not self.avatar.isNull():
-            path = QPainterPath()
-            path.addEllipse(avatar_rect.adjusted(2, 2, -2, -2))
-            painter.save()
-            painter.setClipPath(path)
-            painter.drawPixmap(avatar_rect.toRect(), self.avatar)
-            painter.restore()
-        else:
-            painter.setPen(QColor("#ffffff"))
-            font = QFont("Microsoft YaHei UI", 11)
-            font.setBold(True)
-            painter.setFont(font)
-            painter.drawText(avatar_rect, Qt.AlignmentFlag.AlignCenter, self.name[:1].upper())
-        if not self.collapsed:
-            name_font = QFont("Microsoft YaHei UI", 10)
-            name_font.setBold(True)
-            painter.setFont(name_font)
-            painter.setPen(QColor("#e8edf4" if self.dark else "#18202b"))
-            available = max(30, avatar_x - 23)
-            painter.drawText(12, 14, available, 18, Qt.AlignmentFlag.AlignVCenter,
-                             painter.fontMetrics().elidedText(self.name, Qt.TextElideMode.ElideRight, available))
-            painter.setPen(QColor("#a3b0c1" if self.dark else "#687386"))
-            painter.setFont(QFont("Microsoft YaHei UI", 8))
-            painter.drawText(12, 36, available, 17, Qt.AlignmentFlag.AlignVCenter,
-                             painter.fontMetrics().elidedText(self.email, Qt.TextElideMode.ElideRight, available))
+        color = QColor("#e45b65" if self.danger else "#cbd0d9" if self.dark else "#535c68")
+        painter.setPen(QPen(color, 1.65, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap,
+                            Qt.PenJoinStyle.RoundJoin))
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        if self.kind == "profile":
+            painter.drawEllipse(QRectF(6, 2, 6, 6))
+            painter.drawArc(QRectF(3, 8, 12, 8), 0, 180 * 16)
+        elif self.kind == "model":
+            star = QPainterPath(QPointF(9, 1))
+            for x, y in ((11, 7), (17, 9), (11, 11), (9, 17), (7, 11), (1, 9), (7, 7)):
+                star.lineTo(x, y)
+            star.closeSubpath()
+            painter.drawPath(star)
+        elif self.kind == "settings":
+            painter.drawEllipse(QRectF(6, 6, 6, 6))
+            for x1, y1, x2, y2 in ((9, 1, 9, 4), (9, 14, 9, 17), (1, 9, 4, 9),
+                                    (14, 9, 17, 9), (3, 3, 5, 5), (13, 13, 15, 15),
+                                    (13, 5, 15, 3), (3, 15, 5, 13)):
+                painter.drawLine(x1, y1, x2, y2)
+        elif self.kind == "logout":
+            painter.drawLine(2, 3, 2, 15)
+            painter.drawLine(2, 3, 9, 3)
+            painter.drawLine(2, 15, 9, 15)
+            painter.drawLine(7, 9, 16, 9)
+            painter.drawLine(12, 5, 16, 9)
+            painter.drawLine(12, 13, 16, 9)
+
+
+class ProfileMenuRow(QPushButton):
+    def __init__(self, label: str, kind: str, *, danger: bool = False, dark: bool = False):
+        super().__init__()
+        self.kind, self.danger, self.dark = kind, danger, dark
+        self.setObjectName("profileMenuRow")
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setAccessibleName(label)
+        self.setFixedHeight(43)
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(12, 0, 12, 0)
+        layout.setSpacing(9)
+        self.glyph = ProfileMenuIcon(kind, dark=dark, danger=danger, parent=self)
+        layout.addWidget(self.glyph)
+        self.label = QLabel(label, self)
+        self.label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        layout.addWidget(self.label)
+        layout.addStretch(1)
+        self.badge = QLabel(self)
+        self.badge.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        self.badge.setObjectName("profileModelBadge")
+        self.badge.hide()
+        layout.addWidget(self.badge)
+        self.set_dark_mode(dark)
+
+    def set_value(self, value: str):
+        self.badge.setText(self.badge.fontMetrics().elidedText(value, Qt.TextElideMode.ElideRight, 105))
+        self.badge.setToolTip(value)
+        self.badge.setVisible(bool(value))
+
+    def set_dark_mode(self, dark: bool):
+        self.dark = dark
+        self.glyph.set_dark_mode(dark)
+        text = "#ededef" if dark else "#24272e"
+        hover = "#30343e" if dark else "#f2f4f6"
+        base = "#3b1e25" if dark else "#fff0f1"
+        danger_hover = "#51232d" if dark else "#ffe4e7"
+        self.setStyleSheet(f"""
+            QPushButton#profileMenuRow {{ background: {base if self.danger else 'transparent'};
+                border: 1px solid transparent; border-radius: 11px; padding: 0; }}
+            QPushButton#profileMenuRow:hover, QPushButton#profileMenuRow:focus {{
+                background: {danger_hover if self.danger else hover};
+                border-color: {'#bd6670' if self.danger else '#555d69' if dark else '#dce0e6'}; }}
+            QLabel {{ background: transparent; border: none; color: {'#e45b65' if self.danger else text};
+                font-size: 12px; font-weight: 600; }}
+            QLabel#profileModelBadge {{ color: {'#91adff' if dark else '#3464c5'};
+                background: {'#1c2c4a' if dark else '#edf3ff'};
+                border: 1px solid {'#354a73' if dark else '#dce7ff'};
+                border-radius: 6px; padding: 3px 6px; font-size: 10px; }}
+        """)
+
+
+def add_profile_menu_row(menu: QMenu, label: str, kind: str, *,
+                         danger: bool = False) -> tuple[QWidgetAction, ProfileMenuRow]:
+    row = ProfileMenuRow(label, kind, danger=danger)
+    action = QWidgetAction(menu)
+    action.setText(label)
+    action.setDefaultWidget(row)
+    menu.addAction(action)
+    row.clicked.connect(lambda: (menu.hide(), action.trigger()))
+    return action, row
 
 
 class ProfileDialog(QDialog):

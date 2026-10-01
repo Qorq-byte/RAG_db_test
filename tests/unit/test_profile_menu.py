@@ -50,12 +50,36 @@ def test_sidebar_profile_menu_opens_existing_model_page_and_logout():
     APP.processEvents()
     assert window.navigation.profile_button.isVisible()
     assert all(button.label != "模型设置" for button in window.navigation.buttons)
-    window.model_action.trigger()
+    window._show_profile_menu()
+    window.model_row.set_value("云端 · DeepSeek V3")
+    APP.processEvents()
+    assert window.model_row.badge.isVisible()
+    assert window.model_row.badge.toolTip() == "云端 · DeepSeek V3"
+    window.model_row.click()
     assert window.pages.currentIndex() == 6
+    assert not window.profile_menu.isVisible()
     emitted = []
     window.logout_requested.connect(lambda: emitted.append(True))
-    window.signout_action.trigger()
+    window._show_profile_menu()
+    APP.processEvents()
+    window.signout_row.click()
     assert emitted == [True]
+    window.close()
+
+
+def test_profile_dropdown_remains_on_screen_when_sidebar_is_collapsed():
+    window = MainWindow()
+    window.show()
+    window.navigation.set_collapsed(True)
+    APP.processEvents()
+    window._show_profile_menu()
+    APP.processEvents()
+    screen = APP.screenAt(window.profile_menu.pos()) or APP.primaryScreen()
+    assert window.profile_menu.geometry().left() >= screen.availableGeometry().left()
+    assert window.navigation.profile_button.menu_open
+    window.profile_menu.hide()
+    APP.processEvents()
+    assert not window.navigation.profile_button.menu_open
     window.close()
 
 

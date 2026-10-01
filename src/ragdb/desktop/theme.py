@@ -194,8 +194,7 @@ def build_stylesheet(tokens: dict[str, str]) -> str:
     QHeaderView::section {{ background: {tokens["raised"]}; color: {tokens["muted"]}; border: none; border-bottom: 1px solid {tokens["border"]}; padding: 8px; }}
     QLineEdit:focus, QComboBox:focus, QTextEdit:focus {{ border-color: {tokens["accent"]}; }}
     QToolTip {{ background: {tokens["raised"]}; color: {tokens["text"]}; border: 1px solid {tokens["border"]}; padding: 5px; }}
-    QMenu#profileMenu {{ background: {tokens["panel"]}; color: {tokens["text"]}; border: 1px solid {tokens["border"]}; border-radius: 12px; padding: 7px; }}
-    QMenu#profileMenu::item {{ padding: 9px 18px; border-radius: 7px; }}
-    QMenu#profileMenu::item:selected {{ background: {tokens["accent_soft"]}; color: {tokens["text"]}; }}
-    QMenu#profileMenu::separator {{ height: 1px; background: {tokens["border"]}; margin: 6px 10px; }}
+    QMenu#profileMenu {{ background: {tokens["panel"]}; color: {tokens["text"]}; border: 1px solid {tokens["border"]}; border-radius: 16px; padding: 8px; }}
+    QMenu#profileMenu::item {{ padding: 0; border-radius: 11px; }}
+    QMenu#profileMenu::separator {{ height: 1px; background: {tokens["border"]}; margin: 9px 8px; }}
     """

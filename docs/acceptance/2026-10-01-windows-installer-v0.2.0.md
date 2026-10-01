@@ -24,3 +24,7 @@
 | `SHA256SUMS.txt` | 101 | `fdea41c007aafe9ef1f3445edd0cda78f57f82c2ed870cb37006731143719967` |
 
 安装程序未签名，不包含 Ollama、模型权重、Tesseract OCR 或模型 API Key。安装后注册、登录与在线会话检查依赖认证服务和网络；本地模型需自行安装，云端模型需自行配置。
+
+## GitHub 发布核对
+
+[GitHub Release v0.2.0](https://github.com/Qorq-byte/RAG_db_test/releases/tag/v0.2.0) 已设为 Latest，非草稿、非预发布；标签指向构建提交 `4e5fd18942f00b4c96d70c857d61abe270ff4cfb`。安装程序和校验文件的远端状态均为 `uploaded`，GitHub 返回的大小与 `sha256:` 摘要逐项等于上表本地结果。v0.1.1 和 v0.1.0 发布记录保留。

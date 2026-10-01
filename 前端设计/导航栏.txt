@@ -1,0 +1,772 @@
+You are given a task to integrate an existing React component in the codebase
+
+The codebase should support:
+- shadcn project structure
+- Tailwind CSS
+- Typescript
+
+If it doesn't, provide instructions on how to setup project via shadcn CLI, install Tailwind or Typescript.
+
+Determine the default path for components and styles.
+If default path for components is not /components/ui, provide instructions on why it's important to create this folder
+Copy-paste this component to /components/ui folder:
+```tsx
+sidebar-001.tsx
+"use client";
+
+import * as React from "react";
+import {
+  createContext,
+  memo,
+  useCallback,
+  useContext,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import { motion, AnimatePresence } from "motion/react";
+import { ChevronRight } from "lucide-react";
+import { cn } from "@/lib/utils";
+
+const MotionChevron = motion.create(ChevronRight);
+
+const EFFECTS_KEY = "sidebar-001-effects";
+
+const EffectsContext = createContext<{ enabled: boolean; toggle: () => void }>({
+  enabled: true,
+  toggle: () => {},
+});
+
+function EffectsProvider({
+  children,
+  defaultEnabled = true,
+}: {
+  children: React.ReactNode;
+  defaultEnabled?: boolean;
+}) {
+  const [enabled, setEnabled] = useState(() => {
+    if (typeof window === "undefined") return defaultEnabled;
+    const stored = localStorage.getItem(EFFECTS_KEY);
+    return stored !== null ? stored === "true" : defaultEnabled;
+  });
+
+  const toggle = useCallback(() => {
+    setEnabled((prev) => {
+      const next = !prev;
+      localStorage.setItem(EFFECTS_KEY, String(next));
+      return next;
+    });
+  }, []);
+
+  const value = useMemo(() => ({ enabled, toggle }), [enabled, toggle]);
+  return (
+    <EffectsContext.Provider value={value}>{children}</EffectsContext.Provider>
+  );
+}
+
+export function useSidebar001Effects() {
+  return useContext(EffectsContext);
+}
+
+// ─── Hover context ────────────────────────────────────────────────────────────
+
+interface HoverRect {
+  top: number;
+  height: number;
+  left: number;
+}
+
+const HoverContext = createContext<{
+  hovered: string | null;
+  hoverRect: HoverRect | null;
+  containerRef: React.RefObject<HTMLDivElement | null>;
+  setHovered: (id: string | null, rect?: HoverRect | null) => void;
+}>({
+  hovered: null,
+  hoverRect: null,
+  containerRef: { current: null },
+  setHovered: () => {},
+});
+
+function HoverProvider({
+  children,
+  containerRef,
+}: {
+  children: React.ReactNode;
+  containerRef: React.RefObject<HTMLDivElement | null>;
+}) {
+  const [hovered, setHoveredId] = useState<string | null>(null);
+  const [hoverRect, setHoverRect] = useState<HoverRect | null>(null);
+
+  const setHovered = useCallback(
+    (id: string | null, rect?: HoverRect | null) => {
+      setHoveredId(id);
+      setHoverRect(rect ?? null);
+    },
+    [],
+  );
+
+  const value = useMemo(
+    () => ({ hovered, hoverRect, containerRef, setHovered }),
+    [hovered, hoverRect, containerRef, setHovered],
+  );
+
+  return (
+    <HoverContext.Provider value={value}>{children}</HoverContext.Provider>
+  );
+}
+
+// ─── Scroll to active ─────────────────────────────────────────────────────────
+
+function useScrollToActive(active: boolean) {
+  const ref = useRef<HTMLDivElement>(null);
+  const scrolled = useRef(false);
+
+  useEffect(() => {
+    if (!active || scrolled.current || !ref.current) return;
+    scrolled.current = true;
+    const el = ref.current;
+    const schedule =
+      typeof requestIdleCallback !== "undefined"
+        ? (cb: () => void) => requestIdleCallback(cb)
+        : (cb: () => void) => setTimeout(cb, 100);
+    const cancel =
+      typeof cancelIdleCallback !== "undefined"
+        ? cancelIdleCallback
+        : clearTimeout;
+    const id = schedule(() => {
+      const viewport = el.closest("[data-scroll-viewport]");
+      if (!(viewport instanceof HTMLElement)) return;
+      const vpRect = viewport.getBoundingClientRect();
+      const elRect = el.getBoundingClientRect();
+      const offset =
+        elRect.top - vpRect.top - vpRect.height / 2 + elRect.height / 2;
+      if (Math.abs(offset) > 40)
+        viewport.scrollBy({ top: offset, behavior: "smooth" });
+    });
+    return () => cancel(id as number);
+  }, [active]);
+
+  useEffect(() => {
+    if (!active) scrolled.current = false;
+  }, [active]);
+
+  return ref;
+}
+
+// ─── HoverHighlight ───────────────────────────────────────────────────────────
+
+function HoverHighlight() {
+  const { hoverRect, hovered } = useContext(HoverContext);
+  const { enabled } = useContext(EffectsContext);
+
+  return (
+    <AnimatePresence>
+      {enabled && hovered && hoverRect && (
+        <motion.div
+          key="sb001-hover-bg"
+          className="pointer-events-none absolute z-0 rounded-md bg-accent/50"
+          style={{ right: 0 }}
+          initial={false}
+          animate={{
+            top: hoverRect.top + 2,
+            height: hoverRect.height - 4,
+            left: hoverRect.left,
+            opacity: 1,
+          }}
+          exit={{ opacity: 0 }}
+          transition={{ type: "spring", stiffness: 300, damping: 30 }}
+        />
+      )}
+    </AnimatePresence>
+  );
+}
+
+// ─── Sidebar001Item ───────────────────────────────────────────────────────────
+
+export interface Sidebar001ItemProps {
+  href: string;
+  label: React.ReactNode;
+  isActive: boolean;
+  isNew?: boolean;
+  className?: string;
+  onClick?: React.MouseEventHandler<HTMLAnchorElement>;
+}
+
+export const Sidebar001Item = memo(function Sidebar001Item({
+  href,
+  label,
+  isActive,
+  isNew,
+  className,
+  onClick,
+}: Sidebar001ItemProps) {
+  const { hovered, setHovered, containerRef } = useContext(HoverContext);
+  const isHovered = hovered === href;
+  const itemRef = useScrollToActive(isActive);
+
+  const opacity = isActive
+    ? 1
+    : hovered !== null
+      ? isHovered
+        ? 1
+        : 0.3
+      : 0.55;
+  const x = isActive ? 8 : isHovered ? 6 : 0;
+
+  return (
+    <div className="relative">
+      {isActive && (
+        <motion.span
+          layoutId="sb001-active-bar"
+          className="pointer-events-none absolute z-10 left-[4px] top-1/2 h-[1.8px] -translate-y-1/2 rounded-full bg-accent-pro"
+          animate={{ width: 23 }}
+          transition={{ type: "spring", stiffness: 800, damping: 40 }}
+        />
+      )}
+
+      <motion.span
+        className="pointer-events-none absolute left-0 top-1/2 -translate-y-1/2 h-px bg-foreground/50"
+        animate={{ width: isActive ? 0 : isHovered ? 26 : 18 }}
+        transition={{ type: "spring", stiffness: 600, damping: 30 }}
+      />
+      <motion.span className="pointer-events-none absolute w-[13px] left-0 top-1/4 h-px bg-foreground/30" />
+      <motion.span className="pointer-events-none absolute w-[16px] left-0 top-0 h-px bg-foreground/30" />
+      <motion.span className="pointer-events-none absolute w-[13px] left-0 top-3/4 h-px bg-foreground/30" />
+
+      <motion.div
+        ref={itemRef}
+        animate={{ opacity, x }}
+        transition={{ type: "spring", stiffness: 700, damping: 30 }}
+        style={{ transformOrigin: "left center" }}
+      >
+        <a
+          href={href}
+          onClick={onClick}
+          onMouseEnter={() => {
+            const el = itemRef.current;
+            const container = containerRef.current;
+            if (el && container) {
+              const elRect = el.getBoundingClientRect();
+              const containerRect = container.getBoundingClientRect();
+              setHovered(href, {
+                top: elRect.top - containerRect.top,
+                height: elRect.height,
+                left: 25,
+              });
+            } else {
+              setHovered(href);
+            }
+          }}
+          onMouseLeave={() => setHovered(null)}
+          className={cn(
+            "relative flex items-center gap-2 ml-2 pl-4 py-1.5 text-sm select-none",
+            className,
+          )}
+        >
+          <span className="relative z-1 truncate">{label}</span>
+          {isNew && (
+            <span className="size-1.5 rounded-full bg-accent-pro shrink-0" />
+          )}
+        </a>
+      </motion.div>
+    </div>
+  );
+});
+
+// ─── Sidebar001Separator ──────────────────────────────────────────────────────
+
+export function Sidebar001Separator({
+  children,
+  className,
+}: {
+  children?: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <div
+      className={cn(
+        "px-0 py-3.5 mt-2 text-sm font-medium text-foreground/40",
+        className,
+      )}
+    >
+      {children}
+    </div>
+  );
+}
+
+// ─── Sidebar001Group ──────────────────────────────────────────────────────────
+
+export interface Sidebar001GroupProps {
+  label: React.ReactNode;
+  children: React.ReactNode;
+  defaultOpen?: boolean;
+  icon?: React.ReactNode;
+  className?: string;
+}
+
+export function Sidebar001Group({
+  label,
+  children,
+  defaultOpen = false,
+  icon,
+  className,
+}: Sidebar001GroupProps) {
+  const [isOpen, setIsOpen] = useState(false);
+  const id = useId();
+  const { setHovered, containerRef } = useContext(HoverContext);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    setIsOpen(defaultOpen);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const handleMouseEnter = useCallback(() => {
+    const el = buttonRef.current;
+    const container = containerRef.current;
+    if (el && container) {
+      const elRect = el.getBoundingClientRect();
+      const containerRect = container.getBoundingClientRect();
+      setHovered(id, {
+        top: elRect.top - containerRect.top,
+        height: elRect.height,
+        left: 0,
+      });
+    } else {
+      setHovered(id);
+    }
+  }, [id, setHovered, containerRef]);
+
+  const handleMouseLeave = useCallback(() => {
+    setHovered(null);
+  }, [setHovered]);
+
+  return (
+    <div className={cn("flex flex-col", className)}>
+      <button
+        ref={buttonRef}
+        type="button"
+        onClick={() => setIsOpen((v) => !v)}
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={handleMouseLeave}
+        className="relative z-1 flex items-center gap-1.5 py-1.5 pr-2 select-none text-left w-full group"
+      >
+        {icon ? (
+          <>
+            <span className="shrink-0 text-foreground/35 [&_svg]:size-3.5">
+              {icon}
+            </span>
+            <span className="text-sm text-foreground/45 group-hover:text-foreground/70 transition-colors duration-150 flex-1">
+              {label}
+            </span>
+            <MotionChevron
+              size={14}
+              strokeWidth={2.5}
+              className="shrink-0 text-foreground/25 mr-1"
+              animate={{ rotate: isOpen ? 90 : 0 }}
+              transition={{ type: "spring", stiffness: 500, damping: 30 }}
+            />
+          </>
+        ) : (
+          <>
+            <MotionChevron
+              size={11}
+              strokeWidth={2.5}
+              className="shrink-0 text-foreground/35"
+              animate={{ rotate: isOpen ? 90 : 0 }}
+              transition={{ type: "spring", stiffness: 500, damping: 30 }}
+            />
+            <span className="text-sm text-foreground/45 group-hover:text-foreground/70 transition-colors duration-150">
+              {label}
+            </span>
+          </>
+        )}
+      </button>
+
+      <AnimatePresence initial={false}>
+        {isOpen && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ type: "spring", stiffness: 420, damping: 34 }}
+            style={{ overflow: "hidden" }}
+          >
+            <div className="flex flex-col pl-3">{children}</div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+// ─── Sidebar001Section ────────────────────────────────────────────────────────
+
+export function Sidebar001Section({
+  label,
+  children,
+  className,
+}: {
+  label?: React.ReactNode;
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <div className={cn("flex flex-col", className)}>
+      {label && <Sidebar001Separator>{label}</Sidebar001Separator>}
+      {children}
+    </div>
+  );
+}
+
+// ─── Sidebar001Content ────────────────────────────────────────────────────────
+
+export function Sidebar001Content({
+  children,
+  className,
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
+  const containerRef = useContext(HoverContext).containerRef;
+
+  return (
+    <div
+      className={cn("flex-1 overflow-y-auto py-4 no-scrollbar", className)}
+      data-scroll-viewport
+    >
+      <div ref={containerRef} className="relative px-1">
+        <HoverHighlight />
+        {children}
+      </div>
+    </div>
+  );
+}
+
+// ─── Sidebar001 (with resize) ─────────────────────────────────────────────────
+
+export interface Sidebar001Props {
+  children: React.ReactNode;
+  className?: string;
+  defaultEffectsEnabled?: boolean;
+  /** Initial width in px. Default: 240 */
+  defaultWidth?: number;
+  /** Min resize width in px. Default: 160 */
+  minWidth?: number;
+  /** Max resize width in px. Default: 400 */
+  maxWidth?: number;
+}
+
+export function Sidebar001({
+  children,
+  className,
+  defaultEffectsEnabled = true,
+  defaultWidth = 240,
+  minWidth = 160,
+  maxWidth = 400,
+}: Sidebar001Props) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [width, setWidth] = useState(defaultWidth);
+  const dragging = useRef(false);
+  const startX = useRef(0);
+  const startW = useRef(0);
+
+  const onPointerDown = useCallback(
+    (e: React.PointerEvent) => {
+      e.preventDefault();
+      dragging.current = true;
+      startX.current = e.clientX;
+      startW.current = width;
+      (e.target as HTMLElement).setPointerCapture(e.pointerId);
+    },
+    [width],
+  );
+
+  const onPointerMove = useCallback(
+    (e: React.PointerEvent) => {
+      if (!dragging.current) return;
+      const next = Math.min(
+        maxWidth,
+        Math.max(minWidth, startW.current + e.clientX - startX.current),
+      );
+      setWidth(next);
+    },
+    [minWidth, maxWidth],
+  );
+
+  const onPointerUp = useCallback(() => {
+    dragging.current = false;
+  }, []);
+
+  return (
+    <EffectsProvider defaultEnabled={defaultEffectsEnabled}>
+      <HoverProvider containerRef={containerRef}>
+        <aside
+          className={cn(
+            "relative flex flex-col h-full shrink-0 bg-background",
+            className,
+          )}
+          style={{ width }}
+        >
+          {children}
+
+          {/* Resize handle */}
+          <div
+            className="absolute top-0 right-0 h-full w-1 cursor-col-resize group/handle z-20"
+            onPointerDown={onPointerDown}
+            onPointerMove={onPointerMove}
+            onPointerUp={onPointerUp}
+          >
+            <div className="absolute right-0 top-0 h-full w-px bg-border/50 group-hover/handle:bg-border transition-colors duration-150" />
+          </div>
+        </aside>
+      </HoverProvider>
+    </EffectsProvider>
+  );
+}
+
+// ─── Sidebar001Header ─────────────────────────────────────────────────────────
+
+export function Sidebar001Header({
+  children,
+  className,
+}: {
+  children?: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <div className={cn("shrink-0 px-3 pt-4 pb-2", className)}>{children}</div>
+  );
+}
+
+// ─── Sidebar001Footer ─────────────────────────────────────────────────────────
+
+export function Sidebar001Footer({
+  children,
+  className,
+}: {
+  children?: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <div
+      className={cn(
+        "shrink-0 px-3 pb-4 pt-2 border-t border-border/50",
+        className,
+      )}
+    >
+      {children}
+    </div>
+  );
+}
+
+export default Sidebar001;
+
+
+demo.tsx
+"use client";
+
+import {
+  Sidebar001,
+  Sidebar001Content,
+  Sidebar001Footer,
+  Sidebar001Group,
+  Sidebar001Header,
+  Sidebar001Item,
+  Sidebar001Section,
+} from "@/components/ui/sidebar-001";
+import * as React from "react";
+import { Bell, BookMarked, Layers } from "lucide-react";
+
+const NAV = [
+  {
+    label: "Getting Started",
+    items: [
+      { href: "/docs/introduction", label: "Introduction" },
+      { href: "/docs/installation", label: "Installation" },
+      { href: "/docs/theming", label: "Theming", isNew: true },
+      { href: "/docs/changelog", label: "Changelog" },
+      { href: "/docs/faq", label: "FAQ" },
+    ],
+  },
+  {
+    label: "Components",
+    items: [
+      { href: "/docs/button", label: "Button" },
+      { href: "/docs/card", label: "Card" },
+      { href: "/docs/input", label: "Input", isNew: true },
+      { href: "/docs/tabs", label: "Tabs" },
+      { href: "/docs/badge", label: "Badge" },
+      { href: "/docs/avatar", label: "Avatar" },
+    ],
+    groups: [
+      {
+        label: "Overlays",
+        defaultOpen: true,
+        icon: <Layers />,
+        items: [
+          { href: "/docs/dialog", label: "Dialog" },
+          { href: "/docs/drawer", label: "Drawer", isNew: true },
+          { href: "/docs/popover", label: "Popover" },
+          { href: "/docs/tooltip", label: "Tooltip" },
+          { href: "/docs/dropdown", label: "Dropdown" },
+          { href: "/docs/modal", label: "Modal" },
+        ],
+      },
+      {
+        label: "Feedback",
+        defaultOpen: false,
+        icon: <Bell />,
+        items: [
+          { href: "/docs/toast", label: "Toast", isNew: true },
+          { href: "/docs/alert", label: "Alert" },
+          { href: "/docs/progress", label: "Progress" },
+          { href: "/docs/skeleton", label: "Skeleton" },
+          { href: "/docs/spinner", label: "Spinner" },
+        ],
+      },
+    ],
+  },
+  {
+    label: "Utilities",
+    items: [
+      { href: "/docs/animations", label: "Animations" },
+      { href: "/docs/colors", label: "Colors" },
+      { href: "/docs/typography", label: "Typography" },
+      { href: "/docs/spacing", label: "Spacing" },
+    ],
+  },
+  {
+    label: "Resources",
+    items: [
+      { href: "/docs/accessibility", label: "Accessibility" },
+      { href: "/docs/performance", label: "Performance" },
+      { href: "/docs/best-practices", label: "Best Practices" },
+      { href: "/docs/examples", label: "Examples" },
+    ],
+  },
+];
+
+export default function Sidebar001Demo() {
+  const [active, setActive] = React.useState("/docs/introduction");
+
+  return (
+    <div className="flex h-full w-full overflow-hidden bg-background">
+      <Sidebar001>
+        <Sidebar001Header>
+          <div className="flex items-center gap-2">
+            <BookMarked size={18} />
+            <span className="text-base font-semibold text-foreground">
+              Docs
+            </span>
+          </div>
+        </Sidebar001Header>
+        <Sidebar001Content>
+          {NAV.map((section) => (
+            <Sidebar001Section key={section.label} label={section.label}>
+              {section.items.map((item) => (
+                <Sidebar001Item
+                  key={item.href}
+                  href={item.href}
+                  label={item.label}
+                  isActive={active === item.href}
+                  isNew={item.isNew}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    setActive(item.href);
+                  }}
+                />
+              ))}
+              {section.groups?.map((group) => (
+                <Sidebar001Group
+                  key={group.label}
+                  label={group.label}
+                  defaultOpen={group.defaultOpen}
+                  icon={group.icon}
+                >
+                  {group.items.map((item) => (
+                    <Sidebar001Item
+                      key={item.href}
+                      href={item.href}
+                      label={item.label}
+                      isActive={active === item.href}
+                      isNew={item.isNew}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        setActive(item.href);
+                      }}
+                    />
+                  ))}
+                </Sidebar001Group>
+              ))}
+            </Sidebar001Section>
+          ))}
+        </Sidebar001Content>
+        <Sidebar001Footer>
+          <span className="text-xs text-foreground/40">v1.0.0</span>
+        </Sidebar001Footer>
+      </Sidebar001>
+
+      <div className="flex-1 flex flex-col gap-4 p-8 border-l border-border/50 overflow-y-auto no-scrollbar">
+        <div className="h-5 w-32 rounded bg-foreground/8" />
+        <div className="h-8 w-64 rounded bg-foreground/10" />
+        <div className="flex flex-col gap-2 mt-2">
+          <div className="h-3 w-full rounded bg-foreground/6" />
+          <div className="h-3 w-5/6 rounded bg-foreground/6" />
+          <div className="h-3 w-4/6 rounded bg-foreground/6" />
+        </div>
+        <div className="h-24 w-full rounded-lg bg-foreground/5 mt-2" />
+        <div className="flex flex-col gap-2 mt-2">
+          <div className="h-3 w-full rounded bg-foreground/6" />
+          <div className="h-3 w-3/4 rounded bg-foreground/6" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+```
+
+Install NPM dependencies:
+```bash
+motion, lucide-react
+```
+
+Extend existing Tailwind 4 index.css with this code (or if project uses Tailwind 3, extend tailwind.config.js or globals.css):
+```css
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@theme inline {
+  --color-accent-pro: var(--accent-pro);
+}
+
+:root {
+  --accent-pro: #f12e54;
+}
+
+.dark {
+  --accent-pro: #f12e54;
+}
+
+```
+
+Implementation Guidelines
+ 1. Analyze the component structure and identify all required dependencies
+ 2. Review the component's argumens and state
+ 3. Identify any required context providers or hooks and install them
+ 4. Questions to Ask
+ - What data/props will be passed to this component?
+ - Are there any specific state management requirements?
+ - Are there any required assets (images, icons, etc.)?
+ - What is the expected responsive behavior?
+ - What is the best place to use this component in the app?
+
+Steps to integrate
+ 0. Copy paste all the code above in the correct directories
+ 1. Install external dependencies
+ 2. Fill image assets with Unsplash stock images you know exist
+ 3. Use lucide-react icons for svgs or logos if component requires them

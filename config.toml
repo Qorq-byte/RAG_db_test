@@ -3,6 +3,12 @@
 provider = "ollama"
 ollama_model = "embeddinggemma:latest"
 ollama_base_url = "http://127.0.0.1:11434"
+local_model = "BAAI/bge-small-zh-v1.5"
+ollama_timeout_seconds = 120.0
+cloud_model = "qwen3.7-text-embedding-flash"
+cloud_base_url = "https://ws-0fjy3d6lhhxhctuy.cn-beijing.maas.aliyuncs.com/compatible-mode/v1"
+cloud_timeout_seconds = 30.0
+batch_size = 14
 
 [chat]
 provider = "cloud"

@@ -16,12 +16,13 @@ from PySide6.QtWidgets import (
 
 from ragdb.desktop.theme import ThemeManager, ThemeMode, DARK, LIGHT
 from ragdb.desktop.sidebar_fan import FanCarousel
+from ragdb.desktop.profile import ProfileButton
 
 
 NAV_GROUPS = (
     ("知识库", (("⌂", "概览", 0), ("▤", "集合与资料", 1), ("⌕", "检索", 2))),
     ("学习", (("◇", "问答", 3), ("☆", "学习产物", 4))),
-    ("系统", (("⚙", "任务与诊断", 5), ("◈", "模型设置", 6))),
+    ("系统", (("⚙", "任务与诊断", 5),)),
 )
 
 
@@ -173,6 +174,7 @@ class SidebarWidget(QWidget):
     user_collapsed_changed = Signal(bool)
     width_adjusted = Signal(int)
     footer_visibility_changed = Signal(bool)
+    profile_requested = Signal()
 
     def __init__(
         self,
@@ -196,11 +198,10 @@ class SidebarWidget(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(12, 14, 12, 14)
         layout.setSpacing(5)
+        self.profile_button = ProfileButton(self)
+        self.profile_button.clicked.connect(self.profile_requested)
+        layout.addWidget(self.profile_button)
         top = QHBoxLayout()
-        self.brand = QLabel("RAG DB")
-        self.brand.setStyleSheet(
-            "font-size: 17px; font-weight: 700; letter-spacing: 1px;"
-        )
         self.collection_count = QLabel("0")
         self.collection_count.setProperty("navCount", True)
         self.collection_count.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -211,15 +212,14 @@ class SidebarWidget(QWidget):
         self.toggle.setToolTip("折叠导航")
         self.toggle.setAccessibleName("折叠导航栏")
         self.toggle.clicked.connect(self.toggle_collapsed)
-        top.addWidget(self.brand)
         top.addWidget(self.collection_count)
         top.addStretch()
         top.addWidget(self.toggle)
         layout.addLayout(top)
         self.collection = QLabel("未选择集合")
         self.collection.setProperty("muted", True)
-        layout.addWidget(self.collection)
-        layout.addSpacing(12)
+        self.collection.hide()
+        layout.addSpacing(8)
         self.group_labels, self.buttons = [], []
         for group, items in NAV_GROUPS:
             heading = QLabel(group.upper())
@@ -312,9 +312,8 @@ class SidebarWidget(QWidget):
         self._collapsed = collapsed
         self._update_footer()
         target = 68 if collapsed else self._expanded_width
-        self.brand.setText("R" if collapsed else "RAG DB")
+        self.profile_button.set_collapsed(collapsed)
         self.collection_count.setVisible(not collapsed)
-        self.collection.setVisible(not collapsed)
         self.resize_handle.setVisible(not collapsed)
         self.toggle.setText("›" if collapsed else "‹")
         for label in self.group_labels:
@@ -348,6 +347,7 @@ class SidebarWidget(QWidget):
 
     def update_motion_preference(self, _mode, reduce_motion):
         self.reduce_motion = reduce_motion
+        self.profile_button.set_dark_mode(_mode == ThemeMode.DARK.value)
         self.footer.canvas.set_reduce_motion(reduce_motion)
         self.footer.set_dark_mode(_mode == ThemeMode.DARK.value)
         for button in self.buttons:

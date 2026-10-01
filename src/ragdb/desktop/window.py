@@ -9,6 +9,7 @@ from PySide6.QtWidgets import (
     QInputDialog,
     QLabel,
     QMainWindow,
+    QMenu,
     QPushButton,
     QSplitter,
     QStackedWidget,
@@ -24,6 +25,7 @@ from ragdb.desktop.components import DetailPanel
 from ragdb.desktop.navigation import SidebarWidget, TopBar
 from ragdb.desktop.theme import ThemeManager
 from ragdb.desktop.chat_widgets import ConversationView
+from ragdb.desktop.profile import ProfileDialog, ProfileStore
 
 
 PAGES = ("概览", "集合与资料", "检索", "问答", "学习产物", "任务与诊断", "模型设置")
@@ -49,10 +51,16 @@ class CollectionContext(QWidget):
 
 class MainWindow(QMainWindow):
     logout_requested = Signal()
+    account_deletion_requested = Signal(str)
 
-    def __init__(self, runtime=None, theme_manager: ThemeManager | None = None) -> None:
+    def __init__(self, runtime=None, theme_manager: ThemeManager | None = None,
+                 session=None) -> None:
         super().__init__()
         self.runtime = runtime
+        self.session = session
+        self.account_email = session.email if session is not None else ""
+        account_dir = getattr(getattr(runtime, "settings", None), "storage", None)
+        self.profile_store = ProfileStore(account_dir.data_dir if account_dir is not None else None)
         self.theme_manager = theme_manager or ThemeManager()
         self.setWindowTitle("ragdb 学习工作台")
         self.resize(1280, 800)
@@ -139,6 +147,7 @@ class MainWindow(QMainWindow):
         root_layout.addWidget(content, 1)
         self.setCentralWidget(root)
         self.navigation.page_selected.connect(self.select_page)
+        self._create_profile_menu()
         self.navigation.user_collapsed_changed.connect(
             self.theme_manager.set_sidebar_collapsed
         )
@@ -160,6 +169,55 @@ class MainWindow(QMainWindow):
         self.logout_button.setAccessibleName("退出当前账号")
         self.logout_button.clicked.connect(self.logout_requested.emit)
         self.statusBar().addPermanentWidget(self.logout_button)
+
+    def _create_profile_menu(self) -> None:
+        self.profile_menu = QMenu(self)
+        self.profile_menu.setObjectName("profileMenu")
+        self.profile_menu.setMinimumWidth(270)
+        self.profile_action = self.profile_menu.addAction("个人资料")
+        self.model_action = self.profile_menu.addAction("模型")
+        self.settings_action = self.profile_menu.addAction("设置")
+        self.profile_menu.addSeparator()
+        self.signout_action = self.profile_menu.addAction("退出登录")
+        self.profile_action.triggered.connect(self.open_profile)
+        self.model_action.triggered.connect(lambda: self.navigation.select_page(6))
+        self.settings_action.triggered.connect(self.open_account_settings)
+        self.signout_action.triggered.connect(self.logout_requested.emit)
+        self.profile_menu.aboutToShow.connect(self._refresh_profile_menu)
+        self.navigation.profile_requested.connect(self._show_profile_menu)
+        self._refresh_profile_button()
+
+    def _refresh_profile_button(self) -> None:
+        self.navigation.profile_button.set_profile(
+            self.profile_store.load(), self.account_email, self.profile_store.avatar()
+        )
+
+    def _refresh_profile_menu(self) -> None:
+        settings = getattr(self.runtime, "settings", None)
+        if settings is not None:
+            from ragdb.desktop.model_settings_page import model_caption
+            self.model_action.setText(f"模型   ·   {model_caption(settings.chat)}")
+        else:
+            self.model_action.setText("模型")
+
+    def _show_profile_menu(self) -> None:
+        button = self.navigation.profile_button
+        self.profile_menu.popup(button.mapToGlobal(button.rect().bottomLeft()))
+
+    def open_profile(self) -> None:
+        dialog = ProfileDialog(self.profile_store, self.account_email, self)
+        dialog.saved.connect(lambda _profile: self._refresh_profile_button())
+        dialog.exec()
+
+    def open_account_settings(self) -> None:
+        from ragdb.desktop.account_settings import AccountSettingsDialog
+
+        auth_settings = getattr(getattr(self.runtime, "settings", None), "auth", None)
+        dialog = AccountSettingsDialog(self.theme_manager, self.account_email,
+                                       auth_settings, self)
+        dialog.logout_requested.connect(self.logout_requested.emit)
+        dialog.delete_requested.connect(self.account_deletion_requested.emit)
+        dialog.exec()
 
     def select_page(self, index: int) -> None:
         self.pages.setCurrentIndex(index)

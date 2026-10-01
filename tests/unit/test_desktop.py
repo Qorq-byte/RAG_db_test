@@ -30,7 +30,7 @@ APPLICATION = QApplication.instance() or QApplication([])
 def test_main_window_exposes_all_workbench_pages() -> None:
     window = MainWindow()
 
-    assert len(window.navigation.buttons) == len(PAGES)
+    assert len(window.navigation.buttons) == len(PAGES) - 1  # 模型页改由个人菜单进入
     assert window.pages.count() == len(PAGES)
     window.navigation.select_page(3)
     assert window.pages.currentIndex() == 3

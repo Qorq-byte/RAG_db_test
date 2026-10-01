@@ -8,7 +8,7 @@ from uuid import UUID
 import httpx
 import pytest
 
-from ragdb.auth import AuthError, AuthService, account_settings
+from ragdb.auth import AuthError, AuthService, account_settings, delete_local_account_data
 from ragdb.config import AppSettings, AuthSettings, StorageSettings
 
 
@@ -186,3 +186,53 @@ def test_each_account_has_its_own_data_directory():
     assert first.storage.data_dir != second.storage.data_dir
     assert settings.storage.data_dir == base
     assert first.storage.data_dir.parent == base / "accounts"
+
+
+def test_account_deletion_requires_verified_session_and_server_confirmation():
+    session = type("Session", (), {"user_id": UUID(USER_ID), "email": "a@example.com",
+                                    "access_token": "access"})()
+    calls = []
+
+    def handler(request):
+        calls.append(request.url.path)
+        assert request.headers["authorization"] == "Bearer access"
+        if request.url.path.endswith("/user"):
+            return httpx.Response(200, json={"id": USER_ID, "email": "a@example.com",
+                                             "email_confirmed_at": "2026-10-01T00:00:00Z"})
+        assert request.url.path == "/functions/v1/delete-account"
+        assert json.loads(request.content) == {"code": "12345678"}
+        return httpx.Response(200, json={"deleted": True})
+
+    service(handler).delete_account(session, "12345678")
+    assert calls == ["/auth/v1/user", "/functions/v1/delete-account"]
+
+
+def test_account_deletion_failure_does_not_remove_local_data(tmp_path):
+    account = tmp_path / "accounts" / USER_ID
+    account.mkdir(parents=True)
+    (account / "notes.txt").write_text("keep", encoding="utf-8")
+    session = type("Session", (), {"user_id": UUID(USER_ID), "email": "a@example.com",
+                                    "access_token": "access"})()
+
+    def handler(request):
+        if request.url.path.endswith("/user"):
+            return httpx.Response(200, json={"id": USER_ID, "email": "a@example.com",
+                                             "email_confirmed_at": "2026-10-01T00:00:00Z"})
+        return httpx.Response(404, json={})
+
+    with pytest.raises(AuthError, match="尚未部署"):
+        service(handler).delete_account(session, "12345678")
+    assert (account / "notes.txt").read_text(encoding="utf-8") == "keep"
+
+
+def test_local_cleanup_removes_only_target_account(tmp_path):
+    first = tmp_path / "accounts" / USER_ID
+    second_id = UUID("96015409-ccce-458e-95ad-e2a86251f455")
+    second = tmp_path / "accounts" / str(second_id)
+    first.mkdir(parents=True)
+    second.mkdir(parents=True)
+    (first / "notes.txt").write_text("remove", encoding="utf-8")
+    (second / "notes.txt").write_text("keep", encoding="utf-8")
+    delete_local_account_data(tmp_path, UUID(USER_ID))
+    assert not first.exists()
+    assert (second / "notes.txt").read_text(encoding="utf-8") == "keep"

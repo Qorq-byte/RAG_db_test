@@ -6,9 +6,9 @@ from pathlib import Path
 import argparse
 
 from PySide6.QtCore import QThreadPool, QTimer
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QMessageBox
 
-from ragdb.auth import AuthService, account_settings
+from ragdb.auth import AuthService, account_settings, delete_local_account_data
 from ragdb.config import load_settings
 from ragdb.desktop.auth_page import AuthPage
 from ragdb.desktop.startup import WelcomeWindow
@@ -50,7 +50,7 @@ def main() -> int:
         def create_workbench(runtime, manager):
             from ragdb.desktop.window import MainWindow
 
-            workbench = MainWindow(runtime, manager)
+            workbench = MainWindow(runtime, manager, session=state["session"])
             session_timer = QTimer(workbench)
             session_timer.setInterval(5 * 60 * 1000)
 
@@ -120,6 +120,60 @@ def main() -> int:
                 QThreadPool.globalInstance().start(task)
 
             workbench.logout_requested.connect(logout)
+
+            def delete_account(code: str):
+                if state["task"] is not None:
+                    workbench.statusBar().showMessage("请等待当前账号操作完成后再注销。")
+                    return
+                session_timer.stop()
+                application.setQuitOnLastWindowClosed(False)
+                if not workbench.close():
+                    application.setQuitOnLastWindowClosed(True)
+                    session_timer.start()
+                    workbench.statusBar().showMessage("请先结束正在进行的任务，再注销账号。")
+                    return
+
+                def remove():
+                    auth = AuthService(settings.auth)
+                    try:
+                        verified = auth.restore()
+                        if verified.user_id != state["session"].user_id:
+                            raise RuntimeError("登录账号已变更，请重新登录后重试。")
+                        auth.delete_account(verified, code)
+                        warnings = []
+                        try:
+                            auth.sign_out()
+                        except Exception:
+                            warnings.append("本机登录凭据未能清除，请在系统凭据库中手工移除。")
+                    finally:
+                        auth.close()
+                    try:
+                        delete_local_account_data(settings.storage.data_dir, verified.user_id)
+                    except OSError:
+                        warnings.append("本机账号资料未能完全删除，请手工检查该账号的数据目录。")
+                    return warnings
+
+                task = BackgroundTask("delete-account", remove)
+                state["task"] = task
+
+                def completed(_token, warnings):
+                    state["again"] = True
+                    if warnings:
+                        QMessageBox.warning(None, "账号已删除", "服务端账号已删除。" + " ".join(warnings))
+                    application.quit()
+
+                def failed(_token, error):
+                    workbench.show()
+                    application.setQuitOnLastWindowClosed(True)
+                    session_timer.start()
+                    workbench.statusBar().showMessage(error)
+
+                task.signals.succeeded.connect(completed)
+                task.signals.failed.connect(failed)
+                task.signals.finished.connect(lambda _token: state.update(task=None))
+                QThreadPool.globalInstance().start(task)
+
+            workbench.account_deletion_requested.connect(delete_account)
             return workbench
 
         window = WelcomeWindow(

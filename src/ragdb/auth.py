@@ -6,8 +6,10 @@ import json
 import base64
 import hashlib
 import re
+import shutil
 import time
 from dataclasses import dataclass
+from pathlib import Path
 from urllib.parse import urlparse
 from uuid import UUID
 
@@ -47,6 +49,21 @@ def account_settings(settings: AppSettings, user_id: UUID) -> AppSettings:
         update={"data_dir": settings.storage.data_dir / "accounts" / str(user_id)}
     )
     return settings.model_copy(update={"storage": storage})
+
+
+def delete_local_account_data(base_data_dir: Path, user_id: UUID) -> None:
+    """Remove exactly one account directory after server-side deletion succeeds."""
+    root = base_data_dir.resolve()
+    accounts = root / "accounts"
+    target = accounts / str(user_id)
+    if (accounts.exists() and accounts.is_symlink()) or target.is_symlink():
+        raise OSError("账号数据目录包含符号链接，已停止清理。")
+    resolved_accounts = accounts.resolve()
+    resolved_target = target.resolve()
+    if resolved_accounts.parent != root or resolved_target.parent != resolved_accounts:
+        raise OSError("账号数据目录不在预期位置，已停止清理。")
+    if target.exists():
+        shutil.rmtree(target)
 
 
 class AuthService:
@@ -188,6 +205,35 @@ class AuthService:
             self._request("POST", "logout", token=pending.access_token)
         except AuthError:
             pass
+
+    def delete_account(self, session: AuthSession, code: str) -> None:
+        """Ask the protected Edge Function to verify email OTP and remove this account."""
+        token = code.strip()
+        if not re.fullmatch(r"[0-9]{6,32}", token):
+            raise AuthError("请输入邮件中的完整数字验证码。")
+        user_id, email = self._verified_user(self._request("GET", "user", token=session.access_token))
+        if user_id != session.user_id or email.casefold() != session.email.casefold():
+            raise AuthError("当前登录账号已变更，请重新登录。")
+        try:
+            response = self.client.post(
+                f"{self.url}/functions/v1/delete-account",
+                headers={"Authorization": f"Bearer {session.access_token}"},
+                json={"code": token},
+            )
+        except httpx.RequestError as exc:
+            raise AuthError("账号删除服务暂时无法连接，本机资料未删除。") from exc
+        if response.status_code == 404:
+            raise AuthError("账号删除服务尚未部署，本机资料未删除。")
+        if response.status_code in (400, 401, 403):
+            raise AuthError("验证码错误或已过期，账号及本机资料均未删除。")
+        if response.is_error:
+            raise AuthError("服务端账号删除失败，本机资料未删除，请稍后重试。")
+        try:
+            result = response.json()
+        except ValueError as exc:
+            raise AuthError("账号删除服务返回了无效响应，请检查账号状态。") from exc
+        if not isinstance(result, dict) or result.get("deleted") is not True:
+            raise AuthError("账号删除服务未确认完成，请检查账号状态。")
 
     def sign_in(self, email: str, password: str) -> AuthSession:
         if not email.strip() or not password:

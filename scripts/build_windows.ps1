@@ -16,6 +16,6 @@ if ($LASTEXITCODE -ne 0) { throw 'PyInstaller build failed' }
 if ($LASTEXITCODE -ne 0) { throw 'Frozen package integration check failed' }
 & $InnoCompiler packaging/installer.iss
 if ($LASTEXITCODE -ne 0) { throw 'Installer build failed' }
-Get-FileHash ./dist/RAGDB-0.1.1-windows-x64-setup.exe -Algorithm SHA256 |
-    ForEach-Object { "$($_.Hash.ToLower())  RAGDB-0.1.1-windows-x64-setup.exe" } |
+Get-FileHash ./dist/RAGDB-0.2.0-windows-x64-setup.exe -Algorithm SHA256 |
+    ForEach-Object { "$($_.Hash.ToLower())  RAGDB-0.2.0-windows-x64-setup.exe" } |
     Set-Content ./dist/SHA256SUMS.txt -Encoding ascii

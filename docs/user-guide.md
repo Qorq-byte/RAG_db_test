@@ -1,6 +1,6 @@
 # RAGDB 进阶使用指南
 
-适用于 v0.1.1 安装版及后续源码；邮箱认证仅在后续源码中，尚未更新安装包。初次使用请先阅读 [README 的桌面入门流程](../README.md#桌面使用教程)。本文保留配置、CLI、桌面交互和索引维护细节。
+适用于 v0.2.0 安装版及当前源码。初次使用请先阅读 [README 的桌面入门流程](../README.md#桌面使用教程)。本文保留配置、CLI、桌面交互和索引维护细节。
 
 ## 要求与安装
 
@@ -329,10 +329,10 @@ uv run ragdb evaluate run my-report.json --dataset labels.json --collection 我�
 
 ### Windows 安装版
 
-当前版本 **v0.1.1** 已包含模型连接与密钥保存、实时问答、会话管理、集合切换、导入记录、概览刷新和嵌入接口修复。旧版 v0.1.0 的连接测试后密钥草稿丢失问题已修复。
+当前版本 **v0.2.0** 包含模型连接与密钥保存、实时问答、会话管理、导入记录、概览刷新、邮箱认证和账号管理。旧版 v0.1.0 的连接测试后密钥草稿丢失问题已修复。
 
-从 [GitHub Release v0.1.1](https://github.com/Qorq-byte/RAG_db_test/releases/tag/v0.1.1) 获取[Windows x64安装包](https://github.com/Qorq-byte/RAG_db_test/releases/download/v0.1.1/RAGDB-0.1.1-windows-x64-setup.exe)和[SHA256校验文件](https://github.com/Qorq-byte/RAG_db_test/releases/download/v0.1.1/SHA256SUMS.txt)。关闭旧版 RAGDB 后运行安装程序，沿用原安装目录，无需先卸载；默认用户配置和知识库目录保留。安装后从开始菜单打开 RAGDB，无需另装Python或项目虚拟环境。安装目录内的 `RAGDB-CLI.exe` 提供同一套CLI命令。文件大小、校验值及验证边界见[v0.1.1安装包验收](acceptance/2026-09-27-windows-installer-v0.1.1.md)。
+从 [GitHub Release v0.2.0](https://github.com/Qorq-byte/RAG_db_test/releases/tag/v0.2.0) 获取[Windows x64安装包](https://github.com/Qorq-byte/RAG_db_test/releases/download/v0.2.0/RAGDB-0.2.0-windows-x64-setup.exe)和[SHA256校验文件](https://github.com/Qorq-byte/RAG_db_test/releases/download/v0.2.0/SHA256SUMS.txt)。关闭旧版 RAGDB 后运行安装程序，沿用原安装目录，无需先卸载；默认用户配置和旧知识库目录保留。v0.2.0 按账号建立独立本机资料目录，旧版未归属账号的资料不会自动迁移。安装后从开始菜单打开 RAGDB，无需另装 Python 或项目虚拟环境。安装目录内的 `RAGDB-CLI.exe` 提供同一套 CLI 命令。文件大小、校验值及验证边界见[v0.2.0 安装包验收](acceptance/2026-10-01-windows-installer-v0.2.0.md)。
 
-程序默认安装到 `%LOCALAPPDATA%/Programs/RAGDB`，配置和资料存放在 `%LOCALAPPDATA%/RAGDB`。卸载保留资料目录。初始嵌入配置为 Ollama `embeddinggemma:latest`；需要本机Ollama服务及已安装模型，也可在模型设置页选择其他本地模型或云端服务。模型权重、OCR程序和API密钥不随安装包分发。恢复库可用 `RAGDB.exe --config D:/restored-library/config.toml` 打开。
+程序默认安装到 `%LOCALAPPDATA%/Programs/RAGDB`，配置和资料存放在 `%LOCALAPPDATA%/RAGDB`。卸载保留资料目录。安装版提供公开的注册认证客户端配置；旧配置的认证两项均为空时，运行期间自动补用内置公开配置而不写回文件。初始嵌入配置为 Ollama `embeddinggemma:latest`；需要本机 Ollama 服务及已安装模型，也可在个人菜单 → 模型中选择其他本地模型或云端服务。模型权重、OCR 程序和模型 API 密钥不随安装包分发。恢复库可用 `RAGDB.exe --config D:/restored-library/config.toml` 打开。
 
 复现构建：安装Inno Setup后执行 `./scripts/build_windows.ps1 -InnoCompiler "完整ISCC.exe路径"`。开发环境正在使用时，可加 `-EnvironmentPath "独立构建环境目录"`。生成安装程序及 `SHA256SUMS.txt`；细节和安装/卸载证据见验收记录。

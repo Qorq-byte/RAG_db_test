@@ -4,11 +4,9 @@
 
 RAGDB 是一个使用 **Python + PySide6** 构建的桌面 RAG（检索增强生成）系统，同时提供命令行工具。你可以先导入自己的资料，再检索原文、围绕资料提问，或生成摘要、提纲、练习题和知识卡片。知识库保存在本机，嵌入模型与问答模型可分别配置为本地或云端服务。
 
-**已发布安装包：v0.1.1 · Windows x64 · 项目状态更新：2026-10-01**
+**当前版本：v0.2.0 · Windows x64 · 项目状态更新：2026-10-01**
 
-当前 `main` 源码已加入邮箱账号、个人资料菜单和永久注销，下一版安装包正在构建与验证。
-
-[下载安装包](https://github.com/Qorq-byte/RAG_db_test/releases/download/v0.1.1/RAGDB-0.1.1-windows-x64-setup.exe) · [发布说明与校验文件](https://github.com/Qorq-byte/RAG_db_test/releases/tag/v0.1.1) · [进阶使用指南](docs/user-guide.md) · [项目进度](task_plan.md)
+[下载安装包](https://github.com/Qorq-byte/RAG_db_test/releases/download/v0.2.0/RAGDB-0.2.0-windows-x64-setup.exe) · [发布说明与校验文件](https://github.com/Qorq-byte/RAG_db_test/releases/tag/v0.2.0) · [进阶使用指南](docs/user-guide.md) · [项目进度](task_plan.md)
 
 ## 项目演示
 
@@ -64,7 +62,7 @@ RAGDB 是一个使用 **Python + PySide6** 构建的桌面 RAG（检索增强生
 
 ### Windows 安装版（普通用户）
 
-1. 从 [v0.1.1 发布页](https://github.com/Qorq-byte/RAG_db_test/releases/tag/v0.1.1)下载 `RAGDB-0.1.1-windows-x64-setup.exe`。
+1. 从 [v0.2.0 发布页](https://github.com/Qorq-byte/RAG_db_test/releases/tag/v0.2.0)下载 `RAGDB-0.2.0-windows-x64-setup.exe`。
 2. 关闭正在运行的旧版 RAGDB，运行安装程序。升级时沿用原安装目录，无需先卸载；重要资料建议先备份。
 3. 从开始菜单打开 **RAGDB**。安装包包含 Python 运行环境，但不包含模型权重、Ollama、Tesseract 或 API Key。
 
@@ -73,10 +71,10 @@ RAGDB 是一个使用 **Python + PySide6** 构建的桌面 RAG（检索增强生
 校验下载文件：
 
 ```powershell
-Get-FileHash .\RAGDB-0.1.1-windows-x64-setup.exe -Algorithm SHA256
+Get-FileHash .\RAGDB-0.2.0-windows-x64-setup.exe -Algorithm SHA256
 ```
 
-将结果与同一发布页的 `SHA256SUMS.txt` 比对。安装包目前未做代码签名；安装、启动和校验记录见[安装包验收](docs/acceptance/2026-09-27-windows-installer-v0.1.1.md)。
+将结果与同一发布页的 `SHA256SUMS.txt` 比对。安装包目前未做代码签名；本版构建和隔离安装验证见[安装包验收](docs/acceptance/2026-10-01-windows-installer-v0.2.0.md)。
 
 ### 从源码运行（开发者）
 
@@ -96,11 +94,11 @@ uv run ragdb-gui --config C:/RAGDB-demo/config.toml
 uv run ragdb --config C:/RAGDB-demo/config.toml doctor
 ```
 
-## 邮箱账号与首次配置（当前源码）
+## 邮箱账号与首次配置
 
-当前源码已加入注册、邮箱确认和登录门禁：桌面工作台及知识库命令必须使用已验证账号，两个账号在同一电脑上也分别使用自己的数据目录。**v0.1.1 安装包尚不包含此功能**；下一版安装包正在构建与验证。源码运行时若未配置认证项目，欢迎动画后会停留在登录 / 注册页，CLI 知识库命令会拒绝访问。
+v0.2.0 桌面和命令行都要求邮箱账号登录；同一电脑上的不同账号各有独立数据目录。安装版内置项目的 **公开** Supabase 客户端地址与 publishable key，首次启动即可进入注册流程；认证和邮件投递仍需联网。旧版配置若两个认证字段均为空，安装版会临时使用内置公开配置，**不会改写原配置文件**。如使用自己的 Supabase 项目，请在本机配置中同时填写 URL 和 publishable key。源码运行不内置项目配置，需按下文自行填写。
 
-项目使用 [Supabase Auth 邮箱密码认证](https://supabase.com/docs/guides/auth/passwords)。当前项目已配置自定义 SMTP 和验证码邮件模板；“先验证码后密码”的桌面流程、同机 CLI 在线登录检查，以及真实账号永久注销并清理本机资料均已做过单账号验证。**这不代表所有邮箱服务商都已验证**。源码使用者需将自己项目的 **Project URL** 和 **publishable key**（或旧版 anon key）填入本机 `config.toml` 的 `[auth]`；也可通过本机 `.env` 中的 `RAGDB_AUTH__URL` 与 `RAGDB_AUTH__PUBLISHABLE_KEY` 设置。**service_role / secret Key 和 SMTP 凭据绝不能放进客户端、配置样例或仓库**。
+项目使用 [Supabase Auth 邮箱密码认证](https://supabase.com/docs/guides/auth/passwords)。当前项目已配置自定义 SMTP 和验证码邮件模板；“先验证码后密码”的桌面流程、同机 CLI 在线登录检查，以及真实账号永久注销并清理本机资料均已做过单账号验证。**这不代表所有邮箱服务商都已验证**。源码使用者需将自己项目的 **Project URL** 和 **publishable key**（或旧版 anon key）填入本机 `config.toml` 的 `[auth]`；也可通过本机 `.env` 中的 `RAGDB_AUTH__URL` 与 `RAGDB_AUTH__PUBLISHABLE_KEY` 设置。安装版允许在本机配置中覆盖内置公开项目。**service_role / secret Key 和 SMTP 凭据绝不能放进客户端、配置样例或仓库**。
 
 管理员需在 Supabase **Authentication → Email Templates → Magic Link** 中将邮件改为显示验证码，例如：
 
@@ -265,19 +263,19 @@ uv run ragdb --help
 | 模型与索引管理 | 已完成 | 连接测试、凭据保存、全库重建、安全发布、旧索引清理 |
 | 备份与评估 | 已完成 | 全库备份恢复、固定资料集评估与离线管线冒烟 |
 | v0.1.1 体验修复 | 已发布 | 密钥保存、会话删除、集合切换保留会话、导入记录、概览刷新、嵌入接口兼容 |
-| Windows 安装交付 | v0.1.1 已发布 | 独立安装、启动、自检、隔离覆盖安装 / 卸载及远端 SHA256 校验；新版构建中 |
-| 邮箱认证与账号隔离 | 源码已完成 | 邮箱验证码先行注册、桌面 / CLI 登录门禁、每账号本机知识库隔离；真实单账号流程已验证 |
-| 个人菜单与账号管理 | 源码已完成 | 个人资料、模型、设置、主题、密码找回、退出和永久注销；真实单账号注销已验证 |
-| 侧栏数量显示 | 源码已完成 | RAG DB 旁显示集合总数，学习产物旁显示当前集合产物数 |
+| Windows 安装交付 | v0.2.0 已发布 | 独立安装、启动、自检、隔离覆盖安装 / 卸载及 SHA256 校验 |
+| 邮箱认证与账号隔离 | v0.2.0 已发布 | 邮箱验证码先行注册、桌面 / CLI 登录门禁、每账号本机知识库隔离；真实单账号流程已验证 |
+| 个人菜单与账号管理 | v0.2.0 已发布 | 个人资料、模型、设置、主题、密码找回、退出和永久注销；真实单账号注销已验证 |
+| 侧栏数量显示 | v0.2.0 已发布 | RAG DB 旁显示集合总数，学习产物旁显示当前集合产物数 |
 | 更多服务商真实账号验证 | 后续候选 | 扩展模型兼容性记录；目前不能宣称所有云端模型都已实测 |
 | 复杂文档离线评估 | 源码已完成 | 新增 Markdown、Word 表格、文本层 PDF 的 5 资料 / 8 查询隔离样本；真实资料优化仍需具体案例 |
 | 索引底层可靠性 | 持续跟踪 | 保留已验证恢复机制，继续跟踪 Chroma 上游问题 |
 
-v0.1.1 发布前功能回归 **475 项通过**。之后源码增加认证、账号管理、自适应问答气泡、侧栏计数与复杂文档离线评估；本轮完整测试和新安装包验证结果将在新版发布记录中单独列出。云端嵌入已有隔离 HTTP 场景验证，本机 Ollama 有实测；未逐一使用其他服务商真实账号验证。
+v0.2.0 包含认证、账号管理、自适应问答气泡、侧栏计数与复杂文档离线评估。完整测试与安装版验证结果见[本版验收](docs/acceptance/2026-10-01-windows-installer-v0.2.0.md)。云端嵌入已有隔离 HTTP 场景验证，本机 Ollama 有实测；未逐一使用其他服务商真实账号验证。
 
 - [完整进度与下一阶段](task_plan.md)
 - [嵌入连接验收](docs/acceptance/2026-09-27-embedding-connectivity.md)
-- [安装包验收与验证边界](docs/acceptance/2026-09-27-windows-installer-v0.1.1.md)
+- [安装包验收与验证边界](docs/acceptance/2026-10-01-windows-installer-v0.2.0.md)
 - [交付时间线](progress.md)
 
 ### 已知限制
@@ -294,7 +292,7 @@ v0.1.1 发布前功能回归 **475 项通过**。之后源码增加认证、账�
 
 | 操作 | 数据流向 |
 | --- | --- |
-| 注册 / 登录（当前源码） | 邮箱、密码及登录令牌发送给所配置的 Supabase Auth 项目；密码不写入本机配置，刷新令牌放在系统凭据库 |
+| 注册 / 登录 | 邮箱、密码及登录令牌发送给所配置的 Supabase Auth 项目；密码不写入本机配置，刷新令牌放在系统凭据库 |
 | 本地解析与索引存储 | 本机 SQLite / Chroma 数据目录 |
 | 云端嵌入 | 将待嵌入资料切片或检索问题发送到配置的服务；全库重建涉及所有集合当前切片 |
 | 云端问答 / 学习生成 | 将问题或主题、检索证据等上下文发送到配置的聊天服务；问答还可能包含会话历史 |

@@ -146,8 +146,8 @@ class AuthService:
         """Confirm a signup code without creating a saved login session."""
         address = email.strip()
         token = code.strip()
-        if not address or not re.fullmatch(r"[0-9]{6}", token):
-            raise AuthError("请输入邮箱和邮件中的 6 位数字验证码。")
+        if not address or not re.fullmatch(r"[0-9]{6,32}", token):
+            raise AuthError("请输入邮箱和邮件中的数字验证码。")
         data = self._request(
             "POST", "verify", json={"email": address, "token": token, "type": "email"},
             invalid_message="验证码错误或已过期，请重新输入或重发验证码。",

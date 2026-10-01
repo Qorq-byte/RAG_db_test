@@ -114,7 +114,7 @@ url = "https://YOUR-PROJECT.supabase.co"
 publishable_key = "sb_publishable_..."
 ```
 
-桌面端启动后先输入邮箱、密码和确认密码，点击“注册并发送验证码”；把邮件中的 6 位数字填入“验证码”并点击“验证邮箱”，然后用邮箱和密码登录。验证码过期或未收到时点击“重发验证码”。已有账号输入邮箱和密码直接登录。状态栏提供“退出登录”。CLI 依次执行 `ragdb auth register you@example.com`、`ragdb auth verify you@example.com`、`ragdb auth login you@example.com`；可用 `ragdb auth resend you@example.com` 重发，`ragdb auth status` 查看状态，`ragdb auth logout` 退出。密码和验证码通过终端隐蔽输入。密码不会保存在本机，刷新令牌存于系统凭据库；启动和 CLI 每次执行知识库命令都会在线验证。网络或认证服务不可用时，会拒绝打开知识库。
+桌面端启动后先输入邮箱、密码和确认密码，点击“注册并发送验证码”；把邮件中的数字验证码完整填入“验证码”并点击“验证邮箱”，然后用邮箱和密码登录。验证码长度由 Supabase 项目设置决定，当前项目发送 8 位数字。验证码过期或未收到时点击“重发验证码”。已有账号输入邮箱和密码直接登录。状态栏提供“退出登录”。CLI 依次执行 `ragdb auth register you@example.com`、`ragdb auth verify you@example.com`、`ragdb auth login you@example.com`；可用 `ragdb auth resend you@example.com` 重发，`ragdb auth status` 查看状态，`ragdb auth logout` 退出。密码和验证码通过终端隐蔽输入。密码不会保存在本机，刷新令牌存于系统凭据库；启动和 CLI 每次执行知识库命令都会在线验证。网络或认证服务不可用时，会拒绝打开知识库。
 
 登录后的数据保存在 `<storage.data_dir>/accounts/<账号 UUID>/`。原有 `<storage.data_dir>` 下的旧库保持原状，**不会自动迁移或合并到任一新账号**。如需迁移旧资料，先备份旧库，确认所属账号后再由管理员安排导入；更换账号也不会自动共享本机知识库。登录保护并不加密磁盘文件，本机操作系统用户仍须妥善保护数据目录。
 

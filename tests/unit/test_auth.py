@@ -68,7 +68,7 @@ def test_email_code_confirms_server_identity_without_saving_login():
         paths.append(request.url.path)
         if request.url.path.endswith("/verify"):
             assert json.loads(request.content) == {
-                "email": "a@example.com", "token": "123456", "type": "email"
+                "email": "a@example.com", "token": "12345678", "type": "email"
             }
             return httpx.Response(200, json={"access_token": "temporary", "refresh_token": "unused"})
         if request.url.path.endswith("/user"):
@@ -79,7 +79,7 @@ def test_email_code_confirms_server_identity_without_saving_login():
         assert request.headers["authorization"] == "Bearer temporary"
         return httpx.Response(204)
 
-    service(handler, credentials).verify_email_code(" a@example.com ", "123456")
+    service(handler, credentials).verify_email_code(" a@example.com ", "12345678")
     assert paths == ["/auth/v1/verify", "/auth/v1/user", "/auth/v1/logout"]
     assert credentials.values == {}
 
@@ -92,7 +92,7 @@ def test_email_code_rejects_invalid_or_expired_token():
         return httpx.Response(403, json={"msg": "invalid token"})
 
     auth = service(handler)
-    with pytest.raises(AuthError, match="6 位"):
+    with pytest.raises(AuthError, match="数字验证码"):
         auth.verify_email_code("a@example.com", "12345")
     assert requests == []
     with pytest.raises(AuthError, match="验证码错误或已过期"):

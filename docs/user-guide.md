@@ -71,7 +71,7 @@ uv run ragdb auth login you@example.com
 uv run ragdb auth status
 ```
 
-`auth verify` 会隐蔽读取邮件中的 6 位数字验证码；过期或未收到时可执行 `uv run ragdb auth resend you@example.com`。CLI 密码也在终端隐藏输入。每条知识库命令都在线检查账号；`auth logout` 清除本机登录状态。不同账号的数据库分别位于 `<storage.data_dir>/accounts/<账号 UUID>/`；旧库不会自动迁移。
+`auth verify` 会隐蔽读取邮件中的完整数字验证码，位数由 Supabase 项目设置决定；过期或未收到时可执行 `uv run ragdb auth resend you@example.com`。CLI 密码也在终端隐藏输入。每条知识库命令都在线检查账号；`auth logout` 清除本机登录状态。不同账号的数据库分别位于 `<storage.data_dir>/accounts/<账号 UUID>/`；旧库不会自动迁移。
 
 创建集合：
 

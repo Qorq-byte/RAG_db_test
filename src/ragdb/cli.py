@@ -300,8 +300,8 @@ def auth_register(ctx: typer.Context, email: str) -> None:
 
 @auth_app.command("verify")
 def auth_verify(ctx: typer.Context, email: str) -> None:
-    """输入邮件中的六位验证码，确认注册邮箱。"""
-    code = typer.prompt("6 位邮箱验证码", hide_input=True)
+    """输入邮件中的数字验证码，确认注册邮箱。"""
+    code = typer.prompt("邮箱验证码", hide_input=True)
     try:
         auth = _auth_service(ctx)
         try:

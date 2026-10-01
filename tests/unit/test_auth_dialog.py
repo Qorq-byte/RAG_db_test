@@ -71,7 +71,8 @@ def test_code_verification_and_resend_do_not_open_workbench():
 
     dialog = AuthDialog(SETTINGS, auth_factory=FakeAuth, restore_on_open=False)
     dialog.email.setText("a@example.com")
-    dialog.code.setText("123456")
+    dialog.code.setText("12345678")
+    assert dialog.code.text() == "12345678"
     dialog._verify()
     wait_until(lambda: "邮箱验证成功" in dialog.status.text())
     assert dialog.result() != QDialog.DialogCode.Accepted
@@ -79,7 +80,7 @@ def test_code_verification_and_resend_do_not_open_workbench():
     assert dialog.code.text() == ""
     dialog._resend()
     wait_until(lambda: "新的验证码已发送" in dialog.status.text())
-    assert calls == [("verify", "a@example.com", "123456"), ("resend", "a@example.com")]
+    assert calls == [("verify", "a@example.com", "12345678"), ("resend", "a@example.com")]
     dialog.close()
 
 

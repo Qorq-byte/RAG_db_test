@@ -24,7 +24,7 @@ class AuthDialog(QDialog):
         self._task = None
         title = QLabel("登录知识库")
         title.setStyleSheet("font-size: 23px; font-weight: 700")
-        description = QLabel("请先注册，在邮箱中查看 6 位验证码并在这里验证，然后登录使用桌面工作台。")
+        description = QLabel("请先注册，在邮箱中查看验证码并在这里验证，然后登录使用桌面工作台。")
         description.setWordWrap(True)
         self.email = QLineEdit()
         self.email.setPlaceholderText("you@example.com")
@@ -37,8 +37,8 @@ class AuthDialog(QDialog):
         self.confirm.setEchoMode(QLineEdit.EchoMode.Password)
         self.confirm.setAccessibleName("确认密码，仅注册时填写")
         self.code = QLineEdit()
-        self.code.setMaxLength(6)
-        self.code.setPlaceholderText("邮件中的 6 位数字")
+        self.code.setMaxLength(32)
+        self.code.setPlaceholderText("邮件中的数字验证码")
         self.code.setAccessibleName("邮箱验证码")
         form = QFormLayout()
         form.addRow("邮箱", self.email)
@@ -140,7 +140,7 @@ class AuthDialog(QDialog):
     @Slot(object, object)
     def _succeeded(self, mode, result) -> None:
         if mode == "register":
-            self.status.setText("如邮箱可注册，验证码邮件已发送。请输入邮件中的 6 位数字。")
+            self.status.setText("如邮箱可注册，验证码邮件已发送。请输入邮件中的数字验证码。")
             self.password.clear()
             self.confirm.clear()
             self.code.setFocus()

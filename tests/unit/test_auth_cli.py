@@ -89,9 +89,9 @@ def test_cli_verifies_and_resends_code_without_logging_in(monkeypatch):
         url="https://example.supabase.co", publishable_key="sb_publishable_test"
     )))
     monkeypatch.setattr(cli, "AuthService", CodeAuth)
-    verified = runner.invoke(cli.app, ["auth", "verify", "a@example.com"], input="123456\n")
+    verified = runner.invoke(cli.app, ["auth", "verify", "a@example.com"], input="12345678\n")
     assert verified.exit_code == 0, verified.output
     assert "邮箱验证成功" in verified.output
     resent = runner.invoke(cli.app, ["auth", "resend", "a@example.com"])
     assert resent.exit_code == 0, resent.output
-    assert calls == [("verify", "a@example.com", "123456"), ("resend", "a@example.com")]
+    assert calls == [("verify", "a@example.com", "12345678"), ("resend", "a@example.com")]

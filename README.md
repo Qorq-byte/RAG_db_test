@@ -96,7 +96,7 @@ uv run ragdb --config C:/RAGDB-demo/config.toml doctor
 
 当前源码新增了注册、邮箱确认和登录门禁：桌面工作台及知识库命令必须使用已验证账号，两个账号在同一电脑上也分别使用自己的数据目录。**v0.1.1 安装包尚不包含此功能**；需待认证服务实际配置、邮件与安装版验收完成后再更新安装包。没有配置认证项目时，当前源码会停留在登录页，CLI 知识库命令会拒绝访问。
 
-项目使用 [Supabase Auth 邮箱密码认证](https://supabase.com/docs/guides/auth/passwords)。Supabase 项目已创建，本机已验证 Project URL 与 publishable key 能连接认证设置接口，且邮箱注册与邮箱确认已启用。管理员已在控制台保存自定义 SMTP；**任意用户的实际邮件投递及完整注册登录流程仍待验收**。Supabase 默认发信服务只允许组织成员邮箱，不能用于开放注册。把项目的 **Project URL** 和 **publishable key**（或旧版 anon key）填入本机 `config.toml` 的 `[auth]`；也可通过本机 `.env` 中的 `RAGDB_AUTH__URL` 与 `RAGDB_AUTH__PUBLISHABLE_KEY` 设置。**service_role / secret Key 和 SMTP 凭据绝不能放进客户端、配置样例或仓库**。
+项目使用 [Supabase Auth 邮箱密码认证](https://supabase.com/docs/guides/auth/passwords)。Supabase 项目已创建，本机已验证 Project URL 与 publishable key 能连接认证设置接口，且邮箱注册与邮箱确认已启用。管理员已在控制台保存自定义 SMTP；**一次真实邮箱注册、8 位验证码投递与确认、桌面登录，以及同机 CLI 在线登录检查和集合访问均已通过**。其他邮箱的投递和安装版仍待单独验收。Supabase 默认发信服务只允许组织成员邮箱，不能用于开放注册。把项目的 **Project URL** 和 **publishable key**（或旧版 anon key）填入本机 `config.toml` 的 `[auth]`；也可通过本机 `.env` 中的 `RAGDB_AUTH__URL` 与 `RAGDB_AUTH__PUBLISHABLE_KEY` 设置。**service_role / secret Key 和 SMTP 凭据绝不能放进客户端、配置样例或仓库**。
 
 管理员需在 Supabase **Authentication → Email Templates → Confirm sign up** 中将确认邮件改为显示验证码，例如：
 
